@@ -1,4 +1,5 @@
 import Listing from "../models/listing.model.js";
+import User from "../models/user.model.js";
 import { errorHandler } from "../utils/error.js";
 
 export const createListing = async (req, res, next) => {
@@ -48,10 +49,24 @@ export const updateListing = async (req, res, next) => {
 
 export const getListing = async (req, res, next) => {
   try {
+    // Fetch the listing by ID
     const listing = await Listing.findById(req.params.id);
     if (!listing) return next(errorHandler(404, "Listing not found!"));
 
-    res.status(200).json(listing);
+    // Fetch landlord details using the userRef
+    const landlord = await User.findById(listing.userRef, "username avatar");
+    if (!landlord) {
+      return next(errorHandler(404, "Landlord not found!"));
+    }
+
+    // Include landlord details in the response
+    res.status(200).json({
+      ...listing._doc,
+      landlord: {
+        username: landlord.username,
+        avatar: landlord.avatar || "default-avatar.png",
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -98,7 +113,6 @@ export const getListings = async (req, res, next) => {
       offer,
       furnished,
       type,
-      // parking,
     })
       .sort({ [sort]: order })
       .limit(limit)

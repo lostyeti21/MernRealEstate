@@ -110,6 +110,21 @@ const Listing = () => {
             ))}
           </Swiper>
 
+          {/* Landlord Details */}
+          {listing.landlord && (
+            <div className="flex items-center gap-4 mt-4 mx-4">
+              <img
+                src={listing.landlord.avatar || "default-avatar.png"}
+                alt="Landlord"
+                className="rounded-full h-12 w-12 object-cover"
+              />
+              <p className="text-lg font-semibold text-slate-700">
+                Listed by {listing.landlord.username || "Unknown Landlord"}
+              </p>
+            </div>
+          )}
+
+
           {/* Share Button */}
           <div className="fixed top-[13%] right-[3%] z-10 border rounded-full w-12 h-12 flex justify-center items-center bg-slate-100 cursor-pointer">
             <FaShare
