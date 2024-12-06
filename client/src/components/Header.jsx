@@ -10,32 +10,34 @@ const Header = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const urlParams = new URLSearchParams(window.location.search);
-    urlParams.set("searchTerm", searchTerm);
-    const searchQuery = urlParams.toString();
-    navigate(`/search?${searchQuery}`);
+    if (searchTerm.trim()) {
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.set("searchTerm", searchTerm);
+      const searchQuery = urlParams.toString();
+      navigate(`/search?${searchQuery}`);
+    }
   };
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
+    const urlParams = new URLSearchParams(window.location.search);
     const searchTermFromUrl = urlParams.get("searchTerm");
     if (searchTermFromUrl) {
       setSearchTerm(searchTermFromUrl);
     }
-  }, [location.search]);
+  }, [window.location.search]);
 
   return (
     <header className="bg-slate-200 shadow-md">
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3">
-        {/* Logo */}
+        {/* Logo Section */}
         <Link to="/">
-          <h1 className="font-bold text-sm sm:text-xl flex flex-wrap items-center">
+          <h1 className="font-bold text-sm sm:text-xl flex flex-wrap">
             <span className="text-slate-500">Dzimba</span>
             <span className="text-slate-700"> &nbsp; Estate</span>
           </h1>
         </Link>
 
-        {/* Search Bar */}
+        {/* Search Section */}
         <form
           onSubmit={handleSubmit}
           className="bg-slate-100 p-3 rounded-lg flex items-center"
@@ -47,16 +49,26 @@ const Header = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <button>
+          <button type="submit">
             <FaSearch className="text-slate-600" />
           </button>
         </form>
 
-        {/* Navigation Links and Profile Icon */}
+        {/* Navigation Links */}
         <ul className="flex gap-4 items-center">
           <Link to="/">
             <li className="hidden sm:inline text-slate-700 hover:underline">
               Home
+            </li>
+          </Link>
+          <Link to="/landlords">
+            <li className="hidden sm:inline text-slate-700 hover:underline">
+              Landlords
+            </li>
+          </Link>
+          <Link to="/tenants">
+            <li className="hidden sm:inline text-slate-700 hover:underline">
+              Tenants
             </li>
           </Link>
           <Link to="/about">
@@ -64,19 +76,19 @@ const Header = () => {
               About
             </li>
           </Link>
-
-          {/* Profile Section */}
-          <Link to="/profile">
-            {currentUser ? (
+          {currentUser ? (
+            <Link to="/profile">
               <img
-                src={currentUser.avatar}
+                src={currentUser.avatar || "https://via.placeholder.com/150"}
                 alt="avatar"
-                className="rounded-full h-12 w-12 object-cover" // Updated size
+                className="rounded-full h-8 w-8 object-cover border border-slate-300"
               />
-            ) : (
+            </Link>
+          ) : (
+            <Link to="/sign-in">
               <li className="text-slate-700 hover:underline">Sign In</li>
-            )}
-          </Link>
+            </Link>
+          )}
         </ul>
       </div>
     </header>

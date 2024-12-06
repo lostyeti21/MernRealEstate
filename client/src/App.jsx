@@ -10,26 +10,30 @@ import CreateListing from "./pages/CreateListing";
 import UpdateListing from "./pages/UpdateListing";
 import Listing from "./pages/Listing";
 import Search from "./pages/Search";
+import Landlords from "./pages/Landlords";
+import Tenants from "./pages/Tenants";
 
 const App = () => {
   return (
     <BrowserRouter>
-    <Header />
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/sign-in" element={<SignIn />} />
-      <Route path="/sign-up" element={<SignUp />} />
-      <Route path="/about" element={<About />} />
-      <Route path="/listing/:listingId" element={<Listing />} />
-      <Route path="/search" element={<Search />} />
-      <Route element={<PrivateRoute />}>
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/create-listing" element={<CreateListing />} />
-        <Route path="/update-listing/:listingId" element={<UpdateListing />} />
-      </Route>
-    </Routes>
+      <Header />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/landlords" element={<Landlords />} />
+        <Route path="/tenants" element={<Tenants />} />
+        <Route path="/sign-in" element={<SignIn />} />
+        <Route path="/sign-up" element={<SignUp />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/listing/:listingId" element={<Listing />} />
+        <Route path="/search" element={<Search />} />
+        <Route element={<PrivateRoute />}>
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/create-listing" element={<CreateListing />} />
+          <Route path="/update-listing/:listingId" element={<UpdateListing />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
-  )
-}
+  );
+};
 
-export default App
+export default App;

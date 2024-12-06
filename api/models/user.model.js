@@ -20,7 +20,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
     },
-    
+    ratings: {
+      type: [Number], // Array to store individual ratings
+      default: [],
+    },
+    ratedBy: {
+      type: [String], // Array to store user IDs who have rated this landlord
+      default: [],
+    },
   },
   { timestamps: true }
 );

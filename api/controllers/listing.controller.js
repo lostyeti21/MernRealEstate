@@ -49,28 +49,32 @@ export const updateListing = async (req, res, next) => {
 
 export const getListing = async (req, res, next) => {
   try {
-    // Fetch the listing by ID
     const listing = await Listing.findById(req.params.id);
     if (!listing) return next(errorHandler(404, "Listing not found!"));
 
-    // Fetch landlord details using the userRef
-    const landlord = await User.findById(listing.userRef, "username avatar");
+    const landlord = await User.findById(listing.userRef, "username avatar ratings");
     if (!landlord) {
       return next(errorHandler(404, "Landlord not found!"));
     }
 
-    // Include landlord details in the response
+    const averageRating =
+      landlord.ratings.length > 0
+        ? landlord.ratings.reduce((sum, r) => sum + r, 0) / landlord.ratings.length
+        : 0;
+
     res.status(200).json({
       ...listing._doc,
       landlord: {
         username: landlord.username,
         avatar: landlord.avatar || "default-avatar.png",
+        averageRating,
       },
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 export const getListings = async (req, res, next) => {
   try {

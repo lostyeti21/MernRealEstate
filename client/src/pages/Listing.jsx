@@ -9,6 +9,7 @@ import L from "leaflet";
 import "swiper/css/bundle";
 import { useSelector } from "react-redux";
 import { geocodeAddress } from "../../../api/utils/geocode";
+import RateLandlord from "../components/RateLandlord";
 
 import {
   FaBath,
@@ -112,18 +113,37 @@ const Listing = () => {
 
           {/* Landlord Details */}
           {listing.landlord && (
-            <div className="flex items-center gap-4 mt-4 mx-4">
-              <img
-                src={listing.landlord.avatar || "default-avatar.png"}
-                alt="Landlord"
-                className="rounded-full h-12 w-12 object-cover"
-              />
-              <p className="text-lg font-semibold text-slate-700">
-                Listed by {listing.landlord.username || "Unknown Landlord"}
-              </p>
+            <div className="flex flex-col gap-2 mt-4 mx-4">
+              <div className="flex items-center gap-4">
+                <img
+                  src={listing.landlord.avatar || "default-avatar.png"}
+                  alt="Landlord"
+                  className="rounded-full h-12 w-12 object-cover"
+                />
+                <div>
+                  <p className="text-lg font-semibold text-slate-700">
+                    Listed by {listing.landlord.username || "Unknown Landlord"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Average Rating: {listing.landlord.averageRating?.toFixed(1) || 0} / 5
+                  </p>
+                </div>
+              </div>
+
+              {/* Rate Landlord Component */}
+              {currentUser && (
+                <RateLandlord
+                  landlordId={listing.userRef}
+                  onRated={(newAverage) => {
+                    setListing((prev) => ({
+                      ...prev,
+                      landlord: { ...prev.landlord, averageRating: newAverage },
+                    }));
+                  }}
+                />
+              )}
             </div>
           )}
-
 
           {/* Share Button */}
           <div className="fixed top-[13%] right-[3%] z-10 border rounded-full w-12 h-12 flex justify-center items-center bg-slate-100 cursor-pointer">
