@@ -21,24 +21,29 @@ const userSchema = new mongoose.Schema(
       default: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
     },
     ratings: {
-      type: [Number],
+      type: [Number], // Array of individual ratings
       default: [],
     },
     ratedBy: {
-      type: [mongoose.Schema.Types.ObjectId],
+      type: [mongoose.Schema.Types.ObjectId], // Users who rated
       ref: "User",
       default: [],
     },
+    averageRating: { type: Number, default: 0 }, // Average of all ratings
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+  { timestamps: true }
 );
 
-// Virtual field to compute if a user is a landlord
-userSchema.virtual("isLandlord").get(async function () {
-  const Listing = mongoose.model("Listing");
-  const hasPosts = await Listing.exists({ userRef: this._id });
-  return !!hasPosts;
-});
+// Method to calculate and update averageRating
+userSchema.methods.updateAverageRating = function () {
+  const totalRatings = this.ratings.length;
+  if (totalRatings > 0) {
+    this.averageRating = this.ratings.reduce((sum, rating) => sum + rating, 0) / totalRatings;
+  } else {
+    this.averageRating = 0; // Reset if no ratings
+  }
+  return this.save();
+};
 
 const User = mongoose.model("User", userSchema);
 
