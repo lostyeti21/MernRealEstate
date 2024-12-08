@@ -1,33 +1,31 @@
 import express from "express";
 import {
-  updateUser,
-  deleteUser,
-  getUserListings,
   getUser,
-  rateLandlord,
-  checkIfRated,
+  getUserListings,
   getLandlords,
   getTenants,
+  rateLandlord,
+  rateTenant,
+  checkIfRated,
+  updateUser,
+  deleteUser,
 } from "../controllers/user.controller.js";
-import { verifyToken } from "../utils/verifyUser.js";
 
 const router = express.Router();
 
-// Landlord-specific routes
-router.get("/landlords", getLandlords); // Get all landlords
-router.get("/tenants", getTenants); // Add this route
-router.post("/rate", verifyToken, rateLandlord); // Rate a landlord
-router.get("/check-rated/:landlordId", verifyToken, checkIfRated); // Check if user has rated a landlord
+// Public endpoints
+router.get("/landlords", getLandlords);
+router.get("/tenants", getTenants);
+router.get("/:id", getUser);
+router.get("/listings/:id", getUserListings);
 
-// User update and deletion routes
-router.post("/update/:id", verifyToken, updateUser);
-router.delete("/delete/:id", verifyToken, deleteUser);
+// Protected endpoints
+router.post("/rate-landlord", rateLandlord);
+router.post("/rate-tenant", rateTenant);
+router.get("/check-rated/:landlordId", checkIfRated);
 
-// User-specific data routes
-router.get("/listings/:id", verifyToken, getUserListings);
-router.get("/:id", verifyToken, getUser);
-
-
-
+// Profile management (protected)
+router.post("/update/:id", updateUser);
+router.delete("/delete/:id", deleteUser);
 
 export default router;

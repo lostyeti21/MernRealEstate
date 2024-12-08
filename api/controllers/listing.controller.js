@@ -127,3 +127,15 @@ export const getListings = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getLandlordListings = async (req, res, next) => {
+  const { userId } = req.params;
+
+  try {
+    const listings = await Listing.find({ userRef: userId });
+    res.status(200).json(listings);
+  } catch (error) {
+    next(errorHandler(500, "Could not fetch listings for the specified landlord."));
+  }
+};
+

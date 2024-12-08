@@ -12,6 +12,7 @@ import Listing from "./pages/Listing";
 import Search from "./pages/Search";
 import Landlords from "./pages/Landlords";
 import Tenants from "./pages/Tenants";
+import LandlordListings from "./pages/LandlordListings";
 
 const App = () => {
   return (
@@ -20,6 +21,7 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/landlords" element={<Landlords />} />
+        <Route path="/landlord/:id" element={<LandlordListings />} />
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/sign-in" element={<SignIn />} />
         <Route path="/sign-up" element={<SignUp />} />
@@ -30,6 +32,7 @@ const App = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/create-listing" element={<CreateListing />} />
           <Route path="/update-listing/:listingId" element={<UpdateListing />} />
+          <Route path="/landlord/:landlordId" element={<LandlordListings />} />
         </Route>
       </Routes>
     </BrowserRouter>
