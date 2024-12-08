@@ -75,7 +75,6 @@ export const getListing = async (req, res, next) => {
   }
 };
 
-
 export const getListings = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 9;
@@ -128,14 +127,34 @@ export const getListings = async (req, res, next) => {
   }
 };
 
-export const getLandlordListings = async (req, res, next) => {
+export const getLandlordListings = async (req, res) => {
   const { userId } = req.params;
 
+  console.log("Fetching listings for userId:", userId); // Debug log
+
   try {
-    const listings = await Listing.find({ userRef: userId });
+    // Validate if userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.log("Invalid userId:", userId); // Debug log
+      return res.status(400).json({ message: "Invalid user ID." });
+    }
+
+    // Convert userId to ObjectId if it's not already
+    const objectId = mongoose.Types.ObjectId(userId);
+
+    // Fetch listings where userRef matches the ObjectId
+    const listings = await Listing.find({ userRef: objectId });
+
+    if (!listings.length) {
+      console.log("No listings found for userId:", userId); // Debug log
+      return res.status(404).json({ message: "No listings found for this user." });
+    }
+
+    console.log("Listings found for userId:", listings); // Debug log
     res.status(200).json(listings);
   } catch (error) {
-    next(errorHandler(500, "Could not fetch listings for the specified landlord."));
+    console.error("Error fetching landlord listings:", error.message);
+    res.status(500).json({ message: "Internal server error." });
   }
 };
 

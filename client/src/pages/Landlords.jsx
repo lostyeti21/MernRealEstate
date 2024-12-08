@@ -12,9 +12,7 @@ const Landlords = () => {
     const fetchLandlords = async () => {
       try {
         const res = await fetch("/api/user/landlords");
-        if (!res.ok) {
-          throw new Error("Failed to fetch landlords.");
-        }
+        if (!res.ok) throw new Error("Failed to fetch landlords.");
         const data = await res.json();
         setLandlords(data);
         setFilteredLandlords(data); // Initialize filtered landlords
@@ -30,19 +28,31 @@ const Landlords = () => {
   }, []);
 
   const handleSearch = (e) => {
-    const searchQuery = e.target.value.toLowerCase();
-    setSearchTerm(searchQuery);
+    const query = e.target.value.trim().toLowerCase();
+    setSearchTerm(query);
     setFilteredLandlords(
       landlords.filter((landlord) =>
-        landlord.username.toLowerCase().includes(searchQuery)
+        landlord.username.toLowerCase().includes(query)
       )
     );
   };
 
-  if (loading) return <p className="text-center">Loading...</p>;
+  if (loading)
+    return (
+      <div className="text-center">
+        <p>Loading landlords...</p>
+        <div className="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full"></div>
+      </div>
+    );
+
   if (error)
     return (
-      <p className="text-center text-red-500">Error loading landlords.</p>
+      <div className="text-center">
+        <p className="text-red-500">Error loading landlords. Please try again later.</p>
+        <button onClick={() => window.location.reload()} className="text-blue-500 underline">
+          Retry
+        </button>
+      </div>
     );
 
   return (
@@ -62,7 +72,7 @@ const Landlords = () => {
 
       {/* Landlords List */}
       {filteredLandlords.length === 0 ? (
-        <p className="text-center">No landlords found.</p>
+        <p className="text-center">No landlords found matching your search.</p>
       ) : (
         <ul className="space-y-4">
           {filteredLandlords.map((landlord) => (
@@ -72,7 +82,7 @@ const Landlords = () => {
             >
               <img
                 src={landlord.avatar || "https://via.placeholder.com/150"}
-                alt={landlord.username}
+                alt={`${landlord.username}'s avatar`}
                 className="rounded-full w-12 h-12 object-cover"
               />
               <div>

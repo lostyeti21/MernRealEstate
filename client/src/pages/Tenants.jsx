@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 
 const Tenants = () => {
   const [tenants, setTenants] = useState([]);
+  const [filteredTenants, setFilteredTenants] = useState([]); // For search functionality
+  const [searchTerm, setSearchTerm] = useState(""); // Search term state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -15,6 +17,7 @@ const Tenants = () => {
         },
         body: JSON.stringify({ tenantId, rating }),
       });
+
       const data = await res.json();
 
       if (res.ok) {
@@ -41,6 +44,7 @@ const Tenants = () => {
         const res = await fetch("/api/user/tenants");
         const data = await res.json();
         setTenants(data);
+        setFilteredTenants(data); // Initialize filtered tenants
         setLoading(false);
       } catch (err) {
         console.error("Error loading tenants:", err);
@@ -52,6 +56,16 @@ const Tenants = () => {
     fetchTenants();
   }, []);
 
+  const handleSearch = (e) => {
+    const query = e.target.value.toLowerCase();
+    setSearchTerm(query);
+    setFilteredTenants(
+      tenants.filter((tenant) =>
+        tenant.username.toLowerCase().includes(query)
+      )
+    );
+  };
+
   if (loading) return <p className="text-center">Loading...</p>;
   if (error)
     return (
@@ -61,11 +75,24 @@ const Tenants = () => {
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6">Tenants</h1>
-      {tenants.length === 0 ? (
+
+      {/* Search Bar */}
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search tenants by username..."
+          value={searchTerm}
+          onChange={handleSearch}
+          className="w-full p-3 border rounded-md focus:outline-none focus:ring focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Tenant List */}
+      {filteredTenants.length === 0 ? (
         <p className="text-center">No tenants found.</p>
       ) : (
         <ul className="space-y-4">
-          {tenants.map((tenant) => (
+          {filteredTenants.map((tenant) => (
             <li
               key={tenant._id}
               className="flex flex-col sm:flex-row items-center justify-between space-x-4 p-3 border rounded-md"
@@ -92,7 +119,11 @@ const Tenants = () => {
                 {[1, 2, 3, 4, 5].map((star) => (
                   <span
                     key={star}
-                    className="cursor-pointer text-yellow-500"
+                    className={`cursor-pointer ${
+                      star <= Math.round(tenant.averageRating || 0)
+                        ? "text-yellow-500"
+                        : "text-gray-300"
+                    }`}
                     onClick={() => handleRateTenant(tenant._id, star)}
                   >
                     ★

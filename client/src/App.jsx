@@ -19,20 +19,22 @@ const App = () => {
     <BrowserRouter>
       <Header />
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/landlords" element={<Landlords />} />
-        <Route path="/landlord/:id" element={<LandlordListings />} />
+        <Route path="/landlord/:userId" element={<LandlordListings />} /> {/* Fixed to :userId */}
         <Route path="/tenants" element={<Tenants />} />
         <Route path="/sign-in" element={<SignIn />} />
         <Route path="/sign-up" element={<SignUp />} />
         <Route path="/about" element={<About />} />
         <Route path="/listing/:listingId" element={<Listing />} />
         <Route path="/search" element={<Search />} />
+
+        {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
           <Route path="/profile" element={<Profile />} />
           <Route path="/create-listing" element={<CreateListing />} />
           <Route path="/update-listing/:listingId" element={<UpdateListing />} />
-          <Route path="/landlord/:landlordId" element={<LandlordListings />} />
         </Route>
       </Routes>
     </BrowserRouter>

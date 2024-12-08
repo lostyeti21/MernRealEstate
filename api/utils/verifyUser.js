@@ -2,14 +2,26 @@ import jwt from "jsonwebtoken";
 import { errorHandler } from "./error.js";
 
 export const verifyToken = (req, res, next) => {
-    const token = req.cookies.access_token;
-    if (!token) return next(errorHandler(401, "Unauthorized"));
+  try {
+    // Extract token from cookies or Authorization header
+    const token = req.cookies?.access_token || req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return next(errorHandler(401, "Authentication token is missing."));
+    }
 
+    // Verify the token
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) return next(errorHandler(403, "Forbidden"));
+      if (err) {
+        console.error("Token verification error:", err.message);
+        return next(errorHandler(403, "Invalid or expired token."));
+      }
 
-        req.user = user;
-        next();
-
+      // Attach decoded user to the request
+      req.user = user;
+      next();
     });
-}
+  } catch (error) {
+    console.error("Error in verifyToken middleware:", error.message);
+    next(errorHandler(500, "Internal server error in authentication middleware."));
+  }
+};
