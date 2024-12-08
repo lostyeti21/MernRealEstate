@@ -109,49 +109,109 @@ export const getUser = async (req, res, next) => {
   }
 };
 
-export const rateUser = async (req, res, next) => {
-  const { userId, rating, type } = req.body;
+// Allow tenants to rate landlords
+export const rateLandlord = async (req, res, next) => {
+  const { landlordId, rating } = req.body;
 
-  if (!["landlord", "tenant"].includes(type)) {
-    return next(errorHandler(400, "Invalid user type."));
-  }
-
+  // Validate rating range
   if (rating < 1 || rating > 5) {
     return next(errorHandler(400, "Rating must be between 1 and 5."));
   }
 
   try {
-    if (req.user.id === userId) {
+    // Check if the user is a landlord (users with listings cannot rate landlords)
+    const isLandlord = await Listing.exists({ userRef: req.user.id });
+    if (isLandlord) {
+      return next(errorHandler(403, "Landlords cannot rate other landlords."));
+    }
+
+    // Check if the user is rating themselves
+    if (req.user.id === landlordId) {
       return next(errorHandler(403, "You cannot rate yourself."));
     }
 
-    const user = await User.findById(userId);
-    if (!user) return next(errorHandler(404, `${type} not found.`));
+    const landlord = await User.findById(landlordId);
+    if (!landlord) return next(errorHandler(404, "Landlord not found."));
 
-    if (!user.ratings) user.ratings = [];
-    if (!user.ratedBy) user.ratedBy = [];
+    // Initialize ratings arrays if not already initialized
+    if (!landlord.ratings) landlord.ratings = [];
+    if (!landlord.ratedBy) landlord.ratedBy = [];
 
-    if (user.ratedBy.includes(req.user.id)) {
-      return next(errorHandler(403, `You have already rated this ${type}.`));
+    // Check if the user already rated this landlord
+    if (landlord.ratedBy.includes(req.user.id)) {
+      return next(errorHandler(403, "You have already rated this landlord."));
     }
 
-    user.ratings.push(rating);
-    user.ratedBy.push(req.user.id);
+    // Add the rating and the user ID
+    landlord.ratings.push(rating);
+    landlord.ratedBy.push(req.user.id);
 
-    await user.save();
+    // Save the updated landlord
+    await landlord.save();
 
+    // Calculate the average rating
     const averageRating =
-      user.ratings.reduce((sum, r) => sum + r, 0) / user.ratings.length;
+      landlord.ratings.reduce((sum, r) => sum + r, 0) / landlord.ratings.length;
 
-    res.status(200).json({
-      averageRating,
-      message: `${type.charAt(0).toUpperCase() + type.slice(1)} rated successfully!`,
-    });
+    // Respond with the updated average rating
+    res.status(200).json({ averageRating, message: "Rating submitted successfully!" });
   } catch (error) {
     next(error);
   }
 };
 
+
+// Allow landlords to rate tenants
+export const rateTenant = async (req, res, next) => {
+  const { tenantId, rating } = req.body;
+
+  // Validate the rating
+  if (rating < 1 || rating > 5) {
+    return next(errorHandler(400, "Rating must be between 1 and 5."));
+  }
+
+  try {
+    // Ensure that the user is a landlord (users who are tenants cannot rate tenants)
+    const isLandlord = await Listing.exists({ userRef: req.user.id });
+    if (!isLandlord) {
+      return next(errorHandler(403, "Only landlords can rate tenants."));
+    }
+
+    const tenant = await User.findById(tenantId);
+    if (!tenant) return next(errorHandler(404, "Tenant not found."));
+
+    // Initialize ratings and ratedBy if not already initialized
+    if (!tenant.ratings) tenant.ratings = [];
+    if (!tenant.ratedBy) tenant.ratedBy = [];
+
+    // Prevent duplicate ratings by the same landlord
+    if (tenant.ratedBy.includes(req.user.id)) {
+      return next(errorHandler(403, "You have already rated this tenant."));
+    }
+
+    // Add the rating and the user ID
+    tenant.ratings.push(rating);
+    tenant.ratedBy.push(req.user.id);
+
+    // Save the updated tenant
+    await tenant.save();
+
+    // Calculate the new average rating
+    const averageRating =
+      tenant.ratings.reduce((sum, r) => sum + r, 0) / tenant.ratings.length;
+
+    // Respond with the updated average rating
+    res.status(200).json({
+      averageRating,
+      message: "Rating submitted successfully!",
+    });
+  } catch (error) {
+    console.error("Error in rateTenant:", error);
+    next(error);
+  }
+};
+
+// Retrieve all landlords from users who have listings
 export const getLandlords = async (req, res, next) => {
   try {
     const landlordIds = await Listing.distinct("userRef");
@@ -184,6 +244,7 @@ export const getLandlords = async (req, res, next) => {
   }
 };
 
+// Get all tenants (users without listings)
 export const getTenants = async (req, res, next) => {
   try {
     const landlordIds = await Listing.distinct("userRef");
@@ -214,6 +275,7 @@ export const getTenants = async (req, res, next) => {
   }
 };
 
+// Check if a user (tenant or landlord) has been rated
 export const checkIfRated = async (req, res, next) => {
   const { landlordId } = req.params;
 
@@ -228,101 +290,3 @@ export const checkIfRated = async (req, res, next) => {
     next(error);
   }
 };
-
-export const rateLandlord = async (req, res, next) => {
-  const { landlordId, rating } = req.body;
-
-  // Validate rating
-  if (rating < 1 || rating > 5) {
-    return next(errorHandler(400, "Rating must be between 1 and 5."));
-  }
-
-  try {
-    // Prevent self-rating
-    if (req.user.id === landlordId) {
-      return next(errorHandler(403, "You cannot rate yourself."));
-    }
-
-    // Find the landlord by ID
-    const landlord = await User.findById(landlordId);
-    if (!landlord) return next(errorHandler(404, "Landlord not found."));
-
-    // Initialize ratings and ratedBy if they don't exist
-    if (!landlord.ratings) landlord.ratings = [];
-    if (!landlord.ratedBy) landlord.ratedBy = [];
-
-    // Check if the user already rated this landlord
-    if (landlord.ratedBy.includes(req.user.id)) {
-      return next(errorHandler(403, "You have already rated this landlord."));
-    }
-
-    // Add the rating and user ID
-    landlord.ratings.push(rating);
-    landlord.ratedBy.push(req.user.id);
-
-    // Save the updated landlord
-    await landlord.save();
-
-    // Calculate the average rating
-    const averageRating =
-      landlord.ratings.reduce((sum, r) => sum + r, 0) / landlord.ratings.length;
-
-    // Respond with the updated average rating
-    res.status(200).json({ averageRating, message: "Rating submitted successfully!" });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const rateTenant = async (req, res, next) => {
-  const { tenantId, rating } = req.body;
-
-  // Validate the rating
-  if (rating < 1 || rating > 5) {
-    return next(errorHandler(400, "Rating must be between 1 and 5."));
-  }
-
-  try {
-    // Find the tenant by ID
-    const tenant = await User.findById(tenantId);
-    if (!tenant) return next(errorHandler(404, "Tenant not found."));
-
-    // Check if the requester is a landlord
-    const isLandlord = await Listing.exists({ userRef: req.user.id });
-    if (!isLandlord) {
-      return next(errorHandler(403, "Only landlords can rate tenants."));
-    }
-
-    // Initialize ratings and ratedBy if they don't exist
-    if (!tenant.ratings) tenant.ratings = [];
-    if (!tenant.ratedBy) tenant.ratedBy = [];
-
-    // Prevent duplicate ratings by the same landlord
-    if (tenant.ratedBy.includes(req.user.id)) {
-      return next(errorHandler(403, "You have already rated this tenant."));
-    }
-
-    // Add the rating and the user ID
-    tenant.ratings.push(rating);
-    tenant.ratedBy.push(req.user.id);
-
-    // Save the updated tenant
-    await tenant.save();
-
-    // Calculate the new average rating
-    const averageRating =
-      tenant.ratings.reduce((sum, r) => sum + r, 0) / tenant.ratings.length;
-
-    // Respond with the updated average rating
-    res.status(200).json({
-      averageRating,
-      message: "Rating submitted successfully!",
-    });
-  } catch (error) {
-    console.error("Error in rateTenant:", error);
-    next(error);
-  }
-};
-
-
-

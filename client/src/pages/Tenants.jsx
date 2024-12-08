@@ -7,6 +7,9 @@ const Tenants = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  // State to track hovered rating for each tenant
+  const [hoveredRatings, setHoveredRatings] = useState({});
+
   const handleRateTenant = async (tenantId, rating) => {
     try {
       const res = await fetch("/api/user/rate-tenant", {
@@ -120,11 +123,24 @@ const Tenants = () => {
                   <span
                     key={star}
                     className={`cursor-pointer ${
-                      star <= Math.round(tenant.averageRating || 0)
+                      star <=
+                      (hoveredRatings[tenant._id] || tenant.averageRating || 0)
                         ? "text-yellow-500"
                         : "text-gray-300"
                     }`}
                     onClick={() => handleRateTenant(tenant._id, star)}
+                    onMouseEnter={() =>
+                      setHoveredRatings((prevState) => ({
+                        ...prevState,
+                        [tenant._id]: star,
+                      }))
+                    }
+                    onMouseLeave={() =>
+                      setHoveredRatings((prevState) => ({
+                        ...prevState,
+                        [tenant._id]: null,
+                      }))
+                    }
                   >
                     ★
                   </span>

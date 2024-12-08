@@ -1,81 +1,161 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom"; // useParams to get userId from URL
+import { useParams, Link } from "react-router-dom";
 
 const LandlordListings = () => {
   const { userId } = useParams(); // Get the userId from the URL params
+  const [landlord, setLandlord] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null); // Store the error message
+  const [userRating, setUserRating] = useState(null); // Track the rating by the logged-in user
+  const [hoveredRating, setHoveredRating] = useState(null); // Track the rating hovered by the user
+  const [rated, setRated] = useState(false); // To check if user already rated
 
   useEffect(() => {
-    const fetchListings = async () => {
+    const fetchLandlordAndListings = async () => {
       try {
-        console.log("Fetching listings for userId:", userId); // Debug log
-        const res = await fetch(`/api/listing/landlord/${userId}`); // Ensure correct URL
-        const data = await res.json();
+        const resLandlord = await fetch(`/api/user/${userId}`);
+        const landlordData = await resLandlord.json();
+        if (!resLandlord.ok) throw new Error("Failed to fetch landlord details");
 
-        if (res.ok) {
-          setListings(data);
-        } else {
-          throw new Error(data.message || "Failed to fetch listings");
-        }
+        const resListings = await fetch(`/api/listing/landlord/${userId}`);
+        const listingsData = await resListings.json();
+        if (!resListings.ok) throw new Error("Failed to fetch listings");
+
+        setLandlord(landlordData);
+        setListings(listingsData);
+        setUserRating(landlordData.averageRating || null); // Set the landlord's average rating
+        setLoading(false);
       } catch (err) {
-        console.error("Error fetching listings:", err.message); // Log the error for debugging
-        setError(err.message); // Store error message to show on the UI
-      } finally {
-        setLoading(false); // End the loading state
+        setError(err.message);
+        setLoading(false);
       }
     };
 
-    if (userId) {
-      fetchListings();
+    fetchLandlordAndListings();
+  }, [userId]);
+
+  const handleRating = async (rating) => {
+    try {
+      const res = await fetch("/api/user/rate-landlord", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ landlordId: userId, rating, type: "landlord" }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRated(true);
+        setUserRating(rating); // Update user rating after submitting
+      } else {
+        throw new Error(data.message || "Failed to submit rating");
+      }
+    } catch (err) {
+      alert(err.message);
     }
-  }, [userId]); // Run when userId changes
+  };
 
-  if (loading) return (
-    <div className="text-center">
-      <p>Loading listings...</p>
-      <div className="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full"></div>
-    </div>
-  );
+  // Render stars based on average rating (landlord's rating)
+  const renderStars = (avgRating) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <span
+          key={i}
+          className={`cursor-pointer ${i <= avgRating ? "text-yellow-500" : "text-gray-300"}`}
+        >
+          ★
+        </span>
+      );
+    }
+    return stars;
+  };
 
-  if (error) return (
-    <div className="text-center text-red-500">
-      <p>Failed to load listings: {error}</p>
-      <button
-        onClick={() => window.location.reload()}
-        className="text-blue-500 underline"
-      >
-        Retry
-      </button>
-    </div>
-  );
+  // Render the rating stars for user to select (show yellow if selected)
+  const renderRatingStars = () => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <span
+          key={i}
+          onClick={() => handleRating(i)} // Set rating on click
+          onMouseEnter={() => setHoveredRating(i)} // Hover effect
+          onMouseLeave={() => setHoveredRating(null)} // Reset hover effect
+          className={`cursor-pointer ${i <= (hoveredRating || 0) ? "text-yellow-500" : "text-gray-300"}`} // 0 is default for no rating
+        >
+          ★
+        </span>
+      );
+    }
+    return stars;
+  };
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">Listings by this Landlord</h1>
+      {/* Landlord Header */}
+      <div className="mb-6 text-center">
+        {/* Avatar and Name */}
+        <div className="flex flex-col items-center">
+          <img
+            src={landlord.avatar || "https://via.placeholder.com/150"}
+            alt={landlord.username}
+            className="rounded-full w-32 h-32 object-cover mb-4" // Adjust size here (w-32 h-32 for larger avatar)
+          />
+          <h1 className="text-3xl font-bold">{landlord.username}</h1>
+        </div>
+
+        {/* Rating Section */}
+        <div className="mt-4">
+          {landlord.averageRating ? (
+            <div className="flex justify-center items-center">
+              <span className="mr-2 text-xl">Rating:</span>
+              <div className="flex text-xl">
+                {renderStars(landlord.averageRating)} {/* Show average rating stars */}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center">This landlord has never been rated.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Rating Section (Only for Tenants) */}
+      <div className="mb-6 text-center">
+        {!rated && landlord && (
+          <div>
+            <h3 className="font-semibold text-xl">Rate this Landlord</h3>
+            <div className="flex justify-center mt-2 text-2xl">
+              {renderRatingStars()} {/* Render clickable stars */}
+            </div>
+          </div>
+        )}
+        {rated && <p className="text-lg">Thank you for your rating!</p>}
+      </div>
+
+      {/* Listings */}
+      <h2 className="text-xl font-semibold mb-8 text-left">Listings by this Landlord</h2> {/* Left aligned */}
       {listings.length === 0 ? (
         <p className="text-center">No listings found for this landlord.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {listings.map((listing) => (
-            <div key={listing._id} className="p-4 border rounded-lg shadow-lg hover:shadow-2xl transition-shadow">
+            <div key={listing._id} className="border rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow p-4">
               <img
-                src={listing.imageUrls[0] || "https://via.placeholder.com/400x250"}
+                src={listing.imageUrls[0]}
                 alt={listing.name}
-                className="w-full h-48 object-cover rounded-lg mb-4"
+                className="w-full h-48 object-cover mb-4"
               />
-              <h2 className="font-semibold text-lg">{listing.name || "Untitled"}</h2>
-              <p className="text-sm text-gray-500">{listing.address || "Address not available"}</p>
-              <p className="text-green-600 font-bold mt-2">
-                ${listing.regularPrice?.toLocaleString() || "Price not available"}
-                {listing.type === "rent" && " / month"}
+              <h3 className="text-lg font-semibold">{listing.name}</h3>
+              <p>{listing.address}</p>
+              <p className="text-green-600 font-bold">
+                ${listing.regularPrice.toLocaleString()}
               </p>
-              <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-                <span>{listing.bedrooms} Beds</span>
-                <span>{listing.bathrooms} Baths</span>
-                <span>{listing.parking ? "Parking Available" : "No Parking"}</span>
-              </div>
+              <Link to={`/listing/${listing._id}`} className="text-blue-500">View Details</Link>
             </div>
           ))}
         </div>
