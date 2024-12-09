@@ -81,7 +81,7 @@ const Header = () => {
               <img
                 src={currentUser.avatar || "https://via.placeholder.com/150"}
                 alt="avatar"
-                className="rounded-full h-8 w-8 object-cover border border-slate-300"
+                className="rounded-full h-10 w-10 object-cover border border-slate-300"
               />
             </Link>
           ) : (

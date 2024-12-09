@@ -36,8 +36,6 @@ const Profile = () => {
 
   const dispatch = useDispatch();
 
-  console.log(formData);
-
   useEffect(() => {
     if (file) {
       handleFileUpload(file);
@@ -136,19 +134,19 @@ const Profile = () => {
   const handleShowListings = async () => {
     try {
       setShowListingsError(false);
-      const res = await fetch(`/api/listing/user/${currentUser._id}`, {
+      const res = await fetch(`/api/user/listings/${currentUser._id}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
       const data = await res.json();
 
-      if (!res.ok || !data) {
+      if (!res.ok || !data.user || !data.listings) {
         setShowListingsError(true);
         throw new Error(data.message || "Failed to fetch user listings");
       }
 
-      setUserListings(data); // Assuming API returns an array of listings
+      setUserListings(data.listings); // Use the listings field returned from the API
     } catch (error) {
       console.error("Error fetching user listings:", error.message);
       setShowListingsError(true);
@@ -159,11 +157,14 @@ const Profile = () => {
     try {
       const res = await fetch(`/api/listing/delete/${listingId}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       });
 
       const data = await res.json();
-      if (data.success === false) {
-        console.log(error.message);
+      if (!res.ok) {
+        console.error(data.message || "Failed to delete listing");
         return;
       }
 
@@ -171,7 +172,7 @@ const Profile = () => {
         prev.filter((listing) => listing._id !== listingId)
       );
     } catch (error) {
-      console.log(error.message);
+      console.error("Error deleting listing:", error.message);
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
 import SwiperCore from "swiper";
 import { Navigation } from "swiper/modules";
@@ -9,7 +9,6 @@ import L from "leaflet";
 import "swiper/css/bundle";
 import { useSelector } from "react-redux";
 import { geocodeAddress } from "../../../api/utils/geocode";
-import RateLandlord from "../components/RateLandlord";
 
 import {
   FaBath,
@@ -25,6 +24,7 @@ const Listing = () => {
   SwiperCore.use([Navigation]);
 
   const params = useParams();
+  const navigate = useNavigate();
   const { currentUser } = useSelector((state) => state.user);
 
   const [listing, setListing] = useState(null);
@@ -86,6 +86,26 @@ const Listing = () => {
     }
   };
 
+  const handleMarkerClick = () => {
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${listing.lat},${listing.lng}`;
+    window.open(googleMapsUrl, "_blank");
+  };
+
+  const renderStars = (averageRating) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <span
+          key={i}
+          className={`text-xl ${i <= averageRating ? "text-yellow-500" : "text-gray-300"}`}
+        >
+          ★
+        </span>
+      );
+    }
+    return stars;
+  };
+
   return (
     <main>
       {loading && <p className="text-center my-7 text-2xl">Loading...</p>}
@@ -101,7 +121,7 @@ const Listing = () => {
             {listing.imageUrls?.map((url) => (
               <SwiperSlide key={url}>
                 <div
-                  className="h-[550px] rounded-3xl overflow-hidden" // Added rounded corners
+                  className="h-[550px] rounded-3xl overflow-hidden"
                   style={{
                     background: `url(${url}) center no-repeat`,
                     backgroundSize: "cover",
@@ -118,29 +138,24 @@ const Listing = () => {
                 <img
                   src={listing.landlord.avatar || "default-avatar.png"}
                   alt="Landlord"
-                  className="rounded-full h-12 w-12 object-cover"
+                  className="rounded-full h-16 w-16 object-cover"
                 />
                 <div>
                   <p className="text-lg font-semibold text-slate-700">
                     Listed by {listing.landlord.username || "Unknown Landlord"}
                   </p>
-                  <p className="text-sm text-gray-500">
-                    Average Rating: {listing.landlord.averageRating?.toFixed(1) || 0} / 5
-                  </p>
+                  <div className="flex items-center">
+                    {renderStars(listing.landlord.averageRating || 0)}
+                  </div>
                 </div>
               </div>
-
-              {/* Rate Landlord Component */}
               {currentUser && (
-                <RateLandlord
-                  landlordId={listing.userRef}
-                  onRated={(newAverage) => {
-                    setListing((prev) => ({
-                      ...prev,
-                      landlord: { ...prev.landlord, averageRating: newAverage },
-                    }));
-                  }}
-                />
+                <button
+                  onClick={() => navigate(`/landlord/${listing.userRef}`)}
+                  className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 w-[120px]"
+                >
+                  Rate this Landlord
+                </button>
               )}
             </div>
           )}
@@ -249,8 +264,11 @@ const Listing = () => {
                       listing.lng || defaultLng,
                     ]}
                     icon={customIcon}
+                    eventHandlers={{
+                      click: handleMarkerClick,
+                    }}
                   >
-                    <Popup>{listing.address || "Default Location"}</Popup>
+                    <Popup>Click for Directions</Popup>
                   </Marker>
                 </MapContainer>
               </div>
