@@ -33,6 +33,7 @@ const Profile = () => {
 
   const [showListingsError, setShowListingsError] = useState(false);
   const [userListings, setUserListings] = useState([]);
+  const [listingsFetched, setListingsFetched] = useState(false); // New state to track if listings were fetched
 
   const dispatch = useDispatch();
 
@@ -147,6 +148,7 @@ const Profile = () => {
       }
 
       setUserListings(data.listings); // Use the listings field returned from the API
+      setListingsFetched(true); // Mark that listings were fetched
     } catch (error) {
       console.error("Error fetching user listings:", error.message);
       setShowListingsError(true);
@@ -226,7 +228,7 @@ const Profile = () => {
           className="bg-green-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95"
           to={"/create-listing"}
         >
-          Create Listing
+          Create A Listing
         </Link>
       </form>
       <div className="flex justify-between mt-5">
@@ -250,6 +252,11 @@ const Profile = () => {
       <p className="text-red-700 mt-5">
         {showListingsError ? "Error showing listings" : ""}
       </p>
+      {listingsFetched && userListings.length === 0 && (
+        <p className="text-center text-red-500 mt-5">
+          You do not have any listings.
+        </p>
+      )}
       {userListings && userListings.length > 0 && (
         <div className="flex flex-col gap-4">
           <h1 className="text-center mt-7 text-2xl font-semibold">
