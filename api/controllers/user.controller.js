@@ -166,13 +166,16 @@ export const rateLandlord = async (req, res, next) => {
 
 
 export const rateTenant = async (req, res, next) => {
-  const { tenantId, rating } = req.body;
+  const { tenantId, maintenance, behavior, payments } = req.body;
 
-  if (rating < 1 || rating > 5) {
-    return next(createErrorResponse(400, "Rating must be between 1 and 5."));
+  // Validate ratings
+  const ratings = [maintenance, behavior, payments];
+  if (ratings.some((rating) => rating < 1 || rating > 5)) {
+    return next(createErrorResponse(400, "Each rating must be between 1 and 5."));
   }
 
   try {
+    // Ensure the user rating the tenant is a landlord
     const isLandlord = await Listing.exists({ userRef: req.user.id });
     if (!isLandlord) {
       return next(createErrorResponse(403, "Only landlords can rate tenants."));
@@ -180,26 +183,28 @@ export const rateTenant = async (req, res, next) => {
 
     const tenant = await User.findById(tenantId);
     if (!tenant) return next(createErrorResponse(404, "Tenant not found."));
-
-    if (!tenant.ratings) tenant.ratings = [];
-    if (!tenant.ratedBy) tenant.ratedBy = [];
-
     if (tenant.ratedBy.includes(req.user.id)) {
       return next(createErrorResponse(403, "You have already rated this tenant."));
     }
 
-    tenant.ratings.push(rating);
+    // Calculate the new rating and update fields
+    const newRating = (maintenance + behavior + payments) / 3;
+    tenant.ratings.push(newRating);
     tenant.ratedBy.push(req.user.id);
-    await tenant.save();
 
-    const averageRating = tenant.ratings.reduce((sum, r) => sum + r, 0) / tenant.ratings.length;
+    // Recalculate and save the average rating
+    await tenant.updateAverageRating();
 
-    res.status(200).json({ message: "Rating submitted successfully!", averageRating }); //Standardized response
+    res.status(200).json({
+      message: "Rating submitted successfully!",
+      averageRating: tenant.averageRating,
+    });
   } catch (error) {
     console.error("Error rating tenant:", error);
     next(createErrorResponse(500, "An error occurred while submitting the rating."));
   }
 };
+
 
 export const checkIfRated = async (req, res, next) => {
   const { landlordId } = req.params;

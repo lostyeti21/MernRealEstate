@@ -37,6 +37,19 @@ const Landlords = () => {
     );
   };
 
+  const renderStars = (rating) => {
+    return Array.from({ length: 5 }, (_, i) => (
+      <span
+        key={i + 1}
+        className={`text-lg ${
+          i + 1 <= Math.round(rating) ? "text-yellow-500" : "text-gray-300"
+        }`}
+      >
+        ★
+      </span>
+    ));
+  };
+
   if (loading)
     return (
       <div className="text-center">
@@ -78,24 +91,22 @@ const Landlords = () => {
           {filteredLandlords.map((landlord) => (
             <li
               key={landlord._id}
-              className="flex items-center space-x-4 p-3 border rounded-md hover:shadow-lg transition-shadow"
+              className="flex items-center justify-between space-x-4 p-3 border rounded-md hover:shadow-lg transition-shadow"
             >
-              <img
-                src={landlord.avatar || "https://via.placeholder.com/150"}
-                alt={`${landlord.username}'s avatar`}
-                className="rounded-full w-12 h-12 object-cover"
-              />
-              <div>
-                <Link to={`/landlord/${landlord._id}`}>
-                  <p className="font-semibold text-blue-600 hover:underline">
-                    {landlord.username}
-                  </p>
+              <div className="flex items-center space-x-4">
+                <img
+                  src={landlord.avatar || "https://via.placeholder.com/150"}
+                  alt={`${landlord.username}'s avatar`}
+                  className="rounded-full w-12 h-12 object-cover"
+                />
+                <Link to={`/landlord/${landlord._id}`} className="text-blue-600 hover:underline">
+                  <p className="font-semibold">{landlord.username}</p>
                 </Link>
+              </div>
+              <div className="flex items-center space-x-1">
+                {renderStars(landlord.averageRating || 0)}
                 <p className="text-sm text-gray-500">
-                  Average Rating:{" "}
-                  {landlord.averageRating
-                    ? landlord.averageRating.toFixed(1)
-                    : "N/A"}
+                  ({landlord.averageRating ? landlord.averageRating.toFixed(1) : "N/A"})
                 </p>
               </div>
             </li>

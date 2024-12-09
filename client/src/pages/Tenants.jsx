@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 const Tenants = () => {
   const [tenants, setTenants] = useState([]);
@@ -6,40 +7,6 @@ const Tenants = () => {
   const [searchTerm, setSearchTerm] = useState(""); // Search term state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-
-  // State to track hovered rating for each tenant
-  const [hoveredRatings, setHoveredRatings] = useState({});
-
-  const handleRateTenant = async (tenantId, rating) => {
-    try {
-      const res = await fetch("/api/user/rate-tenant", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({ tenantId, rating }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert("Rating submitted successfully!");
-        setTenants((prevTenants) =>
-          prevTenants.map((tenant) =>
-            tenant._id === tenantId
-              ? { ...tenant, averageRating: data.averageRating }
-              : tenant
-          )
-        );
-      } else {
-        alert(data.message || "Failed to rate tenant.");
-      }
-    } catch (err) {
-      console.error("Error rating tenant:", err);
-      alert("An error occurred while rating the tenant.");
-    }
-  };
 
   useEffect(() => {
     const fetchTenants = async () => {
@@ -67,6 +34,23 @@ const Tenants = () => {
         tenant.username.toLowerCase().includes(query)
       )
     );
+  };
+
+  const renderAverageRating = (avgRating) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <span
+          key={i}
+          className={`text-xl ${
+            i <= Math.round(avgRating) ? "text-yellow-500" : "text-gray-300"
+          }`}
+        >
+          ★
+        </span>
+      );
+    }
+    return stars;
   };
 
   if (loading) return <p className="text-center">Loading...</p>;
@@ -98,7 +82,7 @@ const Tenants = () => {
           {filteredTenants.map((tenant) => (
             <li
               key={tenant._id}
-              className="flex flex-col sm:flex-row items-center justify-between space-x-4 p-3 border rounded-md"
+              className="flex items-center justify-between p-3 border rounded-md hover:shadow-lg transition-shadow"
             >
               <div className="flex items-center space-x-4">
                 <img
@@ -106,45 +90,20 @@ const Tenants = () => {
                   alt={tenant.username}
                   className="rounded-full w-12 h-12 object-cover"
                 />
-                <div>
-                  <p className="font-semibold">{tenant.username}</p>
-                  <p className="text-sm text-gray-500">
-                    Average Rating:{" "}
-                    {tenant.averageRating
-                      ? tenant.averageRating.toFixed(1)
-                      : "N/A"}
-                  </p>
-                </div>
+                <Link
+                  to={`/tenant/${tenant._id}`}
+                  className="font-semibold text-blue-500 hover:underline"
+                >
+                  {tenant.username}
+                </Link>
               </div>
 
-              {/* Rating Section */}
-              <div className="mt-2 sm:mt-0">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <span
-                    key={star}
-                    className={`cursor-pointer ${
-                      star <=
-                      (hoveredRatings[tenant._id] || tenant.averageRating || 0)
-                        ? "text-yellow-500"
-                        : "text-gray-300"
-                    }`}
-                    onClick={() => handleRateTenant(tenant._id, star)}
-                    onMouseEnter={() =>
-                      setHoveredRatings((prevState) => ({
-                        ...prevState,
-                        [tenant._id]: star,
-                      }))
-                    }
-                    onMouseLeave={() =>
-                      setHoveredRatings((prevState) => ({
-                        ...prevState,
-                        [tenant._id]: null,
-                      }))
-                    }
-                  >
-                    ★
-                  </span>
-                ))}
+              {/* Average Rating */}
+              <div className="flex items-center space-x-1">
+                {renderAverageRating(tenant.averageRating || 0)}
+                <p className="text-sm text-gray-500">
+                  ({tenant.averageRating ? tenant.averageRating.toFixed(1) : "N/A"})
+                </p>
               </div>
             </li>
           ))}

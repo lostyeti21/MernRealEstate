@@ -30,6 +30,8 @@ router.post("/update/:id", verifyToken, updateUser);
 router.delete("/delete/:id", verifyToken, deleteUser);
 
 
+
+
 // NEW ROUTE: Get landlord data and listings
 router.get("/landlord/:userId", async (req, res) => {
   try {
