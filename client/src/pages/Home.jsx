@@ -10,6 +10,8 @@ export default function Home() {
   const [offerListings, setOfferListings] = useState([]);
   const [saleListings, setSaleListings] = useState([]);
   const [rentListings, setRentListings] = useState([]);
+  const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
+
   SwiperCore.use([Navigation]);
 
   useEffect(() => {
@@ -47,6 +49,31 @@ export default function Home() {
 
     fetchOfferListings();
   }, []);
+
+  // Inject Botpress chatbot script
+  useEffect(() => {
+    if (!isChatbotLoaded) {
+      const script1 = document.createElement("script");
+      script1.src = "https://cdn.botpress.cloud/webchat/v2.2/inject.js";
+      script1.async = true;
+      document.body.appendChild(script1);
+
+      const script2 = document.createElement("script");
+      script2.src = "https://files.bpcontent.cloud/2024/12/11/21/20241211212011-RZ6GS430.js";
+      script2.async = true;
+      script2.onload = () => {
+        window.botpressWebChat.init({
+          botId: "your-bot-id-here", // Replace with your Bot ID
+          hostUrl: "https://cdn.botpress.cloud/webchat/v2.2",
+          showCloseButton: true,
+          enableTranscriptDownload: true,
+        });
+      };
+      document.body.appendChild(script2);
+
+      setIsChatbotLoaded(true);
+    }
+  }, [isChatbotLoaded]);
 
   return (
     <div>
@@ -90,6 +117,7 @@ export default function Home() {
 
       {/* Listing Results */}
       <div className="px-10 max-w-[1200px] mx-auto flex flex-col gap-8 my-10">
+        {/* Render listings for offers, rent, and sale */}
         {offerListings && offerListings.length > 0 && (
           <div className="w-full">
             <div className="my-3">
@@ -112,6 +140,8 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Repeat for rentListings and saleListings */}
         {rentListings && rentListings.length > 0 && (
           <div className="w-full">
             <div className="my-3">
@@ -134,6 +164,7 @@ export default function Home() {
             </div>
           </div>
         )}
+
         {saleListings && saleListings.length > 0 && (
           <div className="w-full">
             <div className="my-3">
