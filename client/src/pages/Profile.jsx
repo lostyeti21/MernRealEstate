@@ -35,8 +35,6 @@ const Profile = () => {
   const [userListings, setUserListings] = useState([]);
   const [listingsFetched, setListingsFetched] = useState(false);
 
-  const [userInsights, setUserInsights] = useState([]);
-
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -157,25 +155,6 @@ const Profile = () => {
     }
   };
 
-  const handleShowInsights = async () => {
-    try {
-      const res = await fetch(`/api/user/insights/${currentUser._id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.insights) {
-        throw new Error(data.message || "Failed to fetch user insights");
-      }
-
-      setUserInsights(data.insights);
-    } catch (error) {
-      console.error("Error fetching user insights:", error.message);
-    }
-  };
-
   return (
     <div className="p-3 max-w-lg mx-auto">
       <h1 className="text-3xl font-semibold text-center my-7">Profile</h1>
@@ -209,13 +188,12 @@ const Profile = () => {
           onChange={handleChange}
           className="border p-3 rounded-lg"
         />
-        <input
-          type="password"
-          placeholder="password"
-          onChange={handleChange}
-          id="password"
-          className="border p-3 rounded-lg"
-        />
+        <Link
+          to="/change-password"
+          className="bg-blue-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95 mt-3"
+        >
+          Change Password
+        </Link>
         <button
           disabled={loading}
           className="bg-slate-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95"
@@ -253,9 +231,6 @@ const Profile = () => {
       <div className="flex gap-2 mt-5">
         <button onClick={handleShowListings} className="text-green-700 w-full">
           Show Listings
-        </button>
-        <button onClick={handleShowInsights} className="text-blue-700 w-full">
-          Your Insights
         </button>
       </div>
       <p className="text-red-700 mt-5">
@@ -300,19 +275,6 @@ const Profile = () => {
                   <button className="text-green-700 uppercase">Edit</button>
                 </Link>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {userInsights && userInsights.length > 0 && (
-        <div className="flex flex-col gap-4">
-          <h1 className="text-center mt-7 text-2xl font-semibold">
-            Your Insights
-          </h1>
-          {userInsights.map((insight) => (
-            <div key={insight._id} className="border rounded-lg p-3">
-              <p>{insight.title}</p>
-              <p>{insight.description}</p>
             </div>
           ))}
         </div>

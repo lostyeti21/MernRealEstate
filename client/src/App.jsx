@@ -15,6 +15,7 @@ import Tenants from "./pages/Tenants";
 import LandlordListings from "./pages/LandlordListings";
 import TenantProfile from "./pages/TenantProfile"; // Import TenantProfile
 import Analytics from "./components/Analytics";
+import ChangePassword from "./pages/ChangePassword"; // Import your ChangePassword page
 
 const App = () => {
   return (
@@ -32,7 +33,11 @@ const App = () => {
         <Route path="/about" element={<About />} />
         <Route path="/listing/:listingId" element={<Listing />} />
         <Route path="/search" element={<Search />} />
-        
+
+
+        <Route path="/change-password" element={<ChangePassword />} />
+
+
 
 
         <Route path="/analytics" element={<Analytics />} />

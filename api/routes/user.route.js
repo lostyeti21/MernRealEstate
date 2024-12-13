@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import {
   getUser,
   getUserListings,
@@ -11,6 +12,8 @@ import {
   deleteUser,
 } from "../controllers/user.controller.js";
 import { verifyToken } from "../utils/verifyUser.js";
+import User from "../models/user.model.js";
+import bcrypt from "bcryptjs";
 
 const router = express.Router();
 
@@ -20,7 +23,7 @@ router.get("/tenants", getTenants);
 router.get("/listings/:id", getUserListings); // Get a user's listings
 router.get("/:id", getUser); // Get a single user
 
-//Protected endpoints
+// Protected endpoints
 router.post("/rate-landlord", verifyToken, rateLandlord);
 router.post("/rate-tenant", verifyToken, rateTenant);
 router.get("/check-rated/:landlordId", verifyToken, checkIfRated);
@@ -29,8 +32,38 @@ router.get("/check-rated/:landlordId", verifyToken, checkIfRated);
 router.post("/update/:id", verifyToken, updateUser);
 router.delete("/delete/:id", verifyToken, deleteUser);
 
+// Change Password (protected)
+router.post("/change-password/:id", verifyToken, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const userId = req.params.id;
 
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ success: false, message: "All fields are required." });
+  }
 
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    // Validate old password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: "Incorrect old password." });
+    }
+
+    // Hash and update the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Password changed successfully." });
+  } catch (error) {
+    console.error("Error changing password:", error.message);
+    res.status(500).json({ success: false, message: "An unexpected error occurred." });
+  }
+});
 
 // NEW ROUTE: Get landlord data and listings
 router.get("/landlord/:userId", async (req, res) => {
@@ -40,7 +73,7 @@ router.get("/landlord/:userId", async (req, res) => {
       return res.status(400).json({ error: "Invalid userId" });
     }
 
-    const landlord = await User.findById(userId).populate("listings"); //Important - populate listings
+    const landlord = await User.findById(userId).populate("listings");
     if (!landlord) {
       return res.status(404).json({ error: "Landlord not found" });
     }
