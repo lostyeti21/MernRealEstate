@@ -14,6 +14,7 @@ import Landlords from "./pages/Landlords";
 import Tenants from "./pages/Tenants";
 import LandlordListings from "./pages/LandlordListings";
 import TenantProfile from "./pages/TenantProfile"; // Import TenantProfile
+import Analytics from "./components/Analytics";
 
 const App = () => {
   return (
@@ -31,6 +32,11 @@ const App = () => {
         <Route path="/about" element={<About />} />
         <Route path="/listing/:listingId" element={<Listing />} />
         <Route path="/search" element={<Search />} />
+        
+
+
+        <Route path="/analytics" element={<Analytics />} />
+
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

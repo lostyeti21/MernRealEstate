@@ -54,6 +54,21 @@ const listingSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    views: {
+      type: Number,
+      default: 0, // Initialize with zero
+    },
+    clicks: {
+      type: Number,
+      default: 0, // Initialize with zero
+    },
+    location: {
+      type: {
+        lat: { type: Number },
+        lng: { type: Number },
+      },
+      required: false, // Optional field for geographic data
+    },
   },
   { timestamps: true }
 );

@@ -33,7 +33,9 @@ const Profile = () => {
 
   const [showListingsError, setShowListingsError] = useState(false);
   const [userListings, setUserListings] = useState([]);
-  const [listingsFetched, setListingsFetched] = useState(false); // New state to track if listings were fetched
+  const [listingsFetched, setListingsFetched] = useState(false);
+
+  const [userInsights, setUserInsights] = useState([]);
 
   const dispatch = useDispatch();
 
@@ -147,34 +149,30 @@ const Profile = () => {
         throw new Error(data.message || "Failed to fetch user listings");
       }
 
-      setUserListings(data.listings); // Use the listings field returned from the API
-      setListingsFetched(true); // Mark that listings were fetched
+      setUserListings(data.listings);
+      setListingsFetched(true);
     } catch (error) {
       console.error("Error fetching user listings:", error.message);
       setShowListingsError(true);
     }
   };
 
-  const handleListingDelete = async (listingId) => {
+  const handleShowInsights = async () => {
     try {
-      const res = await fetch(`/api/listing/delete/${listingId}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/user/insights/${currentUser._id}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        console.error(data.message || "Failed to delete listing");
-        return;
+
+      if (!res.ok || !data.insights) {
+        throw new Error(data.message || "Failed to fetch user insights");
       }
 
-      setUserListings((prev) =>
-        prev.filter((listing) => listing._id !== listingId)
-      );
+      setUserInsights(data.insights);
     } catch (error) {
-      console.error("Error deleting listing:", error.message);
+      console.error("Error fetching user insights:", error.message);
     }
   };
 
@@ -230,6 +228,12 @@ const Profile = () => {
         >
           Create A Listing
         </Link>
+        <Link
+          className="bg-blue-500 text-white p-3 rounded-lg uppercase text-center hover:opacity-95 mt-5"
+          to={"/analytics"}
+        >
+          View Analytics
+        </Link>
       </form>
       <div className="flex justify-between mt-5">
         <span
@@ -246,9 +250,14 @@ const Profile = () => {
       <p className="text-green-700 mt-5">
         {updateSuccess ? "Profile updated successfully!" : ""}
       </p>
-      <button onClick={handleShowListings} className="text-green-700 w-full">
-        Show Listings
-      </button>
+      <div className="flex gap-2 mt-5">
+        <button onClick={handleShowListings} className="text-green-700 w-full">
+          Show Listings
+        </button>
+        <button onClick={handleShowInsights} className="text-blue-700 w-full">
+          Your Insights
+        </button>
+      </div>
       <p className="text-red-700 mt-5">
         {showListingsError ? "Error showing listings" : ""}
       </p>
@@ -291,6 +300,19 @@ const Profile = () => {
                   <button className="text-green-700 uppercase">Edit</button>
                 </Link>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {userInsights && userInsights.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <h1 className="text-center mt-7 text-2xl font-semibold">
+            Your Insights
+          </h1>
+          {userInsights.map((insight) => (
+            <div key={insight._id} className="border rounded-lg p-3">
+              <p>{insight.title}</p>
+              <p>{insight.description}</p>
             </div>
           ))}
         </div>
