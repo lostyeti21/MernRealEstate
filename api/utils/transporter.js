@@ -3,9 +3,11 @@ import { createTransport } from "nodemailer";
 const transporter = createTransport({
   service: "gmail",
   auth: {
-    user: "academiceyeaju@gmail.com", // Replace with your Gmail address
-    pass: "qovb zhel xtww akse",    // Replace with your App Password
+    user: "academiceyeaju@gmail.com",
+    pass: "jhtpoeeeejjcfdnm",
   },
+  logger: true, // Enable logging
+  debug: true,  // Enable debug output
 });
 
 export default transporter;

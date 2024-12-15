@@ -84,5 +84,31 @@ router.get("/landlord/:userId", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch landlord data" });
   }
 });
+// Route to reset password via email
+router.post("/reset-password", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: "Email and password are required." });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    // Hash and update the new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Password reset successful." });
+  } catch (error) {
+    console.error("Error resetting password:", error.message);
+    res.status(500).json({ success: false, message: "An unexpected error occurred." });
+  }
+});
+
 
 export default router;
