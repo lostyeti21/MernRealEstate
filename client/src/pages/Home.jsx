@@ -5,6 +5,7 @@ import { Navigation } from "swiper/modules";
 import SwiperCore from "swiper";
 import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
+import backImage from "../assets/back.jpg"; // Import the image correctly
 
 export default function Home() {
   const [offerListings, setOfferListings] = useState([]);
@@ -59,7 +60,8 @@ export default function Home() {
       document.body.appendChild(script1);
 
       const script2 = document.createElement("script");
-      script2.src = "https://files.bpcontent.cloud/2024/12/11/21/20241211212011-RZ6GS430.js";
+      script2.src =
+        "https://files.bpcontent.cloud/2024/12/11/21/20241211212011-RZ6GS430.js";
       script2.async = true;
       script2.onload = () => {
         window.botpressWebChat.init({
@@ -77,25 +79,35 @@ export default function Home() {
 
   return (
     <div>
-      {/* Top Section */}
-      <div className="flex flex-col gap-6 p-28 px-3 max-w-6xl mx-auto">
-        <h1 className="text-slate-700 font-bold text-3xl lg:text-6xl">
-          Find your next <span className="text-slate-500">perfect</span>
-          <br />
-          place with ease
-        </h1>
-        <div className="text-gray-400 text-xs sm:text-sm">
-          Sahand Estate is the best place to find your next perfect place to
-          live.
-          <br />
-          We have a wide range of properties for you to choose from.
+      {/* Top Hero Section */}
+      <div className="relative w-full h-[500px] overflow-hidden">
+        <img
+          src={backImage}
+          alt="Background"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-center text-white px-6">
+          <div>
+            <h1 className="text-3xl md:text-5xl font-bold mb-4">
+              Find your next <span className="text-blue-300">perfect</span>
+              <br />
+              place with ease
+            </h1>
+            <p className="text-sm md:text-lg mb-6">
+              Sahand Estate is the best place to find your next perfect place to
+              live.
+              <br />
+              We have a wide range of properties for you to choose from.
+            </p>
+            <Link
+              to={"/search"}
+              className="text-sm md:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+            >
+              Let's get started...
+            </Link>
+          </div>
         </div>
-        <Link
-          to={"/search"}
-          className="text-xs sm:text-sm text-blue-800 font-bold hover:underline"
-        >
-          Let's get started...
-        </Link>
       </div>
 
       {/* Swiper */}
@@ -117,7 +129,7 @@ export default function Home() {
 
       {/* Listing Results */}
       <div className="px-10 max-w-[1200px] mx-auto flex flex-col gap-8 my-10">
-        {/* Render listings for offers, rent, and sale */}
+        {/* Render listings for offers */}
         {offerListings && offerListings.length > 0 && (
           <div className="w-full">
             <div className="my-3">
@@ -141,7 +153,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Repeat for rentListings and saleListings */}
+        {/* Render listings for rent */}
         {rentListings && rentListings.length > 0 && (
           <div className="w-full">
             <div className="my-3">
@@ -165,6 +177,7 @@ export default function Home() {
           </div>
         )}
 
+        {/* Render listings for sale */}
         {saleListings && saleListings.length > 0 && (
           <div className="w-full">
             <div className="my-3">
