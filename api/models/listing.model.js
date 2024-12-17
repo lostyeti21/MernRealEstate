@@ -69,6 +69,11 @@ const listingSchema = new mongoose.Schema(
       },
       required: false, // Optional field for geographic data
     },
+    m2: {
+      type: Number,
+      required: true, // Makes this field mandatory
+      min: 0, // Ensures the value cannot be negative
+    },
   },
   { timestamps: true }
 );

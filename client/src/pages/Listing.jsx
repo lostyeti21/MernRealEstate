@@ -18,6 +18,7 @@ import {
   FaParking,
   FaShare,
   FaTimes,
+  FaRulerCombined,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 
@@ -31,10 +32,9 @@ const Listing = () => {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [contact, setContact] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [fullscreenIndex, setFullscreenIndex] = useState(0);
+  const [contact, setContact] = useState(false);
 
   const defaultLat = -34.397;
   const defaultLng = 150.644;
@@ -84,15 +84,6 @@ const Listing = () => {
     setShowFullscreen(true);
   };
 
-  const handleAddressClick = () => {
-    if (listing.address) {
-      const googleMapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(
-        listing.address
-      )}`;
-      window.open(googleMapsUrl, "_blank");
-    }
-  };
-
   const handleMarkerClick = () => {
     const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${listing.lat},${listing.lng}`;
     window.open(googleMapsUrl, "_blank");
@@ -127,12 +118,9 @@ const Listing = () => {
           <Swiper
             navigation
             slidesPerView={listing.imageUrls.length > 2 ? 3 : 2}
-            centeredSlides={listing.imageUrls.length < 3}
+            centeredSlides={listing.imageUrls.length === 1}
             spaceBetween={20}
-            breakpoints={{
-              640: { slidesPerView: listing.imageUrls.length > 2 ? 2 : 1 },
-              1024: { slidesPerView: listing.imageUrls.length > 2 ? 3 : 2 },
-            }}
+            className={`w-full ${listing.imageUrls.length === 2 ? "justify-end" : ""}`}
           >
             {listing.imageUrls?.map((url, index) => (
               <SwiperSlide key={index}>
@@ -152,20 +140,20 @@ const Listing = () => {
 
           {/* Fullscreen Modal */}
           {showFullscreen && (
-            <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
               <button
-                className="absolute top-5 right-5 text-white text-3xl z-10"
+                className="absolute top-5 right-5 text-white text-3xl z-10 hover:text-gray-300"
                 onClick={() => setShowFullscreen(false)}
               >
                 <FaTimes />
               </button>
-              <Swiper navigation initialSlide={fullscreenIndex}>
+              <Swiper navigation initialSlide={fullscreenIndex} className="w-full h-full">
                 {listing.imageUrls?.map((url, index) => (
                   <SwiperSlide key={index}>
                     <img
                       src={url}
                       alt={`Fullscreen ${index + 1}`}
-                      className="object-contain h-full w-full"
+                      className="object-contain w-full h-full"
                     />
                   </SwiperSlide>
                 ))}
@@ -176,89 +164,76 @@ const Listing = () => {
           {/* Main Content */}
           {!showFullscreen && (
             <div className="flex flex-col lg:flex-row max-w-6xl mx-auto my-7 gap-6">
-              {/* Left Column - Landlord and Details */}
+              {/* Left Column */}
               <div className="flex flex-col flex-1">
-                <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-                  {listing.landlord && (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={listing.landlord.avatar || "default-avatar.png"}
-                          alt="Landlord"
-                          className="rounded-full h-16 w-16 object-cover"
-                        />
-                        <div>
-                          <p className="text-lg font-semibold text-slate-700">
-                            Listed by {listing.landlord.username || "Unknown Landlord"}
-                          </p>
-                          <div className="flex items-center">
-                            {renderStars(listing.landlord.averageRating || 0)}
-                          </div>
-                        </div>
-                      </div>
-                      {currentUser && (
-                        <button
-                          onClick={() => navigate(`/landlord/${listing.userRef}`)}
-                          className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 w-[120px]"
-                        >
-                          Rate this Landlord
-                        </button>
-                      )}
+                {/* Landlord Section */}
+                <div className="bg-white p-6 rounded-lg shadow-md mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <img
+                      src={listing.landlord?.avatar || "default-avatar.png"}
+                      alt="Landlord"
+                      className="rounded-full h-16 w-16 object-cover"
+                    />
+                    <div>
+                      <p className="text-lg font-semibold text-slate-700">
+                        Listed by {listing.landlord?.username || "Unknown Landlord"}
+                      </p>
+                      <div className="flex items-center">{renderStars(listing.landlord?.averageRating || 0)}</div>
                     </div>
+                  </div>
+                  {currentUser && (
+                    <button
+                      onClick={() => navigate(`/landlord/${listing.userRef}`)}
+                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
+                    >
+                      Rate this Landlord
+                    </button>
                   )}
                 </div>
 
+                {/* Title, Address, and Price */}
                 <div className="bg-white p-6 rounded-lg shadow-md">
-                  <p className="text-2xl font-semibold mb-4">
-                    {listing.name} - $
-                    {listing.offer
+                  <p className="text-2xl font-semibold mb-1">{listing.name}</p>
+                  <p className="text-gray-500 text-sm mb-4 flex items-center gap-2">
+                    <FaMapMarkerAlt className="text-red-500" /> {listing.address}
+                  </p>
+
+                  <div className="bg-green-600 text-white text-lg font-semibold px-4 py-2 rounded-full inline-block mb-4">
+                    ${listing.offer
                       ? listing.discountPrice.toLocaleString("en-US")
                       : listing.regularPrice.toLocaleString("en-US")}
                     {listing.type === "rent" && " / month"}
-                  </p>
-                  <p
-                    onClick={handleAddressClick}
-                    className="flex items-center gap-2 text-slate-600 text-sm cursor-pointer hover:underline mb-4"
-                  >
-                    <FaMapMarkerAlt className="text-green-700" />
-                    {listing.address || "Address not provided"}
-                  </p>
-                  <div className="flex gap-4 mb-4">
-                    <p className="bg-red-900 text-white text-center p-2 rounded-md">
-                      {listing.type === "rent" ? "For Rent" : "For Sale"}
-                    </p>
-                    {listing.offer && (
-                      <p className="bg-green-900 text-white text-center p-2 rounded-md">
-                        ${+listing.regularPrice - +listing.discountPrice} OFF
-                      </p>
-                    )}
                   </div>
+
                   <p className="text-slate-800 mb-4">
-                    <span className="font-semibold text-black">Description - </span>
+                    <span className="font-semibold text-black">
+                      Description 
+                    </span>
+                    <br /> {/* Adds a line break */}
                     {listing.description}
                   </p>
-                  <ul className="text-green-900 font-semibold text-sm flex flex-wrap gap-4">
-                    <li className="flex items-center gap-1">
-                      <FaBed className="text-lg" />
-                      {listing.bedrooms > 1
-                        ? `${listing.bedrooms} beds`
-                        : `${listing.bedrooms} bed`}
+
+
+                  {/* Details */}
+                  <ul className="flex flex-wrap gap-4">
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaBed /> {listing.bedrooms} Beds
                     </li>
-                    <li className="flex items-center gap-1">
-                      <FaBath className="text-lg" />
-                      {listing.bathrooms > 1
-                        ? `${listing.bathrooms} baths`
-                        : `${listing.bathrooms} bath`}
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaBath /> {listing.bathrooms} Baths
                     </li>
-                    <li className="flex items-center gap-1">
-                      <FaParking className="text-lg" />
-                      {listing.parking ? "Parking spot" : "No Parking"}
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaParking /> {listing.parking ? "Parking Spot" : "No Parking"}
                     </li>
-                    <li className="flex items-center gap-1">
-                      <FaChair className="text-lg" />
-                      {listing.furnished ? "Furnished" : "Unfurnished"}
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaChair /> {listing.furnished ? "Furnished" : "Unfurnished"}
+                    </li>
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaRulerCombined /> {listing.m2} m²
                     </li>
                   </ul>
+
+                  {/* Contact Button */}
                   {currentUser && listing.userRef !== currentUser._id && !contact && (
                     <button
                       onClick={() => setContact(true)}
@@ -272,7 +247,7 @@ const Listing = () => {
               </div>
 
               {/* Right Column - Map */}
-              <div className="flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md">
+              <div className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${showFullscreen ? "hidden" : ""}`}>
                 <MapContainer
                   center={[listing.lat || defaultLat, listing.lng || defaultLng]}
                   zoom={13}

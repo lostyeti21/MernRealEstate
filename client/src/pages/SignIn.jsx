@@ -190,7 +190,7 @@ const SignIn = () => {
                 onClick={() => setShowPopup(false)}
                 className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600"
               >
-                Individual Landlord
+                Individual Landlord or Tenant
               </button>
               <button
                 onClick={() => navigate("/real-estate-login")}
