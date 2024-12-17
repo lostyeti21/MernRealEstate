@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation } from "swiper/modules";
 import SwiperCore from "swiper";
@@ -19,13 +19,18 @@ export default function Home() {
   const [rentListings, setRentListings] = useState([]);
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showPopup, setShowPopup] = useState(false);
+  const [isRenting, setIsRenting] = useState(null); // Track if user is renting or buying
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const navigate = useNavigate();
 
   SwiperCore.use([Navigation]);
 
   // Hero images for slideshow
   const heroImages = [backImage1, backImage2, backImage3, backImage4, backImage5];
 
-  // Cycle through images every 8 seconds
+  // Cycle through images every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % heroImages.length);
@@ -97,6 +102,29 @@ export default function Home() {
     }
   }, [isChatbotLoaded]);
 
+  const handleStart = () => {
+    setShowPopup(true);
+  };
+
+  const handleRentOrBuy = (choice) => {
+    setIsRenting(choice); // Set rent/buy selection
+  };
+
+  const handlePriceSubmit = () => {
+    if (isRenting === null) {
+      alert("Please select Rent or Buy.");
+      return;
+    }
+
+    const searchParams = new URLSearchParams();
+    searchParams.set("type", isRenting === "rent" ? "rent" : "sale"); // Set the type based on selection
+    searchParams.set("minPrice", minPrice);
+    searchParams.set("maxPrice", maxPrice);
+
+    navigate(`/search?${searchParams.toString()}`);
+    setShowPopup(false); // Close the popup after search
+  };
+
   return (
     <div>
       {/* Hero Section with Smooth Fade and Continuous Zoom-Out */}
@@ -128,15 +156,76 @@ export default function Home() {
               <br />
               We have a wide range of properties for you to choose from.
             </p>
-            <Link
-              to={"/search"}
+            <button
+              onClick={handleStart}
               className="text-sm md:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
             >
               Let's get started...
-            </Link>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Listings Popup */}
+      {showPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4 text-center">Are you looking to</h2>
+
+            <div className="flex justify-around mb-4">
+              <button
+                onClick={() => handleRentOrBuy("rent")}
+                className="bg-blue-600 text-white py-2 px-4 rounded"
+              >
+                Rent
+              </button>
+              <button
+                onClick={() => handleRentOrBuy("sale")}
+                className="bg-green-600 text-white py-2 px-4 rounded"
+              >
+                Buy
+              </button>
+            </div>
+
+            {isRenting !== null && (
+              <>
+                <h2 className="text-xl font-bold mb-4">What is your budget?</h2>
+                <label className="block mb-2">
+                  {isRenting === "rent"
+                    ? "Enter your monthly rent budget:"
+                    : "Enter your price range for buying:"}
+                </label>
+                <input
+                  type="number"
+                  placeholder="Min Price"
+                  className="border p-3 w-full mb-4"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                />
+                <input
+                  type="number"
+                  placeholder="Max Price"
+                  className="border p-3 w-full mb-4"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                />
+                <button
+                  onClick={handlePriceSubmit}
+                  className="bg-blue-600 text-white py-2 px-4 rounded w-full"
+                >
+                  Search Listings
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setShowPopup(false)} // Close the pop-up
+              className="mt-4 text-red-600 underline"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Swiper for Recent Offers */}
       <Swiper navigation>
@@ -166,7 +255,7 @@ export default function Home() {
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {rentListings.map((listing) => (
+              {rentListings.map((listing) => (
                 <ListingItem listing={listing} key={listing._id} />
               ))}
             </div>
@@ -190,7 +279,7 @@ export default function Home() {
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {saleListings.map((listing) => (
+              {saleListings.map((listing) => (
                 <ListingItem listing={listing} key={listing._id} />
               ))}
             </div>

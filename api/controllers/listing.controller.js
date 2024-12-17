@@ -78,44 +78,43 @@ export const getListing = async (req, res, next) => {
 export const getListings = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 9;
-
     const startIndex = parseInt(req.query.startIndex) || 0;
 
     let offer = req.query.offer;
-
     if (offer === undefined || offer === "false") {
       offer = { $in: [false, true] };
     }
 
     let furnished = req.query.furnished;
-
     if (furnished === undefined || furnished === "false") {
       furnished = { $in: [false, true] };
     }
 
     let parking = req.query.parking;
-
     if (parking === undefined || parking === "false") {
       parking = { $in: [false, true] };
     }
 
     let type = req.query.type;
-
     if (type === undefined || type === "all") {
       type = { $in: ["sale", "rent"] };
     }
 
     const searchTerm = req.query.searchTerm || "";
-
     const sort = req.query.sort || "createdAt";
-
     const order = req.query.order || "desc";
+
+    // Price range filtering
+    const minPrice = parseFloat(req.query.minPrice) || 0;
+    const maxPrice = parseFloat(req.query.maxPrice) || 10000000;
 
     const listings = await Listing.find({
       name: { $regex: searchTerm, $options: "i" },
       offer,
       furnished,
+      parking,
       type,
+      regularPrice: { $gte: minPrice, $lte: maxPrice }, // Price range filter
     })
       .sort({ [sort]: order })
       .limit(limit)

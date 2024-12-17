@@ -61,6 +61,11 @@ const Header = () => {
               Home
             </li>
           </Link>
+          <Link to="/search">
+            <li className="hidden sm:inline text-slate-700 hover:underline">
+              Listings
+            </li>
+          </Link>
           <Link to="/landlords">
             <li className="hidden sm:inline text-slate-700 hover:underline">
               Landlords
