@@ -2,10 +2,15 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "../models/user.model.js";
 import Listing from "../models/listing.model.js";
-import { errorHandler } from "../utils/error.js"; // Assuming this handles error responses
+import { errorHandler } from "../utils/error.js";
 
-//Helper function to create consistent error responses
+// Helper function to create consistent error responses
 const createErrorResponse = (statusCode, message) => ({ statusCode, message });
+
+// Utility function to calculate average rating
+const calculateAverageRating = (ratings) => {
+  return ratings.length > 0 ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length : null;
+};
 
 export const updateUser = async (req, res, next) => {
   if (req.user.id !== req.params.id) {
@@ -47,13 +52,32 @@ export const deleteUser = async (req, res, next) => {
     }
 
     res.clearCookie("access_token");
-    res.status(200).json({ message: "User has been deleted." }); //Standardized response
+    res.status(200).json({ message: "User has been deleted." });
   } catch (error) {
     console.error("Error deleting user:", error);
     next(createErrorResponse(500, "An error occurred while deleting the user."));
   }
 };
+export const getListingById = async (req, res, next) => {
+  try {
+    const listingId = req.params.id;
 
+    if (!mongoose.Types.ObjectId.isValid(listingId)) {
+      return next(createErrorResponse(400, "Invalid listing ID."));
+    }
+
+    const listing = await Listing.findById(listingId).populate("userRef", "username avatar phoneNumbers ratings ratedBy");
+    
+    if (!listing) {
+      return next(createErrorResponse(404, "Listing not found."));
+    }
+
+    res.status(200).json(listing);
+  } catch (error) {
+    console.error("Error fetching listing:", error);
+    next(createErrorResponse(500, "An error occurred while fetching the listing."));
+  }
+};
 
 export const getUserListings = async (req, res, next) => {
   try {
@@ -64,15 +88,13 @@ export const getUserListings = async (req, res, next) => {
     }
 
     const listings = await Listing.find({ userRef: userId });
-    const user = await User.findById(userId, "username email avatar ratings ratedBy");
+    const user = await User.findById(userId, "username email avatar phoneNumbers ratings ratedBy");
 
     if (!user) {
       return next(createErrorResponse(404, "User not found."));
     }
 
-    const averageRating = user.ratings.length > 0
-      ? user.ratings.reduce((sum, r) => sum + r, 0) / user.ratings.length
-      : null;
+    const averageRating = calculateAverageRating(user.ratings);
 
     res.status(200).json({
       user: {
@@ -80,6 +102,7 @@ export const getUserListings = async (req, res, next) => {
         username: user.username,
         email: user.email,
         avatar: user.avatar,
+        phoneNumbers: user.phoneNumbers,
         averageRating,
         totalRatings: user.ratedBy.length,
       },
@@ -99,20 +122,19 @@ export const getUser = async (req, res, next) => {
       return next(createErrorResponse(400, "Invalid user ID."));
     }
 
-    const user = await User.findById(id, "username email avatar ratings ratedBy");
+    const user = await User.findById(id, "username email avatar phoneNumbers ratings ratedBy");
     if (!user) {
       return next(createErrorResponse(404, "User not found."));
     }
 
-    const averageRating = user.ratings.length > 0
-      ? user.ratings.reduce((sum, r) => sum + r, 0) / user.ratings.length
-      : null;
+    const averageRating = calculateAverageRating(user.ratings);
 
     res.status(200).json({
       _id: user._id,
       username: user.username,
       email: user.email,
       avatar: user.avatar,
+      phoneNumbers: user.phoneNumbers,
       averageRating,
       totalRatings: user.ratedBy.length,
     });
@@ -125,7 +147,6 @@ export const getUser = async (req, res, next) => {
 export const rateLandlord = async (req, res, next) => {
   const { landlordId, responseTime, maintenance, experience } = req.body;
 
-  // Validate input
   if (![responseTime, maintenance, experience].every((r) => typeof r === "number" && r >= 1 && r <= 5)) {
     return next(errorHandler(400, "Each rating must be a valid number between 1 and 5."));
   }
@@ -139,10 +160,7 @@ export const rateLandlord = async (req, res, next) => {
       return next(errorHandler(403, "You have already rated this landlord."));
     }
 
-    // Calculate the new rating
     const newRating = (responseTime + maintenance + experience) / 3;
-
-    // Update landlord ratings and recalculate averageRating
     landlord.ratings.push(newRating);
     landlord.ratedBy.push(req.user.id);
     await landlord.updateAverageRating();
@@ -157,25 +175,15 @@ export const rateLandlord = async (req, res, next) => {
   }
 };
 
-
-
-
-
-
-
-
-
 export const rateTenant = async (req, res, next) => {
   const { tenantId, maintenance, behavior, payments } = req.body;
 
-  // Validate ratings
   const ratings = [maintenance, behavior, payments];
   if (ratings.some((rating) => rating < 1 || rating > 5)) {
     return next(createErrorResponse(400, "Each rating must be between 1 and 5."));
   }
 
   try {
-    // Ensure the user rating the tenant is a landlord
     const isLandlord = await Listing.exists({ userRef: req.user.id });
     if (!isLandlord) {
       return next(createErrorResponse(403, "Only landlords can rate tenants."));
@@ -187,12 +195,10 @@ export const rateTenant = async (req, res, next) => {
       return next(createErrorResponse(403, "You have already rated this tenant."));
     }
 
-    // Calculate the new rating and update fields
     const newRating = (maintenance + behavior + payments) / 3;
     tenant.ratings.push(newRating);
     tenant.ratedBy.push(req.user.id);
 
-    // Recalculate and save the average rating
     await tenant.updateAverageRating();
 
     res.status(200).json({
@@ -204,7 +210,6 @@ export const rateTenant = async (req, res, next) => {
     next(createErrorResponse(500, "An error occurred while submitting the rating."));
   }
 };
-
 
 export const checkIfRated = async (req, res, next) => {
   const { landlordId } = req.params;
@@ -230,16 +235,15 @@ export const getLandlords = async (req, res, next) => {
 
     const landlords = await User.find(
       { _id: { $in: validLandlordIds } },
-      "username avatar ratings ratedBy"
+      "username avatar phoneNumbers ratings ratedBy"
     );
 
     const landlordsWithRatings = landlords.map((landlord) => ({
       _id: landlord._id,
       username: landlord.username,
       avatar: landlord.avatar,
-      averageRating: landlord.ratings.length > 0
-        ? landlord.ratings.reduce((sum, r) => sum + r, 0) / landlord.ratings.length
-        : null,
+      phoneNumbers: landlord.phoneNumbers,
+      averageRating: calculateAverageRating(landlord.ratings),
       totalRatings: landlord.ratedBy.length,
     }));
 
@@ -250,7 +254,6 @@ export const getLandlords = async (req, res, next) => {
   }
 };
 
-
 export const getTenants = async (req, res, next) => {
   try {
     const landlordIds = await Listing.distinct("userRef");
@@ -258,16 +261,15 @@ export const getTenants = async (req, res, next) => {
 
     const tenants = await User.find(
       { _id: { $nin: validLandlordIds } },
-      "username avatar ratings ratedBy"
+      "username avatar phoneNumbers ratings ratedBy"
     );
 
     const tenantsWithRatings = tenants.map((tenant) => ({
       _id: tenant._id,
       username: tenant.username,
       avatar: tenant.avatar,
-      averageRating: tenant.ratings.length > 0
-        ? tenant.ratings.reduce((sum, r) => sum + r, 0) / tenant.ratings.length
-        : null,
+      phoneNumbers: tenant.phoneNumbers,
+      averageRating: calculateAverageRating(tenant.ratings),
       totalRatings: tenant.ratedBy.length,
     }));
 

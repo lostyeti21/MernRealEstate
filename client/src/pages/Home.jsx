@@ -251,7 +251,7 @@ export default function Home() {
           <div className="w-full">
             <div className="my-3">
               <h2 className="text-2xl font-semibold text-slate-600">
-                Recent places for rent
+                Recently added places for rent
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -275,7 +275,7 @@ export default function Home() {
           <div className="w-full">
             <div className="my-3">
               <h2 className="text-2xl font-semibold text-slate-600">
-                Recent places for sale
+                Recently added places for sale
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

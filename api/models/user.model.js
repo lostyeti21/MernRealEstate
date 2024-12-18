@@ -20,6 +20,19 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
     },
+    phoneNumbers: {
+      type: [String], // An array to store multiple phone numbers
+      required: false, // Optional, but can be required if needed
+      validate: {
+        validator: function (numbers) {
+          // Ensuring each phone number is valid
+          return numbers.every((number) =>
+            /^\+?[1-9]\d{1,14}$/.test(number) // Match international phone number format
+          );
+        },
+        message: "Please enter valid phone numbers",
+      },
+    },
     ratings: {
       type: [Number], // Array of individual ratings
       default: [],

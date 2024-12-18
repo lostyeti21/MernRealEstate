@@ -10,6 +10,8 @@ import "swiper/css/bundle";
 import { useSelector } from "react-redux";
 import { geocodeAddress } from "../../../api/utils/geocode";
 
+import { FaPhoneAlt } from "react-icons/fa";
+
 import {
   FaBath,
   FaBed,
@@ -30,6 +32,7 @@ const Listing = () => {
   const { currentUser } = useSelector((state) => state.user);
 
   const [listing, setListing] = useState(null);
+  const [landlord, setLandlord] = useState(null); // Landlord data
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showFullscreen, setShowFullscreen] = useState(false);
@@ -38,6 +41,17 @@ const Listing = () => {
 
   const defaultLat = -34.397;
   const defaultLng = 150.644;
+
+  const fetchLandlordData = async (userRef) => {
+    try {
+      const landlordRes = await fetch(`/api/user/${userRef}`);
+      const landlordData = await landlordRes.json();
+      return landlordData;
+    } catch (error) {
+      console.error("Error fetching landlord data:", error);
+      return null;
+    }
+  };
 
   useEffect(() => {
     const fetchListing = async () => {
@@ -62,8 +76,12 @@ const Listing = () => {
 
         setListing(data);
         setError(false);
+
+        // Fetch the landlord's data
+        const landlordData = await fetchLandlordData(data.userRef);
+        setLandlord(landlordData);
       } catch (err) {
-        console.error("Error fetching listing:", err);
+        console.error("Error fetching listing or landlord:", err);
         setError(true);
       } finally {
         setLoading(false);
@@ -162,110 +180,131 @@ const Listing = () => {
           )}
 
           {/* Main Content */}
-          {!showFullscreen && (
-            <div className="flex flex-col lg:flex-row max-w-6xl mx-auto my-7 gap-6">
-              {/* Left Column */}
-              <div className="flex flex-col flex-1">
-                {/* Landlord Section */}
-                <div className="bg-white p-6 rounded-lg shadow-md mb-6 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <img
-                      src={listing.landlord?.avatar || "default-avatar.png"}
-                      alt="Landlord"
-                      className="rounded-full h-16 w-16 object-cover"
-                    />
-                    <div>
-                      <p className="text-lg font-semibold text-slate-700">
-                        Listed by {listing.landlord?.username || "Unknown Landlord"}
-                      </p>
-                      <div className="flex items-center">{renderStars(listing.landlord?.averageRating || 0)}</div>
+          <div className="flex flex-col lg:flex-row max-w-6xl mx-auto my-7 gap-6">
+            {/* Left Column */}
+            <div className="flex flex-col flex-1">
+              {/* Landlord Section */}
+              <div className="bg-white p-6 rounded-lg shadow-md mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={landlord?.avatar || "default-avatar.png"}
+                    alt="Landlord"
+                    className="rounded-full h-16 w-16 object-cover"
+                  />
+                  <div>
+                    <p className="text-lg font-semibold text-slate-700">
+                      Listed by {landlord?.username || "Unknown Landlord"}
+                    </p>
+                    <div className="flex items-center">
+                      {renderStars(landlord?.averageRating || 0)}
+                    </div>
+                    {/* Display phone numbers */}
+                    <div className="mt-2">
+                      {landlord?.phoneNumbers?.length > 0 ? (
+                        landlord.phoneNumbers.map((phone, index) => (
+                          <div key={index} className="flex items-center gap-2 text-gray-600 text-sm">
+                            <FaPhoneAlt className="text-green-600" />
+                            <span>{phone}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm">
+                          <FaPhoneAlt className="text-green-600" />
+                          <span>N/A</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {currentUser && (
-                    <button
-                      onClick={() => navigate(`/landlord/${listing.userRef}`)}
-                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
-                    >
-                      Rate this Landlord
-                    </button>
-                  )}
                 </div>
-
-                {/* Title, Address, and Price */}
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                  <p className="text-2xl font-semibold mb-1">{listing.name}</p>
-                  <p className="text-gray-500 text-sm mb-4 flex items-center gap-2">
-                    <FaMapMarkerAlt className="text-red-500" /> {listing.address}
-                  </p>
-
-                  <div className="bg-green-600 text-white text-lg font-semibold px-4 py-2 rounded-full inline-block mb-4">
-                    ${listing.offer
-                      ? listing.discountPrice.toLocaleString("en-US")
-                      : listing.regularPrice.toLocaleString("en-US")}
-                    {listing.type === "rent" && " / month"}
-                  </div>
-
-                  <p className="text-slate-800 mb-4">
-                    <span className="font-semibold text-black">
-                      Description 
-                    </span>
-                    <br /> {/* Adds a line break */}
-                    {listing.description}
-                  </p>
-
-
-                  {/* Details */}
-                  <ul className="flex flex-wrap gap-4">
-                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                      <FaBed /> {listing.bedrooms} Beds
-                    </li>
-                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                      <FaBath /> {listing.bathrooms} Baths
-                    </li>
-                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                      <FaParking /> {listing.parking ? "Parking Spot" : "No Parking"}
-                    </li>
-                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                      <FaChair /> {listing.furnished ? "Furnished" : "Unfurnished"}
-                    </li>
-                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                      <FaRulerCombined /> {listing.m2} m²
-                    </li>
-                  </ul>
-
-                  {/* Contact Button */}
-                  {currentUser && listing.userRef !== currentUser._id && !contact && (
-                    <button
-                      onClick={() => setContact(true)}
-                      className="bg-slate-700 text-white rounded-lg uppercase p-3 hover:opacity-95 mt-4"
-                    >
-                      Contact Landlord
-                    </button>
-                  )}
-                  {contact && <Contact listing={listing} />}
-                </div>
+                {currentUser && (
+                  <button
+                    onClick={() => navigate(`/landlord/${listing.userRef}`)}
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
+                  >
+                    Rate this Landlord
+                  </button>
+                )}
               </div>
 
-              {/* Right Column - Map */}
-              <div className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${showFullscreen ? "hidden" : ""}`}>
-                <MapContainer
-                  center={[listing.lat || defaultLat, listing.lng || defaultLng]}
-                  zoom={13}
-                  scrollWheelZoom={false}
-                  className="h-full w-full"
-                >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <Marker
-                    position={[listing.lat || defaultLat, listing.lng || defaultLng]}
-                    icon={customIcon}
-                    eventHandlers={{ click: handleMarkerClick }}
+
+
+              {/* Title, Address, and Price */}
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <p className="text-2xl font-semibold mb-1">{listing.name}</p>
+                <p className="text-gray-500 text-sm mb-4 flex items-center gap">
+                  <FaMapMarkerAlt className="text-red-500" /> {listing.address}
+                </p>
+
+                <div className="bg-green-600 text-white text-lg font-semibold px-4 py-2 rounded-full inline-block mb-4">
+                  ${listing.offer
+                    ? listing.discountPrice.toLocaleString("en-US")
+                    : listing.regularPrice.toLocaleString("en-US")}
+                  {listing.type === "rent" && " / month"}
+                </div>
+
+                <p className="text-slate-800 mb-4">
+                  <span className="font-semibold text-black">
+                    Description
+                  </span>
+                  <br /> {/* Adds a line break */}
+                  {listing.description}
+                </p>
+
+                {/* Details */}
+                <ul className="flex flex-wrap gap-4">
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaBed /> {listing.bedrooms} Beds
+                  </li>
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaBath /> {listing.bathrooms} Baths
+                  </li>
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaParking /> {listing.parking ? "Parking Spot" : "No Parking"}
+                  </li>
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaChair /> {listing.furnished ? "Furnished" : "Unfurnished"}
+                  </li>
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaRulerCombined /> {listing.m2} m²
+                  </li>
+                </ul>
+
+                {/* Contact Button */}
+                {currentUser && listing.userRef !== currentUser._id && !contact && (
+                  <button
+                    onClick={() => setContact(true)}
+                    className="bg-slate-700 text-white rounded-lg uppercase p-3 hover:opacity-95 mt-4"
                   >
-                    <Popup>Click for Directions</Popup>
-                  </Marker>
-                </MapContainer>
+                    Contact Landlord
+                  </button>
+                )}
+                {contact && <Contact listing={listing} />}
               </div>
             </div>
-          )}
+
+            {/* Right Column - Map */}
+            <div
+              className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${showFullscreen ? "hidden" : ""
+                }`}
+            >
+              <MapContainer
+                center={[listing.lat || defaultLat, listing.lng || defaultLng]}
+                zoom={13}
+                scrollWheelZoom={false}
+                className="h-full w-full"
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <Marker
+                  position={[listing.lat || defaultLat, listing.lng || defaultLng]}
+                  icon={customIcon}
+                  eventHandlers={{ click: handleMarkerClick }}
+                >
+                  <Popup>Click for Directions</Popup>
+                </Marker>
+              </MapContainer>
+            </div>
+
+          </div>
         </div>
       )}
     </main>

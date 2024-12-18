@@ -1,11 +1,6 @@
 import { useSelector } from "react-redux";
 import { useRef, useState, useEffect } from "react";
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from "firebase/storage";
+import { getDownloadURL, getStorage, ref, uploadBytesResumable } from "firebase/storage";
 import { app } from "../firebase";
 import {
   updateUserStart,
@@ -30,6 +25,9 @@ const Profile = () => {
   const [fileUploadError, setFileUploadError] = useState(false);
   const [formData, setFormData] = useState({});
   const [updateSuccess, setUpdateSuccess] = useState(false);
+
+  const [phoneNumbers, setPhoneNumbers] = useState(currentUser.phoneNumbers || []); // To store multiple phone numbers
+  const [newPhoneNumber, setNewPhoneNumber] = useState("");
 
   const [showListingsError, setShowListingsError] = useState(false);
   const [userListings, setUserListings] = useState([]);
@@ -73,6 +71,21 @@ const Profile = () => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
+  const handlePhoneNumberChange = (e) => {
+    setNewPhoneNumber(e.target.value);
+  };
+
+  const handleAddPhoneNumber = () => {
+    if (newPhoneNumber && !phoneNumbers.includes(newPhoneNumber)) {
+      setPhoneNumbers([...phoneNumbers, newPhoneNumber]);
+      setNewPhoneNumber("");
+    }
+  };
+
+  const handleRemovePhoneNumber = (number) => {
+    setPhoneNumbers(phoneNumbers.filter((phone) => phone !== number));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -82,7 +95,7 @@ const Profile = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, phoneNumbers }),
       });
 
       const data = await res.json();
@@ -188,6 +201,40 @@ const Profile = () => {
           onChange={handleChange}
           className="border p-3 rounded-lg"
         />
+
+        {/* Phone Number Inputs */}
+        <div className="flex flex-col gap-3">
+          <h3 className="font-semibold">Phone Numbers:</h3>
+          {phoneNumbers.map((number, index) => (
+            <div key={index} className="flex justify-between items-center">
+              <span>{number}</span>
+              <button
+                type="button"
+                className="text-red-500"
+                onClick={() => handleRemovePhoneNumber(number)}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Add phone number"
+              value={newPhoneNumber}
+              onChange={handlePhoneNumberChange}
+              className="border p-3 rounded-lg w-full"
+            />
+            <button
+              type="button"
+              onClick={handleAddPhoneNumber}
+              className="bg-blue-500 text-white p-3 rounded-lg"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
         <Link
           to="/change-password"
           className="bg-blue-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95 mt-3"
