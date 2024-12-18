@@ -25,8 +25,9 @@ const UpdateListing = () => {
     offer: false,
     parking: false,
     furnished: false,
-    backupPower: false, // Added field
-    backupWaterSupply: false, // Added field
+    backupPower: false, // Existing field
+    backupWaterSupply: false, // Existing field
+    boreholeWater: false, // Added field
   });
 
   const [imageUploadError, setImageUploadError] = useState(false);
@@ -109,7 +110,7 @@ const UpdateListing = () => {
     if (["sale", "rent"].includes(id)) {
       setFormData({ ...formData, type: id });
     } else if (
-      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply"].includes(
+      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply", "boreholeWater"].includes(
         id
       )
     ) {
@@ -152,7 +153,7 @@ const UpdateListing = () => {
       <h1 className="text-3xl font-semibold text-center my-7">Update Listing</h1>
       <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-6">
         <div className="flex flex-col gap-4 flex-1">
-          <label>Name</label>
+          <label htmlFor="name">Name</label>
           <input
             type="text"
             id="name"
@@ -162,7 +163,8 @@ const UpdateListing = () => {
             onChange={handleChange}
             value={formData.name}
           />
-          <label>Description</label>
+
+          <label htmlFor="description">Description</label>
           <textarea
             id="description"
             placeholder="Description"
@@ -171,7 +173,8 @@ const UpdateListing = () => {
             onChange={handleChange}
             value={formData.description}
           />
-          <label>Address</label>
+
+          <label htmlFor="address">Address</label>
           <input
             type="text"
             id="address"
@@ -181,130 +184,90 @@ const UpdateListing = () => {
             onChange={handleChange}
             value={formData.address}
           />
+
+          <label>Amenities</label>
           <div className="flex flex-wrap gap-4">
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="sale"
-                className="w-5"
-                onChange={handleChange}
-                checked={formData.type === "sale"}
-              />
-              <span>Sell</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="rent"
-                className="w-5"
-                onChange={handleChange}
-                checked={formData.type === "rent"}
-              />
-              <span>Rent</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="parking"
-                className="w-5"
-                onChange={handleChange}
-                checked={formData.parking}
-              />
-              <span>Parking spot</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="furnished"
-                className="w-5"
-                onChange={handleChange}
-                checked={formData.furnished}
-              />
-              <span>Furnished</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="offer"
-                className="w-5"
-                onChange={handleChange}
-                checked={formData.offer}
-              />
-              <span>Offer</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="backupPower"
-                className="w-5"
-                onChange={handleChange}
-                checked={formData.backupPower}
-              />
-              <span>Backup Power</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="backupWaterSupply"
-                className="w-5"
-                onChange={handleChange}
-                checked={formData.backupWaterSupply}
-              />
-              <span>Backup Water Supply</span>
-            </div>
+            {["parking", "furnished", "offer", "backupPower", "backupWaterSupply", "boreholeWater"].map((amenity) => (
+              <div className="flex gap-2" key={amenity}>
+                <input
+                  type="checkbox"
+                  id={amenity}
+                  className="w-5"
+                  onChange={handleChange}
+                  checked={formData[amenity]}
+                />
+                <span>{amenity.replace(/([A-Z])/g, " $1")}</span>
+              </div>
+            ))}
           </div>
 
+          <label>Details</label>
           <div className="flex flex-wrap gap-4">
-            <input
-              type="number"
-              id="bedrooms"
-              min="1"
-              placeholder="Beds"
-              className="p-3 border rounded-lg"
-              onChange={handleChange}
-              value={formData.bedrooms}
-            />
-            <input
-              type="number"
-              id="bathrooms"
-              min="1"
-              placeholder="Baths"
-              className="p-3 border rounded-lg"
-              onChange={handleChange}
-              value={formData.bathrooms}
-            />
-            <input
-              type="number"
-              id="regularPrice"
-              min="50"
-              placeholder="Regular Price"
-              className="p-3 border rounded-lg"
-              onChange={handleChange}
-              value={formData.regularPrice}
-            />
-            <input
-              type="number"
-              id="discountPrice"
-              min="0"
-              placeholder="Discount Price"
-              className="p-3 border rounded-lg"
-              onChange={handleChange}
-              value={formData.discountPrice}
-            />
-            <input
-              type="number"
-              id="m2"
-              min="0"
-              placeholder="m²"
-              className="p-3 border rounded-lg"
-              onChange={handleChange}
-              value={formData.m2}
-            />
+            <div>
+              <label htmlFor="bedrooms">Bedrooms</label>
+              <input
+                type="number"
+                id="bedrooms"
+                min="1"
+                placeholder="Beds"
+                className="p-3 border rounded-lg"
+                onChange={handleChange}
+                value={formData.bedrooms}
+              />
+            </div>
+            <div>
+              <label htmlFor="bathrooms">Bathrooms</label>
+              <input
+                type="number"
+                id="bathrooms"
+                min="1"
+                placeholder="Baths"
+                className="p-3 border rounded-lg"
+                onChange={handleChange}
+                value={formData.bathrooms}
+              />
+            </div>
+            <div>
+              <label htmlFor="regularPrice">Regular Price</label>
+              <input
+                type="number"
+                id="regularPrice"
+                min="50"
+                placeholder="Regular Price"
+                className="p-3 border rounded-lg"
+                onChange={handleChange}
+                value={formData.regularPrice}
+              />
+            </div>
+            <div>
+              <label htmlFor="discountPrice">Discount Price</label>
+              <input
+                type="number"
+                id="discountPrice"
+                min="0"
+                placeholder="Discount Price"
+                className="p-3 border rounded-lg"
+                onChange={handleChange}
+                value={formData.discountPrice}
+              />
+            </div>
+            <div>
+              <label htmlFor="m2">Area (m²)</label>
+              <input
+                type="number"
+                id="m2"
+                min="0"
+                placeholder="m²"
+                className="p-3 border rounded-lg"
+                onChange={handleChange}
+                value={formData.m2}
+              />
+            </div>
           </div>
         </div>
 
         <div className="flex flex-col flex-1 gap-4">
-          <p className="font-semibold">Images:</p>
+          <label>Images</label>
           {formData.imageUrls.map((url, index) => (
             <div
               key={url}

@@ -20,6 +20,7 @@ import {
   FaBolt,
   FaTint,
   FaPhoneAlt,
+  FaWater,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 
@@ -269,6 +270,9 @@ const Listing = () => {
                   </li>
                   <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
                     <FaTint /> {listing.backupWaterSupply ? "Backup Water Supply" : "No Backup Water"}
+                  </li>
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaWater /> {listing.boreholeWater ? "Borehole Water" : "No Borehole Water"}
                   </li>
                 </ul>
                 {currentUser && listing.userRef !== currentUser._id && !contact && (

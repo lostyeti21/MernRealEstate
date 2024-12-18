@@ -25,8 +25,9 @@ const CreateListing = () => {
     parking: false,
     furnished: false,
     m2: 0,
-    backupPower: false, // Added field
-    backupWaterSupply: false, // Added field
+    backupPower: false,
+    backupWaterSupply: false,
+    boreholeWater: false, // Added field
   });
 
   const [imageUploadError, setImageUploadError] = useState(false);
@@ -90,7 +91,7 @@ const CreateListing = () => {
     if (["sale", "rent"].includes(id)) {
       setFormData({ ...formData, type: id });
     } else if (
-      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply"].includes(id)
+      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply", "boreholeWater"].includes(id) // Updated
     ) {
       setFormData({ ...formData, [id]: checked });
     } else if (["number", "text", "textarea"].includes(type)) {
@@ -233,6 +234,16 @@ const CreateListing = () => {
                 checked={formData.backupWaterSupply}
               />
               <span>Backup Water Supply</span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="checkbox"
+                id="boreholeWater" // Added checkbox
+                className="w-5"
+                onChange={handleChange}
+                checked={formData.boreholeWater}
+              />
+              <span>Borehole Water</span>
             </div>
           </div>
 

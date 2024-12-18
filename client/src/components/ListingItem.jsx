@@ -1,10 +1,20 @@
 import { Link } from 'react-router-dom';
 import { MdLocationOn } from 'react-icons/md';
-import { FaBed, FaBath, FaParking, FaChair, FaExpand } from 'react-icons/fa';
+import { FaBed, FaBath, FaParking, FaChair, FaExpand, FaBolt, FaTint, FaWater } from 'react-icons/fa';
 
 export default function ListingItem({ listing }) {
   return (
-    <div className='bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px]'>
+    <div className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px]'>
+      {/* Type Badge */}
+      <div
+        className={`absolute top-3 right-3 px-3 py-1 text-white text-xs font-semibold ${
+          listing.type === 'sale' ? 'bg-purple-600' : 'bg-blue-600'
+        }`}
+        style={{ borderRadius: '0px' }} // Ensures the badge is a rectangle
+      >
+        {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
+      </div>
+
       <Link to={`/listing/${listing._id}`}>
         {/* Listing Image */}
         <img
@@ -37,7 +47,7 @@ export default function ListingItem({ listing }) {
           </p>
 
           {/* Price */}
-          <p className='bg-green-600 text-white w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+          <p className='bg-green-600 text-white w-fit px-3 py-1 text-sm font-semibold mt-2'>
             $
             {listing.offer
               ? listing.discountPrice.toLocaleString('en-US')
@@ -45,23 +55,38 @@ export default function ListingItem({ listing }) {
             {listing.type === 'rent' && ' / month'}
           </p>
 
-          {/* Features - Beds, Baths, Parking, Furnished, m² */}
+          {/* Features - Beds, Baths, Parking, Furnished, m², Backup Power, Backup Water, Borehole Water */}
           <div className='flex flex-wrap gap-2 mt-3 text-xs text-white font-medium'>
-            <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+            <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
               <FaBed /> {listing.bedrooms} Beds
             </div>
-            <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+            <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
               <FaBath /> {listing.bathrooms} Baths
             </div>
-            <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+            <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
               <FaParking /> {listing.parking ? 'Parking spot' : 'No Parking'}
             </div>
-            <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+            <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
               <FaChair /> {listing.furnished ? 'Furnished' : 'Unfurnished'}
             </div>
-            <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+            <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
               <FaExpand /> {listing.m2} m²
             </div>
+            {listing.backupPower && (
+              <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
+                <FaBolt /> Backup Power
+              </div>
+            )}
+            {listing.backupWaterSupply && (
+              <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
+                <FaTint /> Backup Water
+              </div>
+            )}
+            {listing.boreholeWater && (
+              <div className='bg-green-900 px-3 py-1 flex items-center gap-1'>
+                <FaWater /> Borehole Water
+              </div>
+            )}
           </div>
         </div>
       </Link>

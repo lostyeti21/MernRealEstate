@@ -11,6 +11,7 @@ export default function Search() {
     furnished: false,
     backupPower: false,
     backupWaterSupply: false,
+    boreholeWater: false, // Added field
     offer: false,
     sort: 'created_at',
     order: 'desc',
@@ -31,6 +32,7 @@ export default function Search() {
     const furnishedFromUrl = urlParams.get('furnished');
     const backupPowerFromUrl = urlParams.get('backupPower');
     const backupWaterFromUrl = urlParams.get('backupWaterSupply');
+    const boreholeWaterFromUrl = urlParams.get('boreholeWater'); // Added field
     const offerFromUrl = urlParams.get('offer');
     const sortFromUrl = urlParams.get('sort');
     const orderFromUrl = urlParams.get('order');
@@ -44,6 +46,7 @@ export default function Search() {
       furnished: furnishedFromUrl === 'true',
       backupPower: backupPowerFromUrl === 'true',
       backupWaterSupply: backupWaterFromUrl === 'true',
+      boreholeWater: boreholeWaterFromUrl === 'true', // Added field
       offer: offerFromUrl === 'true',
       sort: sortFromUrl || 'created_at',
       order: orderFromUrl || 'desc',
@@ -154,7 +157,7 @@ export default function Search() {
 
           <div className="flex gap-2 flex-wrap items-center">
             <label className="font-semibold">Amenities:</label>
-            {['parking', 'furnished', 'backupPower', 'backupWaterSupply'].map((amenity) => (
+            {['parking', 'furnished', 'backupPower', 'backupWaterSupply', 'boreholeWater'].map((amenity) => (
               <div className="flex gap-2" key={amenity}>
                 <input
                   type="checkbox"

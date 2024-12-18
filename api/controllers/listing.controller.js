@@ -86,6 +86,7 @@ export const getListings = async (req, res, next) => {
     const parking = req.query.parking === "true" ? true : req.query.parking === "false" ? false : undefined;
     const backupPower = req.query.backupPower === "true" ? true : undefined;
     const backupWaterSupply = req.query.backupWaterSupply === "true" ? true : undefined;
+    const boreholeWater = req.query.boreholeWater === "true" ? true : undefined; // Added borehole water filter
 
     let type = req.query.type;
     if (type === undefined || type === "all") {
@@ -113,6 +114,7 @@ export const getListings = async (req, res, next) => {
     if (parking !== undefined) query.parking = parking;
     if (backupPower !== undefined) query.backupPower = backupPower;
     if (backupWaterSupply !== undefined) query.backupWaterSupply = backupWaterSupply;
+    if (boreholeWater !== undefined) query.boreholeWater = boreholeWater; // Added borehole water filter
 
     const listings = await Listing.find(query)
       .sort({ [sort]: order })

@@ -84,6 +84,11 @@ const listingSchema = new mongoose.Schema(
       required: false, // Optional field
       default: false, // Default value is false
     },
+    boreholeWater: {
+      type: Boolean,
+      required: false, // Optional field
+      default: false, // Default value is false
+    },
   },
   { timestamps: true }
 );
