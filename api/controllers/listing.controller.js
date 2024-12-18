@@ -80,20 +80,12 @@ export const getListings = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 9;
     const startIndex = parseInt(req.query.startIndex) || 0;
 
-    let offer = req.query.offer;
-    if (offer === undefined || offer === "false") {
-      offer = { $in: [false, true] };
-    }
-
-    let furnished = req.query.furnished;
-    if (furnished === undefined || furnished === "false") {
-      furnished = { $in: [false, true] };
-    }
-
-    let parking = req.query.parking;
-    if (parking === undefined || parking === "false") {
-      parking = { $in: [false, true] };
-    }
+    // Parse filters from query parameters
+    const offer = req.query.offer === "true" ? true : req.query.offer === "false" ? false : undefined;
+    const furnished = req.query.furnished === "true" ? true : req.query.furnished === "false" ? false : undefined;
+    const parking = req.query.parking === "true" ? true : req.query.parking === "false" ? false : undefined;
+    const backupPower = req.query.backupPower === "true" ? true : undefined;
+    const backupWaterSupply = req.query.backupWaterSupply === "true" ? true : undefined;
 
     let type = req.query.type;
     if (type === undefined || type === "all") {
@@ -108,14 +100,21 @@ export const getListings = async (req, res, next) => {
     const minPrice = parseFloat(req.query.minPrice) || 0;
     const maxPrice = parseFloat(req.query.maxPrice) || 10000000;
 
-    const listings = await Listing.find({
+    // Build the query object dynamically
+    const query = {
       name: { $regex: searchTerm, $options: "i" },
-      offer,
-      furnished,
-      parking,
       type,
-      regularPrice: { $gte: minPrice, $lte: maxPrice }, // Price range filter
-    })
+      regularPrice: { $gte: minPrice, $lte: maxPrice },
+    };
+
+    // Add filters to the query only if they are explicitly set
+    if (offer !== undefined) query.offer = offer;
+    if (furnished !== undefined) query.furnished = furnished;
+    if (parking !== undefined) query.parking = parking;
+    if (backupPower !== undefined) query.backupPower = backupPower;
+    if (backupWaterSupply !== undefined) query.backupWaterSupply = backupWaterSupply;
+
+    const listings = await Listing.find(query)
       .sort({ [sort]: order })
       .limit(limit)
       .skip(startIndex);

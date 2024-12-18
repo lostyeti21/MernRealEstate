@@ -9,18 +9,17 @@ import L from "leaflet";
 import "swiper/css/bundle";
 import { useSelector } from "react-redux";
 import { geocodeAddress } from "../../../api/utils/geocode";
-
-import { FaPhoneAlt } from "react-icons/fa";
-
 import {
   FaBath,
   FaBed,
   FaChair,
   FaMapMarkerAlt,
   FaParking,
-  FaShare,
   FaTimes,
   FaRulerCombined,
+  FaBolt,
+  FaTint,
+  FaPhoneAlt,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 
@@ -198,13 +197,19 @@ const Listing = () => {
                     <div className="flex items-center">
                       {renderStars(landlord?.averageRating || 0)}
                     </div>
-                    {/* Display phone numbers */}
                     <div className="mt-2">
                       {landlord?.phoneNumbers?.length > 0 ? (
                         landlord.phoneNumbers.map((phone, index) => (
-                          <div key={index} className="flex items-center gap-2 text-gray-600 text-sm">
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 text-gray-600 text-sm"
+                            onClick={() =>
+                              !currentUser &&
+                              alert("Please sign in to view the phone number.")
+                            }
+                          >
                             <FaPhoneAlt className="text-green-600" />
-                            <span>{phone}</span>
+                            <span>{currentUser ? phone : "*********"}</span>
                           </div>
                         ))
                       ) : (
@@ -226,31 +231,23 @@ const Listing = () => {
                 )}
               </div>
 
-
-
               {/* Title, Address, and Price */}
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <p className="text-2xl font-semibold mb-1">{listing.name}</p>
                 <p className="text-gray-500 text-sm mb-4 flex items-center gap">
                   <FaMapMarkerAlt className="text-red-500" /> {listing.address}
                 </p>
-
                 <div className="bg-green-600 text-white text-lg font-semibold px-4 py-2 rounded-full inline-block mb-4">
                   ${listing.offer
                     ? listing.discountPrice.toLocaleString("en-US")
                     : listing.regularPrice.toLocaleString("en-US")}
                   {listing.type === "rent" && " / month"}
                 </div>
-
                 <p className="text-slate-800 mb-4">
-                  <span className="font-semibold text-black">
-                    Description
-                  </span>
-                  <br /> {/* Adds a line break */}
+                  <span className="font-semibold text-black">Description</span>
+                  <br />
                   {listing.description}
                 </p>
-
-                {/* Details */}
                 <ul className="flex flex-wrap gap-4">
                   <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
                     <FaBed /> {listing.bedrooms} Beds
@@ -267,15 +264,19 @@ const Listing = () => {
                   <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
                     <FaRulerCombined /> {listing.m2} m²
                   </li>
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaBolt /> {listing.backupPower ? "Backup Power" : "No Backup Power"}
+                  </li>
+                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                    <FaTint /> {listing.backupWaterSupply ? "Backup Water Supply" : "No Backup Water"}
+                  </li>
                 </ul>
-
-                {/* Contact Button */}
                 {currentUser && listing.userRef !== currentUser._id && !contact && (
                   <button
                     onClick={() => setContact(true)}
-                    className="bg-slate-700 text-white rounded-lg uppercase p-3 hover:opacity-95 mt-4"
+                    className="bg-slate-700 text-white rounded-lg uppercase p-3 hover:opacity-95 mt-4 w-full text-center"
                   >
-                    Contact Landlord
+                    Send an email to Landlord
                   </button>
                 )}
                 {contact && <Contact listing={listing} />}
@@ -284,8 +285,9 @@ const Listing = () => {
 
             {/* Right Column - Map */}
             <div
-              className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${showFullscreen ? "hidden" : ""
-                }`}
+              className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${
+                showFullscreen ? "hidden" : ""
+              }`}
             >
               <MapContainer
                 center={[listing.lat || defaultLat, listing.lng || defaultLng]}
@@ -303,7 +305,6 @@ const Listing = () => {
                 </Marker>
               </MapContainer>
             </div>
-
           </div>
         </div>
       )}

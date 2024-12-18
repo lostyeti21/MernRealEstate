@@ -4,18 +4,21 @@ import ListingItem from '../components/ListingItem';
 
 export default function Search() {
   const navigate = useNavigate();
-  const [sidebardata, setSidebardata] = useState({
+  const initialState = {
     searchTerm: '',
     type: 'all',
     parking: false,
     furnished: false,
+    backupPower: false,
+    backupWaterSupply: false,
     offer: false,
     sort: 'created_at',
     order: 'desc',
     minPrice: '',
     maxPrice: '',
-  });
+  };
 
+  const [sidebardata, setSidebardata] = useState(initialState);
   const [loading, setLoading] = useState(false);
   const [listings, setListings] = useState([]);
   const [showMore, setShowMore] = useState(false);
@@ -26,35 +29,27 @@ export default function Search() {
     const typeFromUrl = urlParams.get('type');
     const parkingFromUrl = urlParams.get('parking');
     const furnishedFromUrl = urlParams.get('furnished');
+    const backupPowerFromUrl = urlParams.get('backupPower');
+    const backupWaterFromUrl = urlParams.get('backupWaterSupply');
     const offerFromUrl = urlParams.get('offer');
     const sortFromUrl = urlParams.get('sort');
     const orderFromUrl = urlParams.get('order');
     const minPriceFromUrl = urlParams.get('minPrice');
     const maxPriceFromUrl = urlParams.get('maxPrice');
 
-    if (
-      searchTermFromUrl ||
-      typeFromUrl ||
-      parkingFromUrl ||
-      furnishedFromUrl ||
-      offerFromUrl ||
-      sortFromUrl ||
-      orderFromUrl ||
-      minPriceFromUrl ||
-      maxPriceFromUrl
-    ) {
-      setSidebardata({
-        searchTerm: searchTermFromUrl || '',
-        type: typeFromUrl || 'all',
-        parking: parkingFromUrl === 'true' ? true : false,
-        furnished: furnishedFromUrl === 'true' ? true : false,
-        offer: offerFromUrl === 'true' ? true : false,
-        sort: sortFromUrl || 'created_at',
-        order: orderFromUrl || 'desc',
-        minPrice: minPriceFromUrl || '',
-        maxPrice: maxPriceFromUrl || '',
-      });
-    }
+    setSidebardata({
+      searchTerm: searchTermFromUrl || '',
+      type: typeFromUrl || 'all',
+      parking: parkingFromUrl === 'true',
+      furnished: furnishedFromUrl === 'true',
+      backupPower: backupPowerFromUrl === 'true',
+      backupWaterSupply: backupWaterFromUrl === 'true',
+      offer: offerFromUrl === 'true',
+      sort: sortFromUrl || 'created_at',
+      order: orderFromUrl || 'desc',
+      minPrice: minPriceFromUrl || '',
+      maxPrice: maxPriceFromUrl || '',
+    });
 
     const fetchListings = async () => {
       setLoading(true);
@@ -75,46 +70,28 @@ export default function Search() {
   }, [location.search]);
 
   const handleChange = (e) => {
-    if (e.target.id === 'all' || e.target.id === 'rent' || e.target.id === 'sale') {
-      setSidebardata({ ...sidebardata, type: e.target.id });
-    }
-
-    if (e.target.id === 'searchTerm') {
-      setSidebardata({ ...sidebardata, searchTerm: e.target.value });
-    }
-
-    if (e.target.id === 'minPrice' || e.target.id === 'maxPrice') {
-      setSidebardata({ ...sidebardata, [e.target.id]: e.target.value });
-    }
-
-    if (e.target.id === 'parking' || e.target.id === 'furnished' || e.target.id === 'offer') {
-      setSidebardata({
-        ...sidebardata,
-        [e.target.id]: e.target.checked || e.target.checked === 'true' ? true : false,
-      });
-    }
-
-    if (e.target.id === 'sort_order') {
-      const sort = e.target.value.split('_')[0] || 'created_at';
-      const order = e.target.value.split('_')[1] || 'desc';
-      setSidebardata({ ...sidebardata, sort, order });
-    }
+    const { id, value, checked, type } = e.target;
+    setSidebardata((prev) => ({
+      ...prev,
+      [id]: type === 'checkbox' ? checked : value,
+    }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const urlParams = new URLSearchParams();
-    urlParams.set('searchTerm', sidebardata.searchTerm);
-    urlParams.set('type', sidebardata.type);
-    urlParams.set('parking', sidebardata.parking);
-    urlParams.set('furnished', sidebardata.furnished);
-    urlParams.set('offer', sidebardata.offer);
-    urlParams.set('minPrice', sidebardata.minPrice);
-    urlParams.set('maxPrice', sidebardata.maxPrice);
-    urlParams.set('sort', sidebardata.sort);
-    urlParams.set('order', sidebardata.order);
+    Object.entries(sidebardata).forEach(([key, value]) => {
+      if (value !== '' && value !== false) {
+        urlParams.set(key, value);
+      }
+    });
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
+  };
+
+  const handleReset = () => {
+    setSidebardata(initialState);
+    navigate('/search');
   };
 
   const onShowMoreClick = async () => {
@@ -128,7 +105,7 @@ export default function Search() {
     if (data.length < 9) {
       setShowMore(false);
     }
-    setListings([...listings, ...data]);
+    setListings((prev) => [...prev, ...data]);
   };
 
   return (
@@ -146,38 +123,23 @@ export default function Search() {
               onChange={handleChange}
             />
           </div>
+
           <div className="flex gap-2 flex-wrap items-center">
             <label className="font-semibold">Type:</label>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="all"
-                className="w-5"
-                onChange={handleChange}
-                checked={sidebardata.type === 'all'}
-              />
-              <span>Rent & Sale</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="rent"
-                className="w-5"
-                onChange={handleChange}
-                checked={sidebardata.type === 'rent'}
-              />
-              <span>Rent</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="sale"
-                className="w-5"
-                onChange={handleChange}
-                checked={sidebardata.type === 'sale'}
-              />
-              <span>Sale</span>
-            </div>
+            {['all', 'rent', 'sale'].map((type) => (
+              <div className="flex gap-2" key={type}>
+                <input
+                  type="radio"
+                  id="type"
+                  value={type}
+                  name="type"
+                  className="w-5"
+                  onChange={handleChange}
+                  checked={sidebardata.type === type}
+                />
+                <span>{type.charAt(0).toUpperCase() + type.slice(1)}</span>
+              </div>
+            ))}
             <div className="flex gap-2">
               <input
                 type="checkbox"
@@ -189,31 +151,23 @@ export default function Search() {
               <span>Offer</span>
             </div>
           </div>
+
           <div className="flex gap-2 flex-wrap items-center">
             <label className="font-semibold">Amenities:</label>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="parking"
-                className="w-5"
-                onChange={handleChange}
-                checked={sidebardata.parking}
-              />
-              <span>Parking</span>
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="furnished"
-                className="w-5"
-                onChange={handleChange}
-                checked={sidebardata.furnished}
-              />
-              <span>Furnished</span>
-            </div>
+            {['parking', 'furnished', 'backupPower', 'backupWaterSupply'].map((amenity) => (
+              <div className="flex gap-2" key={amenity}>
+                <input
+                  type="checkbox"
+                  id={amenity}
+                  className="w-5"
+                  onChange={handleChange}
+                  checked={sidebardata[amenity]}
+                />
+                <span>{amenity.replace(/([A-Z])/g, ' $1')}</span>
+              </div>
+            ))}
           </div>
 
-          {/* Min and Max Price */}
           <div className="flex gap-2">
             <div className="flex items-center gap-2">
               <label className="font-semibold">Min Price:</label>
@@ -240,10 +194,10 @@ export default function Search() {
           <div className="flex items-center gap-2">
             <label className="font-semibold">Sort:</label>
             <select
-              onChange={handleChange}
-              defaultValue={'created_at_desc'}
               id="sort_order"
+              onChange={handleChange}
               className="border rounded-lg p-3"
+              value={`${sidebardata.sort}_${sidebardata.order}`}
             >
               <option value="regularPrice_desc">Price high to low</option>
               <option value="regularPrice_asc">Price low to high</option>
@@ -251,9 +205,22 @@ export default function Search() {
               <option value="createdAt_asc">Oldest</option>
             </select>
           </div>
-          <button className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95">
-            Search
-          </button>
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="border rounded-lg p-3 text-gray-700 uppercase hover:bg-gray-200"
+            >
+              Reset Search
+            </button>
+          </div>
         </form>
       </div>
 
@@ -273,7 +240,6 @@ export default function Search() {
           )}
 
           {!loading &&
-            listings &&
             listings.map((listing) => (
               <ListingItem key={listing._id} listing={listing} />
             ))}

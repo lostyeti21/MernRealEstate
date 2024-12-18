@@ -74,6 +74,16 @@ const listingSchema = new mongoose.Schema(
       required: true, // Makes this field mandatory
       min: 0, // Ensures the value cannot be negative
     },
+    backupPower: {
+      type: Boolean,
+      required: false, // Optional field
+      default: false, // Default value is false
+    },
+    backupWaterSupply: {
+      type: Boolean,
+      required: false, // Optional field
+      default: false, // Default value is false
+    },
   },
   { timestamps: true }
 );
