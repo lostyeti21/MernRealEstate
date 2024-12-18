@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ListingItem from '../components/ListingItem';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import "leaflet/dist/leaflet.css";
 
 export default function Search() {
   const navigate = useNavigate();
@@ -113,7 +115,7 @@ export default function Search() {
 
   return (
     <div className="flex flex-col md:flex-row">
-      <div className="p-7 border-b-2 md:border-r-2 md:min-h-screen">
+      <div className="p-7 border-b-2 md:border-r-2 md:min-h-screen md:w-1/3">
         <form onSubmit={handleSubmit} className="flex flex-col gap-8">
           <div className="flex items-center gap-2">
             <label className="whitespace-nowrap font-semibold">Search Term:</label>
@@ -225,6 +227,24 @@ export default function Search() {
             </button>
           </div>
         </form>
+
+        {/* Map Section */}
+        <div className="mt-6">
+          <MapContainer
+            center={[37.7749, -122.4194]} // Example center (San Francisco)
+            zoom={13}
+            className="w-full h-screen rounded-lg"
+            style={{ height: '100vh', width: '100%' }}
+          >
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {listings.map((listing) => (
+              <Marker
+                key={listing._id}
+                position={[listing.lat || 0, listing.lng || 0]}
+              />
+            ))}
+          </MapContainer>
+        </div>
       </div>
 
       <div className="flex-1">
@@ -232,7 +252,7 @@ export default function Search() {
           Listing results:
         </h1>
 
-        <div className="p-7 flex flex-wrap gap-4">
+        <div className="p-7 grid grid-cols-3 gap-x-4 gap-y-6">
           {!loading && listings.length === 0 && (
             <p className="text-xl text-slate-700">No listing found!</p>
           )}
@@ -246,16 +266,18 @@ export default function Search() {
             listings.map((listing) => (
               <ListingItem key={listing._id} listing={listing} />
             ))}
+        </div>
 
-          {showMore && (
+        {showMore && (
+          <div className="flex justify-start mt-6">
             <button
               onClick={onShowMoreClick}
-              className="text-green-700 hover:underline p-7 text-center w-full"
+              className="text-green-700 hover:underline p-7"
             >
               Show more
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
