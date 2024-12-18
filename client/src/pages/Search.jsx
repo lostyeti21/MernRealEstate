@@ -115,7 +115,7 @@ export default function Search() {
 
   return (
     <div className="flex flex-col md:flex-row">
-      <div className="p-7 border-b-2 md:border-r-2 md:min-h-screen md:w-1/3">
+      <div className="p-7 border-b-2 md:border-r-2 md:min-h-screen md:w-1/3 lg:w-1/4">
         <form onSubmit={handleSubmit} className="flex flex-col gap-8">
           <div className="flex items-center gap-2">
             <label className="whitespace-nowrap font-semibold">Search Term:</label>
@@ -252,7 +252,7 @@ export default function Search() {
           Listing results:
         </h1>
 
-        <div className="p-7 grid grid-cols-3 gap-x-4 gap-y-6">
+        <div className="p-7 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6">
           {!loading && listings.length === 0 && (
             <p className="text-xl text-slate-700">No listing found!</p>
           )}
