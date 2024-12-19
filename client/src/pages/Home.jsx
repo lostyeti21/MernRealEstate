@@ -6,7 +6,6 @@ import SwiperCore from "swiper";
 import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
 
-// Import multiple images for the slideshow
 import backImage1 from "../assets/back1.jpg";
 import backImage2 from "../assets/back2.jpg";
 import backImage3 from "../assets/back3.jpg";
@@ -20,63 +19,38 @@ export default function Home() {
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
-  const [isRenting, setIsRenting] = useState(null); // Track if user is renting or buying
+  const [isRenting, setIsRenting] = useState(null);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const navigate = useNavigate();
 
   SwiperCore.use([Navigation]);
 
-  // Hero images for slideshow
   const heroImages = [backImage1, backImage2, backImage3, backImage4, backImage5];
 
-  // Cycle through images every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % heroImages.length);
-    }, 5000); // 5 seconds interval
-
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch listings
   useEffect(() => {
-    const fetchOfferListings = async () => {
+    const fetchListings = async (query, setter) => {
       try {
-        const res = await fetch("/api/listing/get?offer=true&limit=4");
+        const res = await fetch(`/api/listing/get?${query}`);
         const data = await res.json();
-        setOfferListings(data);
+        setter(data.listings || []);
       } catch (error) {
-        console.log(error);
+        console.error("Error fetching listings:", error);
       }
     };
 
-    const fetchRentListings = async () => {
-      try {
-        const res = await fetch("/api/listing/get?type=rent&limit=3");
-        const data = await res.json();
-        setRentListings(data);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-
-    const fetchSaleListings = async () => {
-      try {
-        const res = await fetch("/api/listing/get?type=sale&limit=6");
-        const data = await res.json();
-        setSaleListings(data);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-
-    fetchOfferListings();
-    fetchRentListings();
-    fetchSaleListings();
+    fetchListings("offer=true&limit=4", setOfferListings);
+    fetchListings("type=rent&limit=3", setRentListings);
+    fetchListings("type=sale&limit=6", setSaleListings);
   }, []);
 
-  // Inject Botpress chatbot script
   useEffect(() => {
     if (!isChatbotLoaded) {
       const script1 = document.createElement("script");
@@ -90,7 +64,7 @@ export default function Home() {
       script2.async = true;
       script2.onload = () => {
         window.botpressWebChat.init({
-          botId: "your-bot-id-here", // Replace with your Bot ID
+          botId: "your-bot-id-here",
           hostUrl: "https://cdn.botpress.cloud/webchat/v2.2",
           showCloseButton: true,
           enableTranscriptDownload: true,
@@ -107,7 +81,7 @@ export default function Home() {
   };
 
   const handleRentOrBuy = (choice) => {
-    setIsRenting(choice); // Set rent/buy selection
+    setIsRenting(choice);
   };
 
   const handlePriceSubmit = () => {
@@ -117,32 +91,29 @@ export default function Home() {
     }
 
     const searchParams = new URLSearchParams();
-    searchParams.set("type", isRenting === "rent" ? "rent" : "sale"); // Set the type based on selection
-    searchParams.set("minPrice", minPrice);
-    searchParams.set("maxPrice", maxPrice);
+    searchParams.set("type", isRenting === "rent" ? "rent" : "sale");
+    searchParams.set("minPrice", minPrice || 0);
+    searchParams.set("maxPrice", maxPrice || 10000000);
 
     navigate(`/search?${searchParams.toString()}`);
-    setShowPopup(false); // Close the popup after search
+    setShowPopup(false);
   };
 
   return (
     <div>
-      {/* Hero Section with Smooth Fade and Continuous Zoom-Out */}
       <div className="relative w-full h-[500px] overflow-hidden animate-heroZoomOut">
         {heroImages.map((image, index) => (
           <img
             key={index}
             src={image}
             alt={`Hero ${index + 1}`}
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-[4000ms] ease-in-out ${
-              index === currentImageIndex
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-[4000ms] ease-in-out ${index === currentImageIndex
                 ? "opacity-100 scale-100"
                 : "opacity-0 scale-110"
-            }`}
+              }`}
           />
         ))}
 
-        {/* Overlay */}
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-center text-white px-6">
           <div>
             <h1 className="text-3xl md:text-5xl font-bold mb-4">
@@ -166,7 +137,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Listings Popup */}
       {showPopup && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg max-w-md w-full">
@@ -218,7 +188,7 @@ export default function Home() {
               </>
             )}
             <button
-              onClick={() => setShowPopup(false)} // Close the pop-up
+              onClick={() => setShowPopup(false)}
               className="mt-4 text-red-600 underline"
             >
               Close
@@ -227,10 +197,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Swiper for Recent Offers */}
       <Swiper navigation>
         {offerListings &&
-          offerListings.length > 0 &&
           offerListings.map((listing) => (
             <SwiperSlide key={listing._id}>
               <div
@@ -244,55 +212,56 @@ export default function Home() {
           ))}
       </Swiper>
 
-      {/* Listing Results */}
       <div className="px-10 max-w-[1200px] mx-auto flex flex-col gap-8 my-10">
-        {/* Render listings for rent */}
-        {rentListings && rentListings.length > 0 && (
-          <div className="w-full">
-            <div className="my-3">
-              <h2 className="text-2xl font-semibold text-slate-600">
-                Recently added places for rent
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {rentListings.map((listing) => (
-                <ListingItem listing={listing} key={listing._id} />
-              ))}
-            </div>
-            <div className="mt-4 text-left">
-              <Link
-                className="text-sm text-blue-800 hover:underline"
-                to={"/search?type=rent"}
-              >
-                Show more places for rent
-              </Link>
-            </div>
-          </div>
-        )}
+{/* Rent Listings */}
+{rentListings.length > 0 && (
+  <div>
+    <h2 className="text-2xl font-semibold">Recently added places for rent</h2>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {rentListings.map((listing) => (
+        <ListingItem key={listing._id} listing={listing} />
+      ))}
+    </div>
+    <button
+      onClick={() => {
+        const searchParams = new URLSearchParams({ type: "rent" });
+        navigate(`/search?${searchParams.toString()}`);
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 50); // Ensure scrolling happens after navigation
+      }}
+      className="text-blue-600 hover:underline"
+    >
+      Show more places for rent
+    </button>
+  </div>
+)}
 
-        {/* Render listings for sale */}
-        {saleListings && saleListings.length > 0 && (
-          <div className="w-full">
-            <div className="my-3">
-              <h2 className="text-2xl font-semibold text-slate-600">
-                Recently added places for sale
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {saleListings.map((listing) => (
-                <ListingItem listing={listing} key={listing._id} />
-              ))}
-            </div>
-            <div className="mt-4 text-left">
-              <Link
-                className="text-sm text-blue-800 hover:underline"
-                to={"/search?type=sale"}
-              >
-                Show more places for sale
-              </Link>
-            </div>
-          </div>
-        )}
+{/* Sale Listings */}
+{saleListings.length > 0 && (
+  <div>
+    <h2 className="text-2xl font-semibold">Recently added places for sale</h2>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {saleListings.map((listing) => (
+        <ListingItem key={listing._id} listing={listing} />
+      ))}
+    </div>
+    <button
+      onClick={() => {
+        const searchParams = new URLSearchParams({ type: "sale" });
+        navigate(`/search?${searchParams.toString()}`);
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 50); // Ensure scrolling happens after navigation
+      }}
+      className="text-blue-600 hover:underline"
+    >
+      Show more places for sale
+    </button>
+  </div>
+)}
+
+
       </div>
     </div>
   );

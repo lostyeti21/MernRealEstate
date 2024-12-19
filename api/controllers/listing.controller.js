@@ -78,7 +78,8 @@ export const getListing = async (req, res, next) => {
 export const getListings = async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit) || 9;
-    const startIndex = parseInt(req.query.startIndex) || 0;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
 
     // Parse filters from query parameters
     const offer = req.query.offer === "true" ? true : req.query.offer === "false" ? false : undefined;
@@ -88,10 +89,11 @@ export const getListings = async (req, res, next) => {
     const backupWaterSupply = req.query.backupWaterSupply === "true" ? true : undefined;
     const boreholeWater = req.query.boreholeWater === "true" ? true : undefined; // Added borehole water filter
 
-    let type = req.query.type;
-    if (type === undefined || type === "all") {
-      type = { $in: ["sale", "rent"] };
-    }
+    const type =
+    req.query.type && req.query.type !== "all"
+      ? req.query.type
+      : { $in: ["sale", "rent"] };
+  
 
     const searchTerm = req.query.searchTerm || "";
     const sort = req.query.sort || "createdAt";
@@ -119,9 +121,15 @@ export const getListings = async (req, res, next) => {
     const listings = await Listing.find(query)
       .sort({ [sort]: order })
       .limit(limit)
-      .skip(startIndex);
+      .skip(skip);
 
-    return res.status(200).json(listings);
+    const totalListings = await Listing.countDocuments(query);
+    const totalPages = Math.ceil(totalListings / limit);
+
+    return res.status(200).json({
+      listings,
+      totalPages,
+    });
   } catch (error) {
     next(error);
   }
