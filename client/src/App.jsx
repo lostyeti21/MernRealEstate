@@ -13,10 +13,12 @@ import Search from "./pages/Search";
 import Landlords from "./pages/Landlords";
 import Tenants from "./pages/Tenants";
 import LandlordListings from "./pages/LandlordListings";
-import TenantProfile from "./pages/TenantProfile"; // Import TenantProfile
+import TenantProfile from "./pages/TenantProfile";
 import Analytics from "./components/Analytics";
-import ChangePassword from "./pages/ChangePassword"; // Import your ChangePassword page
+import ChangePassword from "./pages/ChangePassword";
 import RealEstateSignUp from "./pages/RealEstateSignUp";
+import AdminSignIn from "./pages/AdminSignIn";
+import Admin from "./pages/Admin";
 
 const App = () => {
   return (
@@ -28,23 +30,17 @@ const App = () => {
         <Route path="/landlords" element={<Landlords />} />
         <Route path="/landlord/:userId" element={<LandlordListings />} />
         <Route path="/tenants" element={<Tenants />} />
-        <Route path="/tenant/:tenantId" element={<TenantProfile />} /> {/* New Tenant Profile Route */}
+        <Route path="/tenant/:tenantId" element={<TenantProfile />} />
         <Route path="/sign-in" element={<SignIn />} />
         <Route path="/sign-up" element={<SignUp />} />
         <Route path="/about" element={<About />} />
         <Route path="/listing/:listingId" element={<Listing />} />
         <Route path="/search" element={<Search />} />
         <Route path="/real-estate-sign-up" element={<RealEstateSignUp />} />
-
-
-
+        <Route path="/admin-sign-in" element={<AdminSignIn />} />
         <Route path="/change-password" element={<ChangePassword />} />
-
-
-
-
         <Route path="/analytics" element={<Analytics />} />
-
+        <Route path="/admin" element={<Admin />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

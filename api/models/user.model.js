@@ -21,28 +21,26 @@ const userSchema = new mongoose.Schema(
       default: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
     },
     phoneNumbers: {
-      type: [String], // An array to store multiple phone numbers
-      required: false, // Optional, but can be required if needed
-      validate: {
-        validator: function (numbers) {
-          // Ensuring each phone number is valid
-          return numbers.every((number) =>
-            /^\+?[1-9]\d{1,14}$/.test(number) // Match international phone number format
-          );
-        },
-        message: "Please enter valid phone numbers",
-      },
+      type: [String],
+      required: false,
     },
     ratings: {
-      type: [Number], // Array of individual ratings
+      type: [Number],
       default: [],
     },
     ratedBy: {
-      type: [mongoose.Schema.Types.ObjectId], // Users who rated
+      type: [mongoose.Schema.Types.ObjectId],
       ref: "User",
       default: [],
     },
-    averageRating: { type: Number, default: 0 }, // Average of all ratings
+    averageRating: {
+      type: Number,
+      default: 0,
+    },
+    isAdmin: {
+      type: Boolean,
+      default: false, // Regular users are not admins by default
+    },
   },
   { timestamps: true }
 );
@@ -53,7 +51,7 @@ userSchema.methods.updateAverageRating = function () {
   if (totalRatings > 0) {
     this.averageRating = this.ratings.reduce((sum, rating) => sum + rating, 0) / totalRatings;
   } else {
-    this.averageRating = 0; // Reset if no ratings
+    this.averageRating = 0;
   }
   return this.save();
 };
