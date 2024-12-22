@@ -5,53 +5,57 @@ import userRouter from "./routes/user.route.js";
 import authRouter from "./routes/auth.route.js";
 import listingRouter from "./routes/listing.route.js";
 import analyticsRouter from "./routes/analytics.route.js";
-import emailRouter from "./routes/email.js"; // Import email router
+import emailRouter from "./routes/email.js";
+import realEstateRouter from "./routes/realEstate.route.js";
+import uploadRouter from './routes/upload.route.js';
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import path from "path";
+import agentRoute from './routes/agent.route.js';
 
 dotenv.config();
 
 mongoose
   .connect(process.env.MONGO)
-  .then(() => {
-    console.log("Connected to MongoDB");
-  })
-  .catch((err) => {
-    console.log("Error connecting to MongoDB: " + err);
-  });
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("MongoDB Connection Error:", err));
 
 const __dirname = path.resolve();
 
 const app = express();
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
+}));
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static files for uploaded content
-app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// API Routes
-app.use("/api/user", userRouter); // User routes (e.g., change password)
-app.use("/api/auth", authRouter); // Authentication routes (e.g., sign in, sign up)
-app.use("/api/listing", listingRouter); // Listing-related routes
-app.use("/api/analytics", analyticsRouter); // Analytics routes
-app.use("/api/email", emailRouter); // Dedicated email routes for password reset and other notifications
+app.use("/api/user", userRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/listing", listingRouter);
+app.use("/api/analytics", analyticsRouter);
+app.use("/api/email", emailRouter);
+app.use("/api/real-estate", realEstateRouter);
+app.use("/api/upload", uploadRouter);
+app.use('/api/agent', agentRoute);
 
-// Serve static files from client build
 app.use(express.static(path.join(__dirname, "/client/dist")));
 
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
 });
 
-// Global Error Handler
 app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  const message = err.message || "Internal Server Error";
-  console.error("Error: ", message);
-  return res.status(statusCode).json({
+  console.error(err.stack);
+  res.status(500).json({
     success: false,
-    statusCode,
-    message,
+    message: 'Something broke!',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
   });
 });
 

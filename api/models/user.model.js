@@ -1,5 +1,35 @@
 import mongoose from "mongoose";
 
+// Schema for an agent
+const agentSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  contact: {
+    type: String,
+    required: true,
+  },
+  ratings: {
+    type: [Number],
+    default: [],
+  },
+  averageRating: {
+    type: Number,
+    default: 0,
+  },
+});
+
+// Method to calculate and update an agent's average rating
+agentSchema.methods.updateAverageRating = function () {
+  const totalRatings = this.ratings.length;
+  if (totalRatings > 0) {
+    this.averageRating = this.ratings.reduce((sum, rating) => sum + rating, 0) / totalRatings;
+  } else {
+    this.averageRating = 0;
+  }
+};
+
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -18,7 +48,8 @@ const userSchema = new mongoose.Schema(
     },
     avatar: {
       type: String,
-      default: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
+      default:
+        "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
     },
     phoneNumbers: {
       type: [String],
@@ -41,21 +72,46 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false, // Regular users are not admins by default
     },
+    realEstateCompany: {
+      name: {
+        type: String,
+        required: false,
+      },
+      agents: {
+        type: [agentSchema], // List of agents under the company
+        default: [],
+      },
+      companyRating: {
+        type: Number,
+        default: 0,
+      },
+    },
   },
   { timestamps: true }
 );
 
-// Method to calculate and update averageRating
-userSchema.methods.updateAverageRating = function () {
-  const totalRatings = this.ratings.length;
-  if (totalRatings > 0) {
-    this.averageRating = this.ratings.reduce((sum, rating) => sum + rating, 0) / totalRatings;
+// Method to calculate and update the real estate company's rating
+userSchema.methods.updateCompanyRating = function () {
+  if (this.realEstateCompany && this.realEstateCompany.agents.length > 0) {
+    const totalRatings = this.realEstateCompany.agents.reduce(
+      (sum, agent) => sum + (agent.averageRating || 0),
+      0
+    );
+    this.realEstateCompany.companyRating =
+      totalRatings / this.realEstateCompany.agents.length;
   } else {
-    this.averageRating = 0;
+    this.realEstateCompany.companyRating = 0;
   }
   return this.save();
 };
 
+// Method to add an agent to the company
+userSchema.methods.addAgent = function (agent) {
+  this.realEstateCompany.agents.push(agent);
+  return this.save();
+};
+
+// Create the User model
 const User = mongoose.model("User", userSchema);
 
 export default User;

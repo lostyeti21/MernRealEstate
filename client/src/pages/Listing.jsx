@@ -38,6 +38,7 @@ const Listing = () => {
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [fullscreenIndex, setFullscreenIndex] = useState(0);
   const [contact, setContact] = useState(false);
+  const [listedBy, setListedBy] = useState(null); // Add this state
 
   const defaultLat = -34.397;
   const defaultLng = 150.644;
@@ -75,11 +76,14 @@ const Listing = () => {
         }
 
         setListing(data);
-        setError(false);
 
-        // Fetch the landlord's data
-        const landlordData = await fetchLandlordData(data.userRef);
-        setLandlord(landlordData);
+        // Fetch the landlord's data if it's a regular user listing
+        if (data.userModel === 'User') {
+          const landlordData = await fetchLandlordData(data.userRef);
+          setLandlord(landlordData);
+        }
+        
+        setError(false);
       } catch (err) {
         console.error("Error fetching listing or landlord:", err);
         setError(true);
@@ -120,6 +124,140 @@ const Listing = () => {
       );
     }
     return stars;
+  };
+
+  const renderListedBy = () => {
+    if (!listing) return null;
+
+    if (listing.userModel === 'Agent' && listing.agent) {
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {/* Agent Information */}
+              <div className="flex items-center gap-4">
+                <img
+                  src={listing.agent.avatar}
+                  alt="Agent"
+                  className="rounded-full h-16 w-16 object-cover"
+                />
+                <div>
+                  <p className="text-lg font-semibold text-slate-700">
+                    Listed by Agent {listing.agent.name}
+                  </p>
+                  <div className="flex items-center">
+                    {renderStars(listing.agent.averageRating)}
+                    <span className="text-sm text-gray-500 ml-2">
+                      ({listing.agent.averageRating?.toFixed(1) || 'N/A'})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Company Information */}
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex items-center gap-4">
+              <img
+                src={listing.agent.companyAvatar}
+                alt="Company"
+                className="rounded-full h-12 w-12 object-cover"
+              />
+              <div>
+                <p className="font-semibold text-slate-700">
+                  {listing.agent.companyName}
+                </p>
+                <div className="flex items-center">
+                  {renderStars(listing.agent.companyRating)}
+                  <span className="text-sm text-gray-500 ml-2">
+                    ({listing.agent.companyRating?.toFixed(1) || 'N/A'})
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {currentUser && (
+            <div className="mt-4">
+              <button
+                onClick={() => setContact(true)}
+                className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
+              >
+                Contact Agent
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Regular landlord listing
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <img
+              src={landlord?.avatar || "default-avatar.png"}
+              alt="Landlord"
+              className="rounded-full h-16 w-16 object-cover"
+            />
+            <div>
+              <p className="text-lg font-semibold text-slate-700">
+                Listed by {landlord?.username || "Unknown Landlord"}
+              </p>
+              <div className="flex items-center">
+                {renderStars(landlord?.averageRating || 0)}
+                <span className="text-sm text-gray-500 ml-2">
+                  ({landlord?.averageRating?.toFixed(1) || 'N/A'})
+                </span>
+              </div>
+              <div className="mt-2">
+                {landlord?.phoneNumbers?.length > 0 ? (
+                  landlord.phoneNumbers.map((phone, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 text-gray-600 text-sm"
+                      onClick={() =>
+                        !currentUser &&
+                        alert("Please sign in to view the phone number.")
+                      }
+                    >
+                      <FaPhoneAlt className="text-green-600" />
+                      <span>{currentUser ? phone : "*********"}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-2 text-gray-600 text-sm">
+                    <FaPhoneAlt className="text-green-600" />
+                    <span>N/A</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          {currentUser && (
+            <button
+              onClick={() => navigate(`/landlord/${listing.userRef}`)}
+              className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
+            >
+              Rate this Landlord
+            </button>
+          )}
+        </div>
+
+        {currentUser && (
+          <div className="mt-4">
+            <button
+              onClick={() => setContact(true)}
+              className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
+            >
+              Contact Landlord
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -183,54 +321,8 @@ const Listing = () => {
           <div className="flex flex-col lg:flex-row max-w-6xl mx-auto my-7 gap-6">
             {/* Left Column */}
             <div className="flex flex-col flex-1">
-              {/* Landlord Section */}
-              <div className="bg-white p-6 rounded-lg shadow-md mb-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={landlord?.avatar || "default-avatar.png"}
-                    alt="Landlord"
-                    className="rounded-full h-16 w-16 object-cover"
-                  />
-                  <div>
-                    <p className="text-lg font-semibold text-slate-700">
-                      Listed by {landlord?.username || "Unknown Landlord"}
-                    </p>
-                    <div className="flex items-center">
-                      {renderStars(landlord?.averageRating || 0)}
-                    </div>
-                    <div className="mt-2">
-                      {landlord?.phoneNumbers?.length > 0 ? (
-                        landlord.phoneNumbers.map((phone, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center gap-2 text-gray-600 text-sm"
-                            onClick={() =>
-                              !currentUser &&
-                              alert("Please sign in to view the phone number.")
-                            }
-                          >
-                            <FaPhoneAlt className="text-green-600" />
-                            <span>{currentUser ? phone : "*********"}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="flex items-center gap-2 text-gray-600 text-sm">
-                          <FaPhoneAlt className="text-green-600" />
-                          <span>N/A</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {currentUser && (
-                  <button
-                    onClick={() => navigate(`/landlord/${listing.userRef}`)}
-                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
-                  >
-                    Rate this Landlord
-                  </button>
-                )}
-              </div>
+              {/* Listed By Section */}
+              {renderListedBy()}
 
               {/* Title, Address, and Price */}
               <div className="bg-white p-6 rounded-lg shadow-md">

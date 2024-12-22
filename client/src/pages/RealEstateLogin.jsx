@@ -1,24 +1,19 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const RealEstateLogin = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    company: "",
-    agentEmail: "",
+    companyName: "",
+    email: "",
     password: "",
   });
-  const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
-    setError(null); // Reset error message when input changes
-  };
-
-  const toggleShowPassword = () => {
-    setShowPassword((prev) => !prev); // Toggle password visibility
   };
 
   const handleSubmit = async (e) => {
@@ -26,35 +21,54 @@ const RealEstateLogin = () => {
     setLoading(true);
     setError(null);
 
-    // Input validation
-    if (!formData.company || !formData.agentEmail || !formData.password) {
-      setError("All fields are required.");
-      setLoading(false);
-      return;
-    }
-
     try {
-      const res = await fetch("/api/auth/real-estate-login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        setError(data.message || "Failed to log in. Please try again.");
+      // Validate input
+      if (!formData.companyName || !formData.email || !formData.password) {
+        setError('All fields are required');
         setLoading(false);
         return;
       }
 
-      // Handle successful login (e.g., store token, navigate to dashboard)
-      console.log("Login successful:", data);
-      navigate("/dashboard"); // Update to the appropriate dashboard route
+      console.log('Submitting form data:', { 
+        companyName: formData.companyName, 
+        email: formData.email 
+      });
+
+      const res = await fetch('/api/real-estate/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(formData),
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log('Login response:', data);
+
+      if (!data.success) {
+        setError(data.message || 'Login failed');
+        setLoading(false);
+        return;
+      }
+
+      if (!data.token) {
+        setError('No token received from server');
+        setLoading(false);
+        return;
+      }
+
+      localStorage.setItem('realEstateToken', data.token);
+      localStorage.setItem('companyInfo', JSON.stringify(data.company));
+      
+      navigate('/real-estate-dashboard');
     } catch (err) {
-      console.error("Error logging in:", err.message);
-      setError("An unexpected error occurred. Please try again later.");
+      console.error('Login error:', err);
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -63,27 +77,27 @@ const RealEstateLogin = () => {
   return (
     <div className="p-3 max-w-lg mx-auto">
       <h1 className="text-3xl text-center font-semibold my-7">
-        Real Estate Agent Login
+        Real Estate Company Login
       </h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <input
           type="text"
-          placeholder="Real Estate Company"
-          id="company"
+          placeholder="Company Name"
+          id="companyName"
           className="border p-3 rounded-lg"
           onChange={handleChange}
-          value={formData.company}
+          value={formData.companyName}
           required
         />
 
         <input
           type="email"
-          placeholder="Agent Email"
-          id="agentEmail"
+          placeholder="Company Email"
+          id="email"
           className="border p-3 rounded-lg"
           onChange={handleChange}
-          value={formData.agentEmail}
+          value={formData.email}
           required
         />
 
@@ -99,8 +113,8 @@ const RealEstateLogin = () => {
           />
           <button
             type="button"
-            onClick={toggleShowPassword}
-            className="absolute top-1/2 right-3 transform -translate-y-1/2 text-sm text-blue-600"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
           >
             {showPassword ? "Hide" : "Show"}
           </button>
@@ -111,20 +125,17 @@ const RealEstateLogin = () => {
           className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80"
           disabled={loading}
         >
-          {loading ? "Logging In..." : "Log In"}
+          {loading ? "Signing in..." : "Sign In"}
         </button>
       </form>
 
-      {error && <p className="text-red-500 mt-3">{error}</p>}
+      {error && <p className="text-red-500 mt-5">{error}</p>}
 
       <div className="flex gap-2 mt-5">
         <p>Don't have an account?</p>
-        <button
-          onClick={() => navigate("/real-estate-sign-up")}
-          className="text-blue-700 underline focus:outline-none"
-        >
-          Sign Up Your Real Estate Agency Today!
-        </button>
+        <Link to="/real-estate-signup" className="text-blue-700">
+          Sign up
+        </Link>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { signInStart, signInSuccess, signInFailure } from '../redux/user/userSlice';
 import React, { useState } from 'react'; 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import OAuth from '../components/OAuth';
 
 const SignIn = () => {
@@ -76,24 +76,28 @@ const SignIn = () => {
     e.preventDefault();
     try {
       dispatch(signInStart());
-      const res = await fetch("/api/auth/signin", {
-        method: "POST",
+      const res = await fetch('/api/auth/signin', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
+        credentials: 'include'
       });
+
       const data = await res.json();
-      if (data.success === false) {
+      
+      if (!data.success) {
         dispatch(signInFailure(data.message));
-        alert("Email Address or Password Incorrect. Please try again.");
         return;
       }
-      dispatch(signInSuccess(data));
-      navigate("/");
+
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      dispatch(signInSuccess(data.user));
+      navigate('/');
     } catch (error) {
+      console.error('Sign in error:', error);
       dispatch(signInFailure(error.message));
-      alert("Email Address or Password Incorrect. Please try again.");
     }
   };
 
@@ -184,8 +188,8 @@ const SignIn = () => {
       {showPopup && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-5 rounded-lg shadow-lg max-w-md w-full text-center">
-            <h2 className="text-xl font-semibold mb-4">Log in as:</h2>
-            <div className="flex justify-around">
+            <h2 className="text-xl font-semibold mb-4">Sign in as:</h2>
+            <div className="flex flex-col gap-3">
               <button
                 onClick={() => setShowPopup(false)}
                 className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600"
@@ -195,6 +199,12 @@ const SignIn = () => {
               <button
                 onClick={() => navigate("/real-estate-login")}
                 className="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600"
+              >
+                Real Estate Company
+              </button>
+              <button
+                onClick={() => navigate("/real-estate-agent-login")}
+                className="bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600"
               >
                 Real Estate Agent
               </button>
@@ -366,6 +376,16 @@ const SignIn = () => {
           </div>
         </div>
       )}
+
+      <div className="flex flex-col gap-4 mt-5">
+        <p className="text-center">Are you a Real Estate Company?</p>
+        <Link 
+          to="/real-estate-signup"
+          className="bg-green-700 text-white p-3 rounded-lg text-center uppercase hover:opacity-95"
+        >
+          Sign Up as Real Estate Company
+        </Link>
+      </div>
     </div>
   );
 };

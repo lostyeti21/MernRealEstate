@@ -14,13 +14,39 @@ import {
 import { verifyToken } from "../utils/verifyUser.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
+import Listing from "../models/listing.model.js";
 
 const router = express.Router();
 
 // Public endpoints
 router.get("/landlords", getLandlords);
 router.get("/tenants", getTenants);
-router.get("/listings/:id", getUserListings); // Get a user's listings
+router.get("/listings/:id", verifyToken, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID"
+      });
+    }
+
+    const listings = await Listing.find({ userRef: userId });
+    console.log('Found listings for user:', userId, listings);
+
+    return res.status(200).json({
+      success: true,
+      listings: listings || []
+    });
+  } catch (error) {
+    console.error('Error fetching listings:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching listings"
+    });
+  }
+});
 router.get("/:id", getUser); // Get a single user
 
 // Protected endpoints
@@ -68,20 +94,55 @@ router.post("/change-password/:id", verifyToken, async (req, res) => {
 // NEW ROUTE: Get landlord data and listings
 router.get("/landlord/:userId", async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const { userId } = req.params;
+    console.log('Fetching landlord data for:', userId);
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ error: "Invalid userId" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID"
+      });
     }
 
-    const landlord = await User.findById(userId).populate("listings");
+    // Find the landlord
+    const landlord = await User.findById(userId, 
+      "username email avatar phoneNumbers ratings ratedBy"
+    );
+
     if (!landlord) {
-      return res.status(404).json({ error: "Landlord not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Landlord not found"
+      });
     }
 
-    res.json({ landlord, listings: landlord.listings });
+    // Find landlord's listings
+    const listings = await Listing.find({ userRef: userId.toString() });
+
+    // Calculate average rating
+    const averageRating = landlord.ratings.length > 0
+      ? landlord.ratings.reduce((sum, rating) => sum + rating, 0) / landlord.ratings.length
+      : 0;
+
+    return res.status(200).json({
+      success: true,
+      landlord: {
+        _id: landlord._id,
+        username: landlord.username,
+        email: landlord.email,
+        avatar: landlord.avatar,
+        phoneNumbers: landlord.phoneNumbers,
+        averageRating,
+        totalRatings: landlord.ratedBy.length
+      },
+      listings
+    });
   } catch (error) {
     console.error("Error fetching landlord:", error);
-    res.status(500).json({ error: "Failed to fetch landlord data" });
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching landlord data"
+    });
   }
 });
 // Route to reset password via email

@@ -20,26 +20,28 @@ const LandlordListings = () => {
   const [rated, setRated] = useState(false);
 
   useEffect(() => {
-    const fetchLandlordAndListings = async () => {
+    const fetchLandlordData = async () => {
       try {
-        const resLandlord = await fetch(`/api/user/${userId}`);
-        const landlordData = await resLandlord.json();
-        if (!resLandlord.ok) throw new Error("Failed to fetch landlord details");
+        setLoading(true);
+        const res = await fetch(`/api/user/landlord/${userId}`);
+        const data = await res.json();
 
-        const resListings = await fetch(`/api/listing/landlord/${userId}`);
-        const listingsData = await resListings.json();
-        if (!resListings.ok) throw new Error("Failed to fetch listings");
+        if (!data.success) {
+          setError(data.message);
+          return;
+        }
 
-        setLandlord(landlordData);
-        setListings(listingsData);
-      } catch (err) {
-        setError(err.message);
+        setLandlord(data.landlord);
+        setListings(data.listings);
+      } catch (error) {
+        setError("Failed to fetch landlord data");
+        console.error(error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLandlordAndListings();
+    fetchLandlordData();
   }, [userId]);
 
   const fetchUpdatedLandlord = async () => {
@@ -210,6 +212,7 @@ const LandlordListings = () => {
               <p>{listing.address}</p>
               <p className="text-green-600 font-bold">
                 ${listing.regularPrice.toLocaleString()}
+                {listing.type === 'rent' && ' / month'}
               </p>
               <Link to={`/listing/${listing._id}`} className="text-blue-500">
                 View Details

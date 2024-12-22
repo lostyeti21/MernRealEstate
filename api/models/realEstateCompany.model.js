@@ -1,5 +1,28 @@
 import mongoose from "mongoose";
 
+// Schema for an agent
+const agentSchema = new mongoose.Schema({
+  _id: {
+    type: mongoose.Schema.Types.ObjectId,
+    auto: true
+  },
+  name: String,
+  email: String,
+  password: String,
+  avatar: {
+    type: String,
+    default: "default-avatar.png"
+  },
+  ratings: {
+    type: [Number],
+    default: []
+  },
+  averageRating: {
+    type: Number,
+    default: 0
+  }
+});
+
 const realEstateCompanySchema = new mongoose.Schema(
   {
     companyName: {
@@ -10,25 +33,38 @@ const realEstateCompanySchema = new mongoose.Schema(
     email: {
       type: String,
       required: true,
-      unique: true, // Ensure each company has a unique email
-    },
-    proofOfCompany: {
-      type: String, // File URL for proof of company
-      required: true,
+      unique: true,
     },
     password: {
       type: String,
       required: true,
     },
-    agents: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // Links to users (agents) in this company
-      },
-    ],
+    avatar: {
+      type: String,
+      default: "default-company-avatar.png"
+    },
+    agents: [agentSchema],
+    companyRating: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
+
+// Method to calculate and update company rating
+realEstateCompanySchema.methods.updateCompanyRating = function() {
+  if (this.agents.length === 0) {
+    this.companyRating = 0;
+    return;
+  }
+  
+  const totalRating = this.agents.reduce((sum, agent) => {
+    return sum + (agent.averageRating || 0);
+  }, 0);
+  
+  this.companyRating = totalRating / this.agents.length;
+};
 
 const RealEstateCompany = mongoose.model("RealEstateCompany", realEstateCompanySchema);
 

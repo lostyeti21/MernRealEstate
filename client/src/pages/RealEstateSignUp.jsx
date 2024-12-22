@@ -1,300 +1,205 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const RealEstateSignUp = () => {
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     companyName: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
-  const [file, setFile] = useState(null); // State to store the uploaded file
-  const [emailValid, setEmailValid] = useState(true);
-  const [emailExists, setEmailExists] = useState(false);
-  const [passwordFeedback, setPasswordFeedback] = useState({
-    minLength: false,
-    upperCase: false,
-    lowerCase: false,
-    number: false,
-    specialChar: false,
+  const [agents, setAgents] = useState([]);
+  const [agentInput, setAgentInput] = useState({
+    name: "",
+    email: "",
+    contact: "",
+    password: "",
   });
-  const [passwordStrength, setPasswordStrength] = useState(0);
-  const [passwordsMatch, setPasswordsMatch] = useState(true);
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const passwordPolicy = {
-    minLength: (password) => password.length >= 8,
-    upperCase: (password) => /[A-Z]/.test(password),
-    lowerCase: (password) => /[a-z]/.test(password),
-    number: (password) => /[0-9]/.test(password),
-    specialChar: (password) => /[!@#$%^&*(),.?":{}|<>]/.test(password),
+  const handleCompanyChange = (e) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  const calculatePasswordStrength = (feedback) => {
-    const fulfilledCriteria = Object.values(feedback).filter(Boolean).length;
-    return (fulfilledCriteria / Object.keys(feedback).length) * 100;
+  const handleAgentInputChange = (e) => {
+    setAgentInput({ ...agentInput, [e.target.id]: e.target.value });
   };
 
-  const validatePassword = (password) => {
-    const feedback = {
-      minLength: passwordPolicy.minLength(password),
-      upperCase: passwordPolicy.upperCase(password),
-      lowerCase: passwordPolicy.lowerCase(password),
-      number: passwordPolicy.number(password),
-      specialChar: passwordPolicy.specialChar(password),
-    };
-    setPasswordFeedback(feedback);
-    setPasswordStrength(calculatePasswordStrength(feedback));
-    return Object.values(feedback).every((criteria) => criteria);
-  };
-
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  const checkEmailExists = async (email) => {
-    try {
-      const response = await fetch(`/api/auth/check-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-      setEmailExists(data.exists);
-      if (data.exists) {
-        setError("This email is already registered. Please use a different email.");
-      } else {
-        setError(null);
-      }
-    } catch (err) {
-      console.error("Error checking email:", err);
+  const addAgent = () => {
+    if (!agentInput.name || !agentInput.email || !agentInput.contact || !agentInput.password) {
+      setError("All agent fields are required");
+      return;
     }
-  };
-
-  const handleChange = (e) => {
-    const { id, value } = e.target;
-
-    if (id === "email") {
-      setEmailValid(validateEmail(value));
-      if (validateEmail(value)) {
-        checkEmailExists(value);
-      }
-    }
-
-    if (id === "password") {
-      validatePassword(value);
-    }
-
-    if (id === "confirmPassword") {
-      setPasswordsMatch(value === formData.password);
-    }
-
-    setFormData({ ...formData, [id]: value });
-  };
-
-  const handleFileChange = (e) => {
-    const uploadedFile = e.target.files[0];
-    if (
-      uploadedFile &&
-      (uploadedFile.type === "application/pdf" || uploadedFile.type.startsWith("image/"))
-    ) {
-      setFile(uploadedFile);
-      setError(null);
-    } else {
-      setFile(null);
-      setError("Please upload a valid PDF or image file.");
-    }
+    setAgents([...agents, { ...agentInput }]);
+    setAgentInput({ name: "", email: "", contact: "", password: "" });
+    setError(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-    if (!emailValid || emailExists || !passwordsMatch || !file) {
-      setError("Please ensure all fields are valid and a file is uploaded.");
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      setLoading(false);
       return;
     }
 
-    const formDataToSend = new FormData();
-    formDataToSend.append("companyName", formData.companyName);
-    formDataToSend.append("email", formData.email);
-    formDataToSend.append("file", file);
-
     try {
-      setLoading(true);
-      const res = await fetch("/api/auth/send-application", {
+      const res = await fetch("/api/real-estate/signup", {
         method: "POST",
-        body: formDataToSend,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          companyName: formData.companyName,
+          email: formData.email,
+          password: formData.password,
+          agents,
+        }),
       });
 
       const data = await res.json();
 
       if (!data.success) {
-        setLoading(false);
         setError(data.message);
+        setLoading(false);
         return;
       }
 
+      navigate("/real-estate-login");
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    } finally {
       setLoading(false);
-      setError(null);
-      alert("Your application has been sent!");
-      navigate("/sign-in");
-    } catch (error) {
-      setLoading(false);
-      setError("An error occurred while sending your application.");
     }
-  };
-
-  const isFormComplete = () => {
-    const { companyName, email } = formData;
-    return (
-      companyName.trim() !== "" &&
-      emailValid &&
-      !emailExists &&
-      email.trim() !== "" &&
-      passwordsMatch &&
-      passwordStrength === 100 &&
-      file !== null // Ensure a file is uploaded
-    );
   };
 
   return (
     <div className="p-3 max-w-lg mx-auto">
       <h1 className="text-3xl text-center font-semibold my-7">
-        Real Estate Company Application
+        Real Estate Company Sign Up
       </h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <input
-          type="text"
-          placeholder="Real Estate Company Name (required)"
-          className="border p-3 rounded-lg"
-          id="companyName"
-          onChange={handleChange}
-          required
-        />
-        <input
-          type="email"
-          placeholder="Email (required)"
-          className={`border p-3 rounded-lg ${
-            emailValid && !emailExists ? "" : "border-red-500"
-          }`}
-          id="email"
-          onChange={handleChange}
-          required
-        />
-        {!emailValid && <p className="text-red-500 text-sm">Invalid email format</p>}
-        {emailExists && (
-          <p className="text-red-500 text-sm">
-            This email is already registered. Please use a different email.
-          </p>
-        )}
-        <input
-          type="password"
-          placeholder="Password (required)"
-          className="border p-3 rounded-lg"
-          id="password"
-          onChange={handleChange}
-          required
-        />
-        <div>
-          <p>Password must meet the following criteria:</p>
-          <ul>
-            <li style={{ color: passwordFeedback.minLength ? "green" : "red" }}>
-              At least 8 characters
-            </li>
-            <li style={{ color: passwordFeedback.upperCase ? "green" : "red" }}>
-              At least one uppercase letter
-            </li>
-            <li style={{ color: passwordFeedback.lowerCase ? "green" : "red" }}>
-              At least one lowercase letter
-            </li>
-            <li style={{ color: passwordFeedback.number ? "green" : "red" }}>
-              At least one number
-            </li>
-            <li
-              style={{ color: passwordFeedback.specialChar ? "green" : "red" }}
-            >
-              At least one special character (!@#$%^&*)
-            </li>
-          </ul>
-        </div>
-
-        {/* Password Strength Bar */}
-        <div className="w-full bg-gray-300 rounded-lg h-2">
-          <div
-            className={`h-2 rounded-lg transition-all`}
-            style={{
-              width: `${passwordStrength}%`,
-              backgroundColor:
-                passwordStrength < 50
-                  ? "red"
-                  : passwordStrength < 80
-                  ? "yellow"
-                  : "green",
-            }}
-          />
-        </div>
-        <p className="text-sm">
-          Password Strength:{" "}
-          {passwordStrength < 50
-            ? "Weak"
-            : passwordStrength < 80
-            ? "Moderate"
-            : "Strong"}
-        </p>
-
-        <input
-          type="password"
-          placeholder="Confirm Password (required)"
-          className={`border p-3 rounded-lg ${
-            passwordsMatch ? "" : "border-red-500"
-          }`}
-          id="confirmPassword"
-          onChange={handleChange}
-          required
-        />
-        {!passwordsMatch && (
-          <p className="text-red-500 text-sm">Passwords do not match</p>
-        )}
-
-        {/* File Upload */}
-        <div>
-          <label htmlFor="file" className="block font-medium">
-            Upload proof of your company (PDF or Image, required):
-          </label>
+        {/* Company Details */}
+        <div className="flex flex-col gap-4 border-b pb-4">
+          <h2 className="text-xl font-semibold">Company Details</h2>
           <input
-            type="file"
-            id="file"
+            type="text"
+            placeholder="Company Name"
+            id="companyName"
             className="border p-3 rounded-lg"
-            onChange={handleFileChange}
+            onChange={handleCompanyChange}
+            value={formData.companyName}
+            required
+          />
+          <input
+            type="email"
+            placeholder="Company Email"
+            id="email"
+            className="border p-3 rounded-lg"
+            onChange={handleCompanyChange}
+            value={formData.email}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            id="password"
+            className="border p-3 rounded-lg"
+            onChange={handleCompanyChange}
+            value={formData.password}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Confirm Password"
+            id="confirmPassword"
+            className="border p-3 rounded-lg"
+            onChange={handleCompanyChange}
+            value={formData.confirmPassword}
             required
           />
         </div>
 
+        {/* Agent Details */}
+        <div className="flex flex-col gap-4">
+          <h2 className="text-xl font-semibold">Add Agents</h2>
+          <input
+            type="text"
+            placeholder="Agent Name"
+            id="name"
+            className="border p-3 rounded-lg"
+            onChange={handleAgentInputChange}
+            value={agentInput.name}
+          />
+          <input
+            type="email"
+            placeholder="Agent Email"
+            id="email"
+            className="border p-3 rounded-lg"
+            onChange={handleAgentInputChange}
+            value={agentInput.email}
+          />
+          <input
+            type="text"
+            placeholder="Agent Contact"
+            id="contact"
+            className="border p-3 rounded-lg"
+            onChange={handleAgentInputChange}
+            value={agentInput.contact}
+          />
+          <input
+            type="password"
+            placeholder="Agent Password"
+            id="password"
+            className="border p-3 rounded-lg"
+            onChange={handleAgentInputChange}
+            value={agentInput.password}
+          />
+          <button
+            type="button"
+            onClick={addAgent}
+            className="bg-green-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
+          >
+            Add Agent
+          </button>
+        </div>
+
+        {/* Display Added Agents */}
+        {agents.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-2">Added Agents:</h3>
+            <ul className="list-disc pl-5">
+              {agents.map((agent, index) => (
+                <li key={index}>
+                  {agent.name} - {agent.email} - {agent.contact}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <button
+          type="submit"
           className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80"
-          disabled={loading || !isFormComplete()}
+          disabled={loading}
         >
-          {loading ? "Loading..." : "Send Application"}
+          {loading ? "Creating Account..." : "Sign Up"}
         </button>
       </form>
 
-      {error && <p className="text-red-500 mt-4">{error}</p>}
+      {error && <p className="text-red-500 mt-5">{error}</p>}
 
       <div className="flex gap-2 mt-5">
-        <p>Have an Account?</p>
-        <button
-          className="text-blue-700 underline focus:outline-none"
-          onClick={() => navigate("/sign-in")}
-        >
-          Sign In
-        </button>
+        <p>Already have an account?</p>
+        <Link to="/real-estate-login" className="text-blue-700">
+          Sign in
+        </Link>
       </div>
     </div>
   );

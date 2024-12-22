@@ -19,6 +19,12 @@ import ChangePassword from "./pages/ChangePassword";
 import RealEstateSignUp from "./pages/RealEstateSignUp";
 import AdminSignIn from "./pages/AdminSignIn";
 import Admin from "./pages/Admin";
+import HeroSection from "./pages/HeroSection";// Import the HeroSection component
+import RealEstateLogin from "./pages/RealEstateLogin";
+import RealEstateDashboard from "./pages/RealEstateDashboard";
+import UpdateCompany from './pages/UpdateCompany';
+import RealEstateAgentLogin from "./pages/RealEstateAgentLogin";
+import AgentDashboard from "./pages/AgentDashboard";
 
 const App = () => {
   return (
@@ -27,6 +33,7 @@ const App = () => {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
+        <Route path="/hero" element={<HeroSection />} /> {/* Full-fledged Hero Page */}
         <Route path="/landlords" element={<Landlords />} />
         <Route path="/landlord/:userId" element={<LandlordListings />} />
         <Route path="/tenants" element={<Tenants />} />
@@ -41,12 +48,18 @@ const App = () => {
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/real-estate-login" element={<RealEstateLogin />} />
+        <Route path="/real-estate-dashboard" element={<RealEstateDashboard />} />
+        <Route path="/update-company" element={<UpdateCompany />} />
+        <Route path="/real-estate-agent-login" element={<RealEstateAgentLogin />} />
+        <Route path="/agent-dashboard" element={<AgentDashboard />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
           <Route path="/profile" element={<Profile />} />
           <Route path="/create-listing" element={<CreateListing />} />
           <Route path="/update-listing/:listingId" element={<UpdateListing />} />
+          <Route path="/agent-dashboard" element={<AgentDashboard />} />
         </Route>
       </Routes>
     </BrowserRouter>

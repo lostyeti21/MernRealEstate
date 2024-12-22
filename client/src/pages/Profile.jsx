@@ -14,12 +14,13 @@ import {
   signOutUserFailure,
 } from "../redux/user/userSlice.js";
 import { useDispatch } from "react-redux";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const Profile = () => {
   const fileRef = useRef(null);
   const [file, setFile] = useState(undefined);
   const { currentUser, loading, error } = useSelector((state) => state.user);
+  const navigate = useNavigate();
 
   const [filePerc, setFilePerc] = useState(0);
   const [fileUploadError, setFileUploadError] = useState(false);
@@ -40,6 +41,13 @@ const Profile = () => {
       handleFileUpload(file);
     }
   }, [file]);
+
+  useEffect(() => {
+    // If no user is logged in, redirect to sign in
+    if (!currentUser) {
+      navigate('/sign-in');
+    }
+  }, [currentUser, navigate]);
 
   const handleFileUpload = (file) => {
     const storage = getStorage(app);
@@ -148,23 +156,69 @@ const Profile = () => {
   const handleShowListings = async () => {
     try {
       setShowListingsError(false);
-      const res = await fetch(`/api/user/listings/${currentUser._id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-      const data = await res.json();
+      setListingsFetched(false);
 
-      if (!res.ok || !data.user || !data.listings) {
+      if (!currentUser?._id) {
+        console.error('No user ID found');
         setShowListingsError(true);
-        throw new Error(data.message || "Failed to fetch user listings");
+        return;
       }
 
-      setUserListings(data.listings);
-      setListingsFetched(true);
+      console.log('Current user ID:', currentUser._id);
+
+      const res = await fetch(`/api/listing/landlord/${currentUser._id}`);
+      
+      if (!res.ok) {
+        console.error('Response not OK:', res.status);
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log('Listings response:', data);
+
+      if (data.success) {
+        setUserListings(data.listings);
+        setListingsFetched(true);
+        console.log('Found listings:', data.listings.length);
+      } else {
+        console.error('Failed to fetch listings:', data.message);
+        setShowListingsError(true);
+      }
     } catch (error) {
-      console.error("Error fetching user listings:", error.message);
+      console.error('Error fetching listings:', error);
       setShowListingsError(true);
+    }
+  };
+
+  const handleListingDelete = async (listingId) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const confirmed = window.confirm('Are you sure you want to delete this listing?');
+      
+      if (!confirmed) {
+        return;
+      }
+
+      const res = await fetch(`/api/listing/delete/${listingId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        console.error('Failed to delete listing:', data.message);
+        return;
+      }
+
+      // Remove the deleted listing from the state
+      setUserListings((prev) => 
+        prev.filter((listing) => listing._id !== listingId)
+      );
+    } catch (error) {
+      console.error('Error deleting listing:', error);
     }
   };
 
@@ -276,22 +330,29 @@ const Profile = () => {
         {updateSuccess ? "Profile updated successfully!" : ""}
       </p>
       <div className="flex gap-2 mt-5">
-        <button onClick={handleShowListings} className="text-green-700 w-full">
+        <button 
+          onClick={handleShowListings} 
+          className="text-green-700 w-full"
+        >
           Show Listings
         </button>
       </div>
-      <p className="text-red-700 mt-5">
-        {showListingsError ? "Error showing listings" : ""}
-      </p>
-      {listingsFetched && userListings.length === 0 && (
-        <p className="text-center text-red-500 mt-5">
-          You do not have any listings.
+      {showListingsError && (
+        <p className="text-red-700 mt-5">
+          Error showing listings
         </p>
       )}
+
+      {listingsFetched && userListings.length === 0 && (
+        <p className="text-center text-gray-500 mt-5">
+          No listings found. Create your first listing!
+        </p>
+      )}
+
       {userListings && userListings.length > 0 && (
         <div className="flex flex-col gap-4">
           <h1 className="text-center mt-7 text-2xl font-semibold">
-            Your Listings
+            Your Listings ({userListings.length})
           </h1>
           {userListings.map((listing) => (
             <div
@@ -300,7 +361,7 @@ const Profile = () => {
             >
               <Link to={`/listing/${listing._id}`}>
                 <img
-                  src={listing.imageUrls?.[0] || "placeholder_image_url"}
+                  src={listing.imageUrls[0]}
                   alt="listing cover"
                   className="h-16 w-16 object-contain"
                 />
@@ -309,7 +370,7 @@ const Profile = () => {
                 className="text-slate-700 font-semibold hover:underline truncate flex-1"
                 to={`/listing/${listing._id}`}
               >
-                <p>{listing.name || "Unnamed Listing"}</p>
+                <p>{listing.name}</p>
               </Link>
               <div className="flex flex-col item-center">
                 <button

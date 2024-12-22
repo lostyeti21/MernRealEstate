@@ -48,11 +48,24 @@ const listingSchema = new mongoose.Schema(
     },
     imageUrls: {
       type: Array,
-      required: true,
+      required: false,
+      default: []
     },
     userRef: {
       type: String,
+      ref: 'User',
+      required: true
+    },
+    userModel: {
+      type: String,
       required: true,
+      enum: ['User', 'RealEstateCompany', 'Agent'],
+      default: 'User'
+    },
+    agentInfo: {
+      name: String,
+      email: String,
+      companyName: String
     },
     views: {
       type: Number,

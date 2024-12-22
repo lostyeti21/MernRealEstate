@@ -37,19 +37,41 @@ const UpdateListing = () => {
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const params = useParams();
+  const [agentInfo, setAgentInfo] = useState(null);
+
+  useEffect(() => {
+    const storedAgentInfo = localStorage.getItem('agentInfo');
+    if (storedAgentInfo) {
+      setAgentInfo(JSON.parse(storedAgentInfo));
+    }
+  }, []);
 
   useEffect(() => {
     const fetchListing = async () => {
       try {
-        const res = await fetch(`/api/listing/get/${params.listingId}`);
+        const listingId = params.listingId;
+        console.log('Fetching listing:', listingId);
+
+        const headers = {};
+        const agentToken = localStorage.getItem('agentToken');
+        if (agentToken) {
+          headers['Authorization'] = `Bearer ${agentToken}`;
+        }
+
+        const res = await fetch(`/api/listing/get/${listingId}`, { headers });
         const data = await res.json();
-        if (data.success === false) {
-          console.log(data.message);
+
+        if (!res.ok) {
+          console.error('Failed to fetch listing:', data);
+          setError(true);
           return;
         }
+
+        console.log('Fetched listing data:', data);
         setFormData(data);
-      } catch (err) {
-        console.error("Error fetching listing:", err);
+      } catch (error) {
+        console.error('Error fetching listing:', error);
+        setError(true);
       }
     };
 
@@ -123,27 +145,50 @@ const UpdateListing = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (formData.imageUrls.length < 1) {
-        return setError("You must upload at least one image");
-      }
-      if (+formData.regularPrice < +formData.discountPrice) {
-        return setError("Discount price cannot be higher than regular price");
+      setLoading(true);
+      setError(false);
+
+      const isAgent = Boolean(agentInfo && localStorage.getItem('agentToken'));
+      const userRef = isAgent ? agentInfo._id : currentUser?._id;
+      const userModel = isAgent ? 'Agent' : 'User';
+
+      if (!userRef) {
+        throw new Error('No valid user reference found');
       }
 
-      setLoading(true);
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      if (isAgent) {
+        const agentToken = localStorage.getItem('agentToken');
+        if (!agentToken) {
+          throw new Error('Agent token not found');
+        }
+        headers['Authorization'] = `Bearer ${agentToken}`;
+      }
+
       const res = await fetch(`/api/listing/update/${params.listingId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, userRef: currentUser._id }),
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          ...formData,
+          userRef,
+          userModel
+        }),
       });
 
       const data = await res.json();
-      setLoading(false);
-      if (data.success === false) return setError(data.message);
+
+      if (!res.ok) {
+        setError(data.message);
+        return;
+      }
 
       navigate(`/listing/${data._id}`);
-    } catch (err) {
-      setError(err.message);
+    } catch (error) {
+      setError(error.message);
+    } finally {
       setLoading(false);
     }
   };
@@ -151,6 +196,7 @@ const UpdateListing = () => {
   return (
     <main className="p-3 max-w-4xl mx-auto">
       <h1 className="text-3xl font-semibold text-center my-7">Update Listing</h1>
+      {error && <p className="text-red-700 text-center">{error}</p>}
       <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-6">
         <div className="flex flex-col gap-4 flex-1">
           <label htmlFor="name">Name</label>

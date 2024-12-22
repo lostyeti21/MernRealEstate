@@ -1,12 +1,19 @@
-import { FaSearch } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
-import { useEffect, useState } from "react";
+import { useSelector, useDispatch } from 'react-redux';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaSearch } from 'react-icons/fa';
+import { useState, useEffect } from 'react';
+import { clearRealEstateData } from '../redux/realEstate/realEstateSlice';
+import { signOutUserSuccess } from '../redux/user/userSlice';
 
-const Header = () => {
+export default function Header() {
   const { currentUser } = useSelector((state) => state.user);
+  const { currentCompany } = useSelector((state) => state.realEstate || {});
   const [searchTerm, setSearchTerm] = useState("");
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const defaultProfilePic = "https://t4.ftcdn.net/jpg/00/64/67/27/360_F_64672736_U5kpdGs9keUll8CRQ3p3YaEv2M6qkVY5.jpg";
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -25,6 +32,38 @@ const Header = () => {
       setSearchTerm(searchTermFromUrl);
     }
   }, [window.location.search]);
+
+  const handleSignOut = () => {
+    if (currentCompany) {
+      dispatch(clearRealEstateData());
+      localStorage.removeItem('realEstateToken');
+    } else if (agentInfo) {
+      localStorage.removeItem('agentToken');
+      localStorage.removeItem('agentInfo');
+    } else {
+      dispatch(signOutUserSuccess());
+    }
+    setIsProfileDropdownOpen(false);
+    navigate('/');
+    window.location.reload();
+  };
+
+  const agentInfo = JSON.parse(localStorage.getItem('agentInfo'));
+
+  useEffect(() => {
+    // Check authentication state
+    const checkAuth = () => {
+      const agentInfo = localStorage.getItem('agentInfo');
+      const realEstateToken = localStorage.getItem('realEstateToken');
+      const currentUser = localStorage.getItem('currentUser');
+
+      if (!agentInfo && !realEstateToken && !currentUser) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   return (
     <header className="bg-slate-200 shadow-md relative">
@@ -81,14 +120,51 @@ const Header = () => {
               About
             </li>
           </Link>
-          {currentUser ? (
-            <Link to="/profile">
+
+          {(currentUser || currentCompany || agentInfo) ? (
+            <div className="relative">
               <img
-                src={currentUser.avatar || "https://via.placeholder.com/150"}
-                alt="avatar"
-                className="rounded-full h-10 w-10 object-cover border border-slate-300"
+                src={
+                  currentCompany 
+                    ? (currentCompany.avatar || defaultProfilePic)
+                    : agentInfo
+                    ? (agentInfo.avatar || defaultProfilePic)
+                    : (currentUser.avatar || defaultProfilePic)
+                }
+                alt="profile"
+                className="rounded-full h-10 w-10 object-cover border border-slate-300 cursor-pointer"
+                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
               />
-            </Link>
+              
+              {isProfileDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                  {currentCompany ? (
+                    <>
+                      <Link to="/real-estate-dashboard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                        Dashboard
+                      </Link>
+                      <Link to="/update-company" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                        Edit Profile
+                      </Link>
+                    </>
+                  ) : agentInfo ? (
+                    <Link to="/agent-dashboard" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      Profile
+                    </Link>
+                  ) : (
+                    <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                      Profile
+                    </Link>
+                  )}
+                  <button
+                    onClick={handleSignOut}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <Link to="/sign-in">
               <li className="text-slate-700 hover:underline">Sign In</li>
@@ -98,6 +174,4 @@ const Header = () => {
       </div>
     </header>
   );
-};
-
-export default Header;
+}

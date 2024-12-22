@@ -82,35 +82,42 @@ export const getListingById = async (req, res, next) => {
 export const getUserListings = async (req, res, next) => {
   try {
     const userId = req.params.id;
-
+    
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return next(createErrorResponse(400, "Invalid user ID."));
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID"
+      });
+    }
+
+    // Find the user and their listings
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
     }
 
     const listings = await Listing.find({ userRef: userId });
-    const user = await User.findById(userId, "username email avatar phoneNumbers ratings ratedBy");
+    console.log('Found listings:', listings);
 
-    if (!user) {
-      return next(createErrorResponse(404, "User not found."));
-    }
-
-    const averageRating = calculateAverageRating(user.ratings);
-
-    res.status(200).json({
+    return res.status(200).json({
+      success: true,
       user: {
         _id: user._id,
         username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        phoneNumbers: user.phoneNumbers,
-        averageRating,
-        totalRatings: user.ratedBy.length,
+        email: user.email
       },
-      listings,
+      listings: listings || []
     });
+
   } catch (error) {
-    console.error("Error getting user listings:", error);
-    next(createErrorResponse(500, "An error occurred while fetching user listings."));
+    console.error('Error getting user listings:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching listings"
+    });
   }
 };
 
