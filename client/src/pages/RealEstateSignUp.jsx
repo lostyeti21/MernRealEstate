@@ -1,8 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useDispatch } from 'react-redux';
+import { signInStart, signInFailure, realEstateSignInSuccess } from '../redux/user/userSlice';
 
 const RealEstateSignUp = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [formData, setFormData] = useState({
     companyName: "",
     email: "",
@@ -24,7 +27,10 @@ const RealEstateSignUp = () => {
   };
 
   const handleAgentInputChange = (e) => {
-    setAgentInput({ ...agentInput, [e.target.id]: e.target.value });
+    setAgentInput({
+      ...agentInput,
+      [e.target.id]: e.target.value
+    });
   };
 
   const addAgent = () => {
@@ -49,20 +55,25 @@ const RealEstateSignUp = () => {
     }
 
     try {
-      const res = await fetch("/api/real-estate/signup", {
-        method: "POST",
+      const companyRes = await fetch('/api/real-estate/sign-up', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           companyName: formData.companyName,
           email: formData.email,
           password: formData.password,
-          agents,
+          agents: agents.map(agent => ({
+            name: agent.name,
+            email: agent.email,
+            password: agent.password,
+            contact: agent.contact
+          }))
         }),
       });
 
-      const data = await res.json();
+      const data = await companyRes.json();
 
       if (!data.success) {
         setError(data.message);
@@ -75,6 +86,30 @@ const RealEstateSignUp = () => {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    try {
+      dispatch(signInStart());
+      const res = await fetch('/api/real-estate/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (data.success === false) {
+        dispatch(signInFailure(data.message));
+        return;
+      }
+      localStorage.setItem('realEstateToken', data.token);
+      dispatch(realEstateSignInSuccess(data.company));
+      navigate('/real-estate-dashboard');
+    } catch (error) {
+      dispatch(signInFailure(error.message));
     }
   };
 

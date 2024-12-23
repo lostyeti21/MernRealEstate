@@ -1,9 +1,11 @@
 import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
-    currentUser: JSON.parse(localStorage.getItem('currentUser')) || null,
+    currentUser: null,
     error: null,
     loading: false,
+    isAgent: false,
+    isRealEstateCompany: false
 };
 
 const userSlice = createSlice({
@@ -53,10 +55,24 @@ const userSlice = createSlice({
             state.currentUser = null;
             state.loading = false;
             state.error = null;
+            state.isAgent = false;
         },
-        signOutUserFailure: (state,action) => {
+        signOutUserFailure: (state, action) => {
             state.error = action.payload;
             state.loading = false;
+        },
+        signoutSuccess: (state) => {
+            state.currentUser = null;
+            state.loading = false;
+            state.error = null;
+            state.isAgent = false;
+            state.isRealEstateCompany = false;
+        },
+        realEstateSignInSuccess: (state, action) => {
+            state.currentUser = action.payload;
+            state.loading = false;
+            state.error = null;
+            state.isRealEstateCompany = true;
         },
     },
 });
@@ -67,13 +83,15 @@ export const {
     signInFailure, 
     updateUserStart, 
     updateUserSuccess, 
-    updateUserFailure, 
-    deleteUserStart, 
-    deleteUserSuccess, 
+    updateUserFailure,
+    deleteUserStart,
+    deleteUserSuccess,
     deleteUserFailure,
     signOutUserStart,
-    signOutUserSuccess, 
-    signOutUserFailure 
+    signOutUserSuccess,
+    signOutUserFailure,
+    signoutSuccess,
+    realEstateSignInSuccess 
 } = userSlice.actions;
 
 export default userSlice.reducer;

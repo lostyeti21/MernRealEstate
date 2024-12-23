@@ -21,6 +21,7 @@ import {
   FaTint,
   FaPhoneAlt,
   FaWater,
+  FaEnvelope,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 
@@ -34,14 +35,15 @@ const Listing = () => {
   const [listing, setListing] = useState(null);
   const [landlord, setLandlord] = useState(null); // Landlord data
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [fullscreenIndex, setFullscreenIndex] = useState(0);
   const [contact, setContact] = useState(false);
   const [listedBy, setListedBy] = useState(null); // Add this state
+  const [coordinates, setCoordinates] = useState(null);
 
-  const defaultLat = -34.397;
-  const defaultLng = 150.644;
+  const defaultLat = -1.2921;
+  const defaultLng = 36.8219;
 
   const fetchLandlordData = async (userRef) => {
     try {
@@ -61,32 +63,82 @@ const Listing = () => {
         const res = await fetch(`/api/listing/get/${params.listingId}`);
         const data = await res.json();
 
-        if (!data || data.success === false) {
-          setError(true);
-          setLoading(false);
+        if (!data.success) {
+          setError(data.message || 'Failed to fetch listing');
           return;
         }
 
-        if (!data.lat || !data.lng) {
-          const geocodedLocation = await geocodeAddress(data.address);
-          if (geocodedLocation) {
-            data.lat = geocodedLocation.lat;
-            data.lng = geocodedLocation.lng;
+        const listingData = data.listing;
+        setListing(listingData);
+
+        // Handle geocoding
+        try {
+          const coords = await geocodeAddress(listingData.address);
+          setCoordinates(coords);
+        } catch (geoError) {
+          console.warn('Geocoding failed:', geoError);
+        }
+
+        // Fetch poster information based on userModel
+        if (listingData.userRef) {
+          console.log('User Model:', listingData.userModel);
+          console.log('User Ref:', listingData.userRef);
+
+          if (listingData.userModel === 'Agent') {
+            try {
+              // First try to get agent details
+              const agentRes = await fetch(`/api/real-estate/agent/${listingData.userRef}`);
+              const agentData = await agentRes.json();
+              console.log('Agent Data:', agentData);
+
+              if (agentData.success && agentData.agent) {
+                // Get company details
+                const companyId = agentData.agent.companyId;
+                if (companyId) {
+                  const companyRes = await fetch(`/api/real-estate/company/${companyId}`);
+                  const companyData = await companyRes.json();
+                  console.log('Company Data:', companyData);
+
+                  if (companyData.success) {
+                    setListedBy({
+                      type: 'agent',
+                      data: {
+                        _id: agentData.agent._id,
+                        name: agentData.agent.name,
+                        email: agentData.agent.email,
+                        contact: agentData.agent.contact,
+                        avatar: agentData.agent.avatar,
+                        averageRating: agentData.agent.averageRating || 0,
+                        companyName: companyData.company.companyName,
+                        companyAvatar: companyData.company.avatar,
+                        companyRating: companyData.company.rating || 0
+                      }
+                    });
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching agent/company data:', error);
+            }
+          } else {
+            // Handle regular user/landlord data
+            const landlordRes = await fetch(`/api/user/${listingData.userRef}`);
+            const landlordData = await landlordRes.json();
+            
+            if (landlordData) {
+              setListedBy({
+                type: 'landlord',
+                data: landlordData
+              });
+              setLandlord(landlordData);
+            }
           }
         }
 
-        setListing(data);
-
-        // Fetch the landlord's data if it's a regular user listing
-        if (data.userModel === 'User') {
-          const landlordData = await fetchLandlordData(data.userRef);
-          setLandlord(landlordData);
-        }
-        
-        setError(false);
+        setError(null);
       } catch (err) {
-        console.error("Error fetching listing or landlord:", err);
-        setError(true);
+        console.error("Error fetching listing details:", err);
+        setError('Something went wrong!');
       } finally {
         setLoading(false);
       }
@@ -107,8 +159,8 @@ const Listing = () => {
   };
 
   const handleMarkerClick = () => {
-    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${listing.lat},${listing.lng}`;
-    window.open(googleMapsUrl, "_blank");
+    const address = encodeURIComponent(listing.address);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
   };
 
   const renderStars = (averageRating) => {
@@ -127,78 +179,94 @@ const Listing = () => {
   };
 
   const renderListedBy = () => {
-    if (!listing) return null;
+    if (!listedBy) return null;
 
-    if (listing.userModel === 'Agent' && listing.agent) {
+    if (listedBy.type === 'agent') {
+      const agent = listedBy.data;
       return (
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* Agent Information */}
+        <div className="bg-white rounded-lg shadow-md mb-6 overflow-hidden">
+          {/* Company Banner Section */}
+          {agent.companyName && (
+            <div className="w-full h-[120px] relative">
+              <img
+                src={agent.companyAvatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
+                alt="Company Banner"
+                className="w-full h-full object-cover"
+              />
+              {/* Company Rating Overlay */}
+              <div className="absolute bottom-2 right-2 bg-white px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                {renderStars(agent.companyRating || 0)}
+                <span className="text-sm text-gray-500 ml-1">
+                  ({agent.companyRating?.toFixed(1) || 'N/A'})
+                </span>
+              </div>
+              {/* Company Name Overlay */}
+              <div className="absolute bottom-2 left-2 bg-white px-3 py-1 rounded-full shadow-md">
+                <span className="text-sm font-semibold">
+                  {agent.companyName}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Agent Information Section */}
+          <div className="p-6">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <img
-                  src={listing.agent.avatar}
+                  src={agent.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
                   alt="Agent"
-                  className="rounded-full h-16 w-16 object-cover"
+                  className="rounded-full h-16 w-16 object-cover border-2 border-white shadow-lg"
                 />
                 <div>
                   <p className="text-lg font-semibold text-slate-700">
-                    Listed by Agent {listing.agent.name}
+                    Listed by Agent {agent.name}
                   </p>
                   <div className="flex items-center">
-                    {renderStars(listing.agent.averageRating)}
+                    {renderStars(agent.averageRating || 0)}
                     <span className="text-sm text-gray-500 ml-2">
-                      ({listing.agent.averageRating?.toFixed(1) || 'N/A'})
+                      ({agent.averageRating?.toFixed(1) || 'N/A'})
                     </span>
                   </div>
+                  {agent.contact && currentUser && (
+                    <div className="mt-2 flex items-center gap-2 text-gray-600">
+                      <FaPhoneAlt className="text-green-600" />
+                      <span>{agent.contact}</span>
+                    </div>
+                  )}
+                  {agent.email && currentUser && (
+                    <div className="mt-1 flex items-center gap-2 text-gray-600">
+                      <FaEnvelope className="text-green-600" />
+                      <span>{agent.email}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Company Information */}
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center gap-4">
-              <img
-                src={listing.agent.companyAvatar}
-                alt="Company"
-                className="rounded-full h-12 w-12 object-cover"
-              />
-              <div>
-                <p className="font-semibold text-slate-700">
-                  {listing.agent.companyName}
-                </p>
-                <div className="flex items-center">
-                  {renderStars(listing.agent.companyRating)}
-                  <span className="text-sm text-gray-500 ml-2">
-                    ({listing.agent.companyRating?.toFixed(1) || 'N/A'})
-                  </span>
-                </div>
+            {currentUser && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setContact(true)}
+                  className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 transition-all duration-200"
+                >
+                  Contact Agent
+                </button>
               </div>
-            </div>
+            )}
           </div>
-
-          {currentUser && (
-            <div className="mt-4">
-              <button
-                onClick={() => setContact(true)}
-                className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
-              >
-                Contact Agent
-              </button>
-            </div>
-          )}
         </div>
       );
     }
 
     // Regular landlord listing
+    const landlord = listedBy.data;
     return (
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <img
-              src={landlord?.avatar || "default-avatar.png"}
+              src={landlord?.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
               alt="Landlord"
               className="rounded-full h-16 w-16 object-cover"
             />
@@ -212,28 +280,19 @@ const Listing = () => {
                   ({landlord?.averageRating?.toFixed(1) || 'N/A'})
                 </span>
               </div>
-              <div className="mt-2">
-                {landlord?.phoneNumbers?.length > 0 ? (
-                  landlord.phoneNumbers.map((phone, index) => (
+              {landlord?.phoneNumbers && (
+                <div className="mt-2">
+                  {landlord.phoneNumbers.map((phone, index) => (
                     <div
                       key={index}
                       className="flex items-center gap-2 text-gray-600 text-sm"
-                      onClick={() =>
-                        !currentUser &&
-                        alert("Please sign in to view the phone number.")
-                      }
                     >
                       <FaPhoneAlt className="text-green-600" />
                       <span>{currentUser ? phone : "*********"}</span>
                     </div>
-                  ))
-                ) : (
-                  <div className="flex items-center gap-2 text-gray-600 text-sm">
-                    <FaPhoneAlt className="text-green-600" />
-                    <span>N/A</span>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {currentUser && (
@@ -296,24 +355,37 @@ const Listing = () => {
 
           {/* Fullscreen Modal */}
           {showFullscreen && (
-            <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black bg-opacity-90 z-[9999] flex items-center justify-center">
               <button
-                className="absolute top-5 right-5 text-white text-3xl z-10 hover:text-gray-300"
-                onClick={() => setShowFullscreen(false)}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowFullscreen(false);
+                }}
+                className="absolute top-4 right-4 text-white text-4xl z-[10000] p-4 hover:text-gray-300 transition-colors"
               >
-                <FaTimes />
+                <FaTimes style={{ pointerEvents: 'none' }} />
               </button>
-              <Swiper navigation initialSlide={fullscreenIndex} className="w-full h-full">
-                {listing.imageUrls?.map((url, index) => (
-                  <SwiperSlide key={index}>
-                    <img
-                      src={url}
-                      alt={`Fullscreen ${index + 1}`}
-                      className="object-contain w-full h-full"
-                    />
-                  </SwiperSlide>
-                ))}
-              </Swiper>
+              <div className="w-full h-full relative">
+                <Swiper 
+                  navigation 
+                  initialSlide={fullscreenIndex} 
+                  className="w-full h-full"
+                >
+                  {listing.imageUrls?.map((url, index) => (
+                    <SwiperSlide key={index}>
+                      <div className="w-full h-full flex items-center justify-center">
+                        <img
+                          src={url}
+                          alt={`Fullscreen ${index + 1}`}
+                          className="max-w-full max-h-full object-contain"
+                          style={{ pointerEvents: 'none' }}
+                        />
+                      </div>
+                    </SwiperSlide>
+                  ))}
+                </Swiper>
+              </div>
             </div>
           )}
 
@@ -367,39 +439,47 @@ const Listing = () => {
                     <FaWater /> {listing.boreholeWater ? "Borehole Water" : "No Borehole Water"}
                   </li>
                 </ul>
-                {currentUser && listing.userRef !== currentUser._id && !contact && (
-                  <button
-                    onClick={() => setContact(true)}
-                    className="bg-slate-700 text-white rounded-lg uppercase p-3 hover:opacity-95 mt-4 w-full text-center"
-                  >
-                    Send an email to Landlord
-                  </button>
-                )}
-                {contact && <Contact listing={listing} />}
               </div>
             </div>
 
             {/* Right Column - Map */}
-            <div
+            <div 
               className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${
-                showFullscreen ? "hidden" : ""
+                showFullscreen ? 'hidden' : ''
               }`}
             >
-              <MapContainer
-                center={[listing.lat || defaultLat, listing.lng || defaultLng]}
-                zoom={13}
-                scrollWheelZoom={false}
-                className="h-full w-full"
-              >
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker
-                  position={[listing.lat || defaultLat, listing.lng || defaultLng]}
-                  icon={customIcon}
-                  eventHandlers={{ click: handleMarkerClick }}
+              {coordinates ? (
+                <MapContainer
+                  center={[coordinates.lat, coordinates.lng]}
+                  zoom={13}
+                  scrollWheelZoom={false}
+                  className="h-full w-full"
                 >
-                  <Popup>Click for Directions</Popup>
-                </Marker>
-              </MapContainer>
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <Marker
+                    position={[coordinates.lat, coordinates.lng]}
+                    icon={customIcon}
+                    eventHandlers={{ click: handleMarkerClick }}
+                  >
+                    <Popup>
+                      <div>
+                        <p className="font-semibold">{listing.name}</p>
+                        <p>{listing.address}</p>
+                        <button 
+                          onClick={handleMarkerClick}
+                          className="text-blue-500 hover:underline mt-2"
+                        >
+                          Get Directions
+                        </button>
+                      </div>
+                    </Popup>
+                  </Marker>
+                </MapContainer>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <p>Map location not available</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

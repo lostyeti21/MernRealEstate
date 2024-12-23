@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite",
+    "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
     "@babel/core": "^7.26.0",

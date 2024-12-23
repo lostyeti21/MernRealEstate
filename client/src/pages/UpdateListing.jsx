@@ -68,7 +68,10 @@ const UpdateListing = () => {
         }
 
         console.log('Fetched listing data:', data);
-        setFormData(data);
+        setFormData({
+          ...data,
+          imageUrls: data.imageUrls || [],
+        });
       } catch (error) {
         console.error('Error fetching listing:', error);
         setError(true);

@@ -72,15 +72,29 @@ const CreateListing = () => {
       const formData = new FormData();
       formData.append('image', file);
 
+      // Get the token
+      const token = localStorage.getItem('agentToken') || 
+                   localStorage.getItem('accessToken') || 
+                   localStorage.getItem('realEstateToken');
+
       fetch('/api/upload/image', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData,
       })
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Image upload failed');
+          }
+          return response.json();
+        })
         .then(data => {
           if (data.error) {
             throw new Error(data.error);
           }
+          console.log('Image upload response:', data); // Debug log
           setImageUploadError(false);
           resolve(data.imageUrl);
         })
@@ -92,7 +106,7 @@ const CreateListing = () => {
     });
   };
 
-  const handleImageSubmit = (e) => {
+  const handleImageSubmit = async (e) => {
     if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
       setUploading(true);
       setImageUploadError(false);
@@ -102,19 +116,21 @@ const CreateListing = () => {
         promises.push(storeImage(files[i]));
       }
 
-      Promise.all(promises)
-        .then((urls) => {
-          setFormData({
-            ...formData,
-            imageUrls: formData.imageUrls.concat(urls),
-          });
-          setImageUploadError(false);
-          setUploading(false);
-        })
-        .catch((err) => {
-          setImageUploadError('Image upload failed (2 mb max per image)');
-          setUploading(false);
-        });
+      try {
+        const urls = await Promise.all(promises);
+        console.log('Uploaded image URLs:', urls); // Debug log
+
+        setFormData(prev => ({
+          ...prev,
+          imageUrls: prev.imageUrls.concat(urls)
+        }));
+        setImageUploadError(false);
+      } catch (err) {
+        setImageUploadError('Image upload failed (2 mb max per image)');
+        console.error('Image upload error:', err);
+      } finally {
+        setUploading(false);
+      }
     } else {
       setImageUploadError('You can only upload 6 images per listing');
     }
@@ -143,64 +159,57 @@ const CreateListing = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const agentInfo = JSON.parse(localStorage.getItem('agentInfo'));
-      const isAgent = Boolean(agentInfo && localStorage.getItem('agentToken'));
+      // Get both tokens
+      const agentToken = localStorage.getItem('agentToken');
+      const userToken = localStorage.getItem('accessToken');
+      const realEstateToken = localStorage.getItem('realEstateToken');
       
-      let userRef;
-      let userModel;
+      // Use the appropriate token
+      const token = agentToken || userToken || realEstateToken;
       
-      if (isAgent && agentInfo?._id) {
-        userRef = agentInfo._id;
-        userModel = 'Agent';
-        console.log('Creating listing as agent:', { 
-          agentName: agentInfo.name,
-          agentId: userRef 
-        });
-      } else if (currentUser?._id) {
-        userRef = currentUser._id;
-        userModel = 'User';
-      } else {
-        throw new Error('No valid user reference found');
+      if (!token) {
+        setError('Authentication required. Please log in again.');
+        setTimeout(() => navigate('/sign-in'), 2000);
+        return;
       }
 
-      const listingData = {
-        ...formData,
-        userRef,
-        userModel
-      };
-
-      console.log('Submitting listing data:', listingData);
-
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-
-      if (isAgent) {
-        const agentToken = localStorage.getItem('agentToken');
-        if (!agentToken) {
-          throw new Error('Agent token not found');
-        }
-        headers['Authorization'] = `Bearer ${agentToken}`;
+      // Validate that we have images
+      if (formData.imageUrls.length === 0) {
+        setError('Please upload at least one image');
+        return;
       }
+
+      console.log('Submitting listing with images:', formData.imageUrls); // Debug log
 
       const res = await fetch('/api/listing/create', {
         method: 'POST',
-        headers,
-        body: JSON.stringify(listingData),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...formData,
+          userModel: currentUser.isAgent ? 'Agent' : 'User',
+          userRef: currentUser._id,
+          companyInfo: currentUser.companyName ? {
+            companyName: currentUser.companyName,
+            avatar: currentUser.companyAvatar
+          } : undefined
+        })
       });
 
       const data = await res.json();
       
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to create listing');
+      if (!data.success) {
+        setError(data.message || 'Failed to create listing');
+        return;
       }
 
-      navigate(`/listing/${data._id}`);
+      console.log('Listing created successfully:', data); // Debug log
+      navigate(`/listing/${data.listing._id}`);
     } catch (error) {
+      setError(error.message || 'Something went wrong');
       console.error('Error creating listing:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
     }
   };
 

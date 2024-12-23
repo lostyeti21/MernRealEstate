@@ -8,26 +8,33 @@ import {
   removeAgent,
   updateAgent,
   agentSignin,
-  getRealEstateCompanyData
+  getRealEstateCompanyData,
+  updateAvatar,
+  getCompanyListings,
+  getAgentListings,
+  updateAgentAvatar,
+  getAgent,
+  getCompany
 } from "../controllers/realEstate.controller.js";
 
 const router = express.Router();
 
-// Public routes
+// Company routes
 router.post("/signin", signin);
-
-// Protected routes
 router.get("/company-data", verifyToken, getCompanyData);
-router.post("/update-company/:id", verifyToken, updateCompany);
+router.post("/update", verifyToken, updateCompany);
 router.post("/add-agent", verifyToken, addAgent);
 router.delete("/remove-agent/:agentId", verifyToken, removeAgent);
-router.put("/update-agent/:agentId", verifyToken, updateAgent);
+router.post("/update-agent/:agentId", verifyToken, updateAgent);
 router.post("/agent-signin", agentSignin);
-router.get("/company/:id", verifyToken, getRealEstateCompanyData);
+router.get("/company/:companyId", verifyToken, getRealEstateCompanyData);
+router.post("/update-avatar", verifyToken, updateAvatar);
+router.get('/company/:companyId/listings', verifyToken, getCompanyListings);
+router.get('/agent/:agentId/listings', verifyToken, getAgentListings);
+router.post('/update-agent-avatar', verifyToken, updateAgentAvatar);
 
-// Add this test route
-router.get("/test", (req, res) => {
-  res.json({ message: "Real estate routes are working" });
-});
+// Agent routes
+router.get('/agent/:agentId', getAgent);
+router.get('/company/:companyId', getCompany);
 
 export default router;

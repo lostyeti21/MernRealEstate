@@ -48,8 +48,7 @@ const listingSchema = new mongoose.Schema(
     },
     imageUrls: {
       type: Array,
-      required: false,
-      default: []
+      required: true,
     },
     userRef: {
       type: String,
@@ -58,8 +57,7 @@ const listingSchema = new mongoose.Schema(
     },
     userModel: {
       type: String,
-      required: true,
-      enum: ['User', 'RealEstateCompany', 'Agent'],
+      enum: ['User', 'Agent', 'RealEstateCompany'],
       default: 'User'
     },
     agentInfo: {

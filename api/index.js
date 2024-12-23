@@ -11,7 +11,7 @@ import uploadRouter from './routes/upload.route.js';
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import path from "path";
-import agentRoute from './routes/agent.route.js';
+import agentRouter from './routes/agent.route.js';
 
 dotenv.config();
 
@@ -42,7 +42,7 @@ app.use("/api/analytics", analyticsRouter);
 app.use("/api/email", emailRouter);
 app.use("/api/real-estate", realEstateRouter);
 app.use("/api/upload", uploadRouter);
-app.use('/api/agent', agentRoute);
+app.use('/api/agent', agentRouter);
 
 app.use(express.static(path.join(__dirname, "/client/dist")));
 

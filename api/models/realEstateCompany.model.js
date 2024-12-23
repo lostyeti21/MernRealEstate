@@ -13,6 +13,7 @@ const agentSchema = new mongoose.Schema({
     type: String,
     default: "default-avatar.png"
   },
+  contact: String,
   ratings: {
     type: [Number],
     default: []
@@ -66,6 +67,4 @@ realEstateCompanySchema.methods.updateCompanyRating = function() {
   this.companyRating = totalRating / this.agents.length;
 };
 
-const RealEstateCompany = mongoose.model("RealEstateCompany", realEstateCompanySchema);
-
-export default RealEstateCompany;
+export const RealEstateCompany = mongoose.model("RealEstateCompany", realEstateCompanySchema);

@@ -20,7 +20,7 @@ import LoadingAnimation from '../components/LoadingAnimation';
 
 export default function Search() {
   const navigate = useNavigate();
-  const [showPopup, setShowPopup] = useState(false); // State for pop-up visibility
+  const [showPopup, setShowPopup] = useState(false);
   const initialState = {
     searchTerm: '',
     type: 'all',
@@ -60,34 +60,49 @@ export default function Search() {
 
   useEffect(() => {
     const fetchListings = async () => {
-      setLoading(true);
-      const urlParams = new URLSearchParams();
-
-      Object.entries(sidebardata).forEach(([key, value]) => {
-        if (value !== '' && value !== false) {
-          urlParams.set(key, value);
-        }
-      });
-
-      urlParams.set('page', currentPage);
-      urlParams.set('limit', listingsPerPage);
-
-      const searchQuery = urlParams.toString();
       try {
-        const res = await fetch(`/api/listing/get?${searchQuery}`);
-        const data = await res.json();
+        setLoading(true);
+        const urlParams = new URLSearchParams();
 
-        setListings(data.listings || []);
-        setTotalPages(data.totalPages || 1);
+        Object.entries(sidebardata).forEach(([key, value]) => {
+          if (value !== '' && value !== false && value !== 'all') {
+            urlParams.set(key, value);
+          }
+        });
+
+        urlParams.set('page', currentPage);
+        urlParams.set('limit', listingsPerPage);
+
+        const searchQuery = urlParams.toString();
+        console.log('Frontend: Sending request with query:', searchQuery);
+
+        const res = await fetch(`/api/listing/get?${searchQuery}`);
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        const data = await res.json();
+        console.log('Frontend: Received response:', data);
+
+        if (data.success && Array.isArray(data.listings)) {
+          setListings(data.listings);
+          setTotalPages(Math.ceil(data.total / listingsPerPage));
+        } else {
+          console.error('Frontend: Invalid response format or no listings');
+          setListings([]);
+          setTotalPages(1);
+        }
       } catch (error) {
-        console.error('Error fetching listings:', error);
+        console.error('Frontend: Error fetching listings:', error);
+        setListings([]);
+        setTotalPages(1);
       } finally {
         setLoading(false);
       }
     };
 
     fetchListings();
-  }, [sidebardata, currentPage]);
+  }, [sidebardata, currentPage, listingsPerPage]);
 
   const handleChange = (e) => {
     const { id, value, checked, type } = e.target;
@@ -102,7 +117,7 @@ export default function Search() {
     setCurrentPage(1);
     const urlParams = new URLSearchParams();
     Object.entries(sidebardata).forEach(([key, value]) => {
-      if (value !== '' && value !== false) {
+      if (value !== '' && value !== false && value !== 'all') {
         urlParams.set(key, value);
       }
     });
@@ -113,15 +128,17 @@ export default function Search() {
   const handleReset = () => {
     setSidebardata(initialState);
     setCurrentPage(1);
+    setListings([]);
     navigate('/search');
   };
 
   const handlePageChange = (newPage) => {
-    if (newPage > 0 && newPage <= totalPages) {
+    if (newPage > 0 && newPage <= totalPages && !loading) {
       setCurrentPage(newPage);
-      setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 50);
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     }
   };
 
@@ -356,42 +373,50 @@ export default function Search() {
           )}
         </div>
 
-        <div className="flex flex-col items-center mt-6">
-          <div className="flex justify-center items-center gap-4">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </button>
-            <span>Page {currentPage} of {totalPages}</span>
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </button>
-          </div>
+        {!loading && listings.length > 0 && (
+          <div className="flex flex-col items-center mt-6">
+            <div className="flex justify-center items-center gap-4">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 ${
+                  currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={currentPage === 1 || loading}
+              >
+                Previous
+              </button>
+              <span className="text-lg">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 ${
+                  currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={currentPage === totalPages || loading}
+              >
+                Next
+              </button>
+            </div>
 
-          <div className="flex items-center gap-2 mt-4">
-            <input
-              type="text"
-              placeholder="Go to page"
-              value={inputPage}
-              onChange={handlePageInput}
-              className="border rounded-lg p-2 w-23"
-            />
-
-            <button
-              onClick={goToPage}
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90"
-            >
-              Go
-            </button>
+            <div className="flex items-center gap-2 mt-4">
+              <input
+                type="text"
+                placeholder="Go to page"
+                value={inputPage}
+                onChange={handlePageInput}
+                className="border rounded-lg p-2 w-24"
+              />
+              <button
+                onClick={goToPage}
+                disabled={loading}
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                Go
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

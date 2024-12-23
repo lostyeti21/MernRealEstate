@@ -1,8 +1,8 @@
+import mongoose from "mongoose";
 import Listing from "../models/listing.model.js";
 import User from "../models/user.model.js";
-import RealEstateCompany from "../models/realEstateCompany.model.js";
+import { RealEstateCompany } from "../models/realEstateCompany.model.js";
 import { errorHandler } from "../utils/error.js";
-import mongoose from "mongoose";
 
 export const createListing = async (req, res, next) => {
   try {
@@ -21,24 +21,18 @@ export const createListing = async (req, res, next) => {
       });
     }
 
-    // Validate userRef is a valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(userRef)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid user reference'
-      });
-    }
-
-    const listing = new Listing({
+    const listing = await Listing.create({
       ...listingData,
       userRef,
-      userModel: userModel || 'User' // Default to User if not specified
+      userModel: userModel || 'User' // Default to User model if not specified
     });
 
-    await listing.save();
-    res.status(201).json(listing);
+    res.status(201).json({
+      success: true,
+      listing
+    });
   } catch (error) {
-    console.error('Create listing error:', error);
+    console.error('Error creating listing:', error);
     next(error);
   }
 };
@@ -46,51 +40,13 @@ export const createListing = async (req, res, next) => {
 export const deleteListing = async (req, res, next) => {
   try {
     const listing = await Listing.findById(req.params.id);
-    
     if (!listing) {
-      return res.status(404).json({
-        success: false,
-        message: "Listing not found"
-      });
-    }
-
-    const isAgent = req.user.isAgent;
-    const userId = req.user.id;
-
-    console.log('Delete request details:', {
-      isAgent,
-      requestUserId: userId,
-      listingUserRef: listing.userRef,
-      listingUserModel: listing.userModel
-    });
-
-    // For agents, allow deletion of any listing shown in their listings
-    if (isAgent) {
-      await Listing.findByIdAndDelete(req.params.id);
-      return res.status(200).json({
-        success: true,
-        message: "Listing has been deleted!"
-      });
-    } 
-    
-    // For regular users, check ownership
-    if (!isAgent && listing.userModel === 'User') {
-      if (listing.userRef.toString() !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: "You can only delete your own listings"
-        });
-      }
+      return next(errorHandler(404, 'Listing not found!'));
     }
 
     await Listing.findByIdAndDelete(req.params.id);
-    
-    res.status(200).json({
-      success: true,
-      message: "Listing has been deleted!"
-    });
+    res.status(200).json('Listing has been deleted!');
   } catch (error) {
-    console.error('Error deleting listing:', error);
     next(error);
   }
 };
@@ -99,23 +55,19 @@ export const updateListing = async (req, res, next) => {
   try {
     const listing = await Listing.findById(req.params.id);
     if (!listing) {
-      return next(errorHandler(404, "Listing not found"));
+      return res.status(404).json({
+        success: false,
+        message: 'Listing not found!'
+      });
     }
 
-    // Check if the user is authorized to update this listing
-    const isAgent = req.user.isAgent;
-    const userId = req.user.id;
-
-    if (listing.userRef !== userId) {
-      return next(errorHandler(403, "You can only update your own listings"));
+    // Check if user has permission to update
+    if (listing.userRef.toString() !== req.user.id && !req.user.isAdmin) {
+      return res.status(401).json({
+        success: false,
+        message: 'You can only update your own listings!'
+      });
     }
-
-    console.log('Updating listing:', {
-      listingId: req.params.id,
-      userId,
-      isAgent,
-      updates: req.body
-    });
 
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
@@ -123,80 +75,71 @@ export const updateListing = async (req, res, next) => {
       { new: true }
     );
 
-    res.status(200).json(updatedListing);
+    res.status(200).json({
+      success: true,
+      listing: updatedListing
+    });
   } catch (error) {
-    console.error('Error updating listing:', error);
     next(error);
   }
 };
 
 export const getListing = async (req, res, next) => {
   try {
-    const listing = await Listing.findById(req.params.id);
+    const { id } = req.params;
+
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid listing ID format'
+      });
+    }
+
+    const listing = await Listing.findById(id);
     if (!listing) {
-      return next(errorHandler(404, 'Listing not found'));
+      return res.status(404).json({
+        success: false,
+        message: 'Listing not found'
+      });
     }
 
-    // Only fetch landlord data if the listing is from a regular user
-    if (listing.userModel === 'User') {
-      const landlord = await User.findById(listing.userRef, "username avatar ratings");
-      if (!landlord) {
-        return next(errorHandler(404, 'Landlord not found!'));
-      }
-
-      const averageRating = landlord.ratings.length > 0
-        ? landlord.ratings.reduce((sum, r) => sum + r, 0) / landlord.ratings.length
-        : 0;
-
-      // Return listing with landlord data
-      res.status(200).json({
-        ...listing.toObject(),
-        landlord: {
-          username: landlord.username,
-          avatar: landlord.avatar || "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-          averageRating
-        }
-      });
-    } else if (listing.userModel === 'Agent') {
-      // For agent listings, find the agent in RealEstateCompany
+    // If the listing belongs to an agent or company, get additional info
+    if (listing.userModel === 'Agent' || listing.userModel === 'RealEstateCompany') {
       const company = await RealEstateCompany.findOne({
-        'agents._id': listing.userRef
+        $or: [
+          { _id: listing.userRef },
+          { 'agents._id': listing.userRef }
+        ]
       });
 
-      if (!company) {
-        return next(errorHandler(404, 'Agent not found!'));
-      }
-
-      const agent = company.agents.find(
-        agent => agent._id.toString() === listing.userRef
-      );
-
-      if (!agent) {
-        return next(errorHandler(404, 'Agent details not found!'));
-      }
-
-      // Calculate agent's average rating
-      const agentRating = agent.ratings?.length > 0
-        ? agent.ratings.reduce((sum, r) => sum + r, 0) / agent.ratings.length
-        : 0;
-
-      // Return listing with agent and company data, including default avatars
-      res.status(200).json({
-        ...listing.toObject(),
-        agent: {
-          name: agent.name,
-          email: agent.email,
-          avatar: agent.avatar || "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-          averageRating: agentRating,
-          companyName: company.companyName,
-          companyAvatar: company.avatar || "https://img.freepik.com/free-vector/grey-user-circles-set_78370-7045.jpg?semt=ais_hybrid",
-          companyRating: company.companyRating || 0
+      if (company) {
+        let agentInfo = null;
+        if (listing.userModel === 'Agent') {
+          const agent = company.agents.find(a => a._id.toString() === listing.userRef);
+          if (agent) {
+            agentInfo = {
+              name: agent.name,
+              email: agent.email,
+              avatar: agent.avatar,
+              contact: agent.contact,
+              companyName: company.companyName
+            };
+          }
         }
-      });
-    } else {
-      // If userModel is neither User nor Agent, return just the listing
-      res.status(200).json(listing);
+
+        listing._doc.agentInfo = agentInfo;
+        listing._doc.companyInfo = {
+          companyName: company.companyName,
+          avatar: company.avatar
+        };
+      }
     }
+
+    res.status(200).json({
+      success: true,
+      listing
+    });
   } catch (error) {
     console.error('Error in getListing:', error);
     next(error);
@@ -205,123 +148,97 @@ export const getListing = async (req, res, next) => {
 
 export const getListings = async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 9;
+    const limit = parseInt(req.query.limit) || 8;
     const page = parseInt(req.query.page) || 1;
     const skip = (page - 1) * limit;
+    
+    let query = {};
 
-    // Parse filters from query parameters
-    const offer = req.query.offer === "true" ? true : req.query.offer === "false" ? false : undefined;
-    const furnished = req.query.furnished === "true" ? true : req.query.furnished === "false" ? false : undefined;
-    const parking = req.query.parking === "true" ? true : req.query.parking === "false" ? false : undefined;
-    const backupPower = req.query.backupPower === "true" ? true : undefined;
-    const backupWaterSupply = req.query.backupWaterSupply === "true" ? true : undefined;
-    const boreholeWater = req.query.boreholeWater === "true" ? true : undefined; // Added borehole water filter
+    // Search term
+    if (req.query.searchTerm) {
+      query.$or = [
+        { name: { $regex: req.query.searchTerm, $options: 'i' } },
+        { address: { $regex: req.query.searchTerm, $options: 'i' } },
+        { description: { $regex: req.query.searchTerm, $options: 'i' } }
+      ];
+    }
 
-    const type =
-    req.query.type && req.query.type !== "all"
-      ? req.query.type
-      : { $in: ["sale", "rent"] };
-  
+    // Type filter
+    if (req.query.type && req.query.type !== 'all') {
+      query.type = req.query.type;
+    }
 
-    const searchTerm = req.query.searchTerm || "";
-    const sort = req.query.sort || "createdAt";
-    const order = req.query.order || "desc";
+    // Amenities filters
+    if (req.query.parking === 'true') query.parking = true;
+    if (req.query.furnished === 'true') query.furnished = true;
+    if (req.query.backupPower === 'true') query.backupPower = true;
+    if (req.query.backupWaterSupply === 'true') query.backupWaterSupply = true;
+    if (req.query.boreholeWater === 'true') query.boreholeWater = true;
+    if (req.query.offer === 'true') query.offer = true;
 
-    // Price range filtering
-    const minPrice = parseFloat(req.query.minPrice) || 0;
-    const maxPrice = parseFloat(req.query.maxPrice) || 10000000;
+    // Price range
+    if (req.query.minPrice || req.query.maxPrice) {
+      query.regularPrice = {};
+      if (req.query.minPrice) query.regularPrice.$gte = parseInt(req.query.minPrice);
+      if (req.query.maxPrice) query.regularPrice.$lte = parseInt(req.query.maxPrice);
+    }
 
-    // Build the query object dynamically
-    const query = {
-      name: { $regex: searchTerm, $options: "i" },
-      type,
-      regularPrice: { $gte: minPrice, $lte: maxPrice },
-    };
+    // Sort
+    const sort = {};
+    if (req.query.sort && req.query.order) {
+      sort[req.query.sort] = req.query.order === 'desc' ? -1 : 1;
+    } else {
+      sort.createdAt = -1;
+    }
 
-    // Add filters to the query only if they are explicitly set
-    if (offer !== undefined) query.offer = offer;
-    if (furnished !== undefined) query.furnished = furnished;
-    if (parking !== undefined) query.parking = parking;
-    if (backupPower !== undefined) query.backupPower = backupPower;
-    if (backupWaterSupply !== undefined) query.backupWaterSupply = backupWaterSupply;
-    if (boreholeWater !== undefined) query.boreholeWater = boreholeWater; // Added borehole water filter
+    // Get total count for pagination
+    const total = await Listing.countDocuments(query);
+    const totalPages = Math.ceil(total / limit);
 
+    // Get listings
     const listings = await Listing.find(query)
-      .sort({ [sort]: order })
-      .limit(limit)
-      .skip(skip);
+      .sort(sort)
+      .skip(skip)
+      .limit(limit);
 
-    const totalListings = await Listing.countDocuments(query);
-    const totalPages = Math.ceil(totalListings / limit);
-
-    return res.status(200).json({
+    res.status(200).json({
+      success: true,
       listings,
       totalPages,
+      currentPage: page,
+      total
     });
+
   } catch (error) {
     next(error);
   }
 };
 
-export const getLandlordListings = async (req, res) => {
+export const getLandlordListings = async (req, res, next) => {
   try {
-    const { userId } = req.params;
-    console.log('Getting listings for user:', userId);
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid user ID'
-      });
-    }
-
-    // Find listings and sort by newest first
-    const listings = await Listing.find({ userRef: userId })
-      .sort({ createdAt: -1 });
-
-    console.log('Found listings:', listings);
-
-    // Always return success with empty array if no listings
-    return res.status(200).json({
-      success: true,
-      listings: listings || []
-    });
-
+    const listings = await Listing.find({ userRef: req.params.id });
+    res.status(200).json(listings);
   } catch (error) {
-    console.error('Error in getLandlordListings:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error fetching listings'
-    });
+    next(error);
   }
 };
 
-export const getAgentListings = async (req, res, next) => {
+export const getAgentListings = async (req, res) => {
   try {
-    const agentId = req.params.id;
+    const { agentId } = req.params;
     
-    if (!agentId) {
+    if (!mongoose.Types.ObjectId.isValid(agentId)) {
       return res.status(400).json({
         success: false,
-        message: 'Agent ID is required'
+        message: 'Invalid agent ID'
       });
     }
-
-    console.log('Finding listings for agent ID:', agentId);
 
     const listings = await Listing.find({ 
       userRef: agentId
     }).sort({ createdAt: -1 });
     
     console.log(`Found ${listings.length} listings for agent ID: ${agentId}`);
-
-    if (listings.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'No listings found for this agent',
-        listings: []
-      });
-    }
 
     res.status(200).json({
       success: true,
@@ -331,7 +248,50 @@ export const getAgentListings = async (req, res, next) => {
     console.error('Error getting agent listings:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error fetching listings'
+      message: error.message
     });
   }
 };
+
+export const getUserListings = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if the ID is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID format'
+      });
+    }
+
+    // First try to find listings for a regular user
+    let listings = await Listing.find({ userRef: id, userModel: 'User' });
+
+    // If no listings found, check if it's a real estate company
+    if (listings.length === 0) {
+      const company = await RealEstateCompany.findById(id);
+      if (company) {
+        // Get all agent IDs from the company
+        const agentIds = company.agents.map(agent => agent._id.toString());
+
+        // Find all listings that belong to the company or its agents
+        listings = await Listing.find({
+          $or: [
+            { userRef: { $in: agentIds }, userModel: 'Agent' },
+            { userRef: id, userModel: 'RealEstateCompany' }
+          ]
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      listings
+    });
+  } catch (error) {
+    console.error('Error in getUserListings:', error);
+    next(error);
+  }
+};
+

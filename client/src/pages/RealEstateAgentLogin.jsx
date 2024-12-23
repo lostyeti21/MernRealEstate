@@ -1,27 +1,32 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { signInSuccess } from '../redux/user/userSlice';
 
-const RealEstateAgentLogin = () => {
-  const navigate = useNavigate();
+export default function RealEstateAgentLogin() {
   const [formData, setFormData] = useState({
     companyName: '',
     email: '',
-    password: '',
+    password: ''
   });
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.id]: e.target.value });
+    setFormData({
+      ...formData,
+      [e.target.id]: e.target.value
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
     try {
+      setLoading(true);
+      setError(null);
+
       const res = await fetch('/api/real-estate/agent-signin', {
         method: 'POST',
         headers: {
@@ -31,30 +36,29 @@ const RealEstateAgentLogin = () => {
       });
 
       const data = await res.json();
+      console.log('Sign-in response:', data);
 
       if (!data.success) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || 'Failed to sign in');
       }
 
-      console.log('Agent data to store:', {
-        ...data.agent,
-        companyName: data.companyName
-      });
+      // Store token and agent info in localStorage
+      localStorage.setItem('realEstateToken', data.token);
+      localStorage.setItem('agentInfo', JSON.stringify(data.agent));
 
-      if (!data.agent._id) {
-        throw new Error('Invalid agent data received');
-      }
-
-      localStorage.setItem('agentToken', data.token);
-      localStorage.setItem('agentInfo', JSON.stringify({
+      // Update Redux store
+      dispatch(signInSuccess({
         ...data.agent,
-        companyName: data.companyName
+        isAgent: true
       }));
 
+      // Navigate to agent dashboard
+      console.log('Navigating to agent dashboard...');
       navigate('/agent-dashboard');
-    } catch (err) {
-      console.error('Login error:', err);
-      setError(err.message || 'Something went wrong');
+      
+    } catch (error) {
+      console.error('Sign-in error:', error);
+      setError(error.message || 'Something went wrong!');
     } finally {
       setLoading(false);
     }
@@ -62,77 +66,46 @@ const RealEstateAgentLogin = () => {
 
   return (
     <div className="p-3 max-w-lg mx-auto">
-      <h1 className="text-3xl text-center font-semibold my-7">
-        Real Estate Agent Login
-      </h1>
-
+      <h1 className="text-3xl text-center font-semibold my-7">Agent Sign In</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <input
           type="text"
-          placeholder="Real Estate Company Name"
-          id="companyName"
+          placeholder="Company Name"
           className="border p-3 rounded-lg"
+          id="companyName"
           onChange={handleChange}
           value={formData.companyName}
-          required
         />
-
         <input
           type="email"
-          placeholder="Agent Email"
-          id="email"
+          placeholder="Email"
           className="border p-3 rounded-lg"
+          id="email"
           onChange={handleChange}
           value={formData.email}
-          required
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          className="border p-3 rounded-lg"
+          id="password"
+          onChange={handleChange}
+          value={formData.password}
         />
 
-        <div className="relative">
-          <input
-            type={showPassword ? "text" : "password"}
-            placeholder="Password"
-            id="password"
-            className="border p-3 rounded-lg w-full"
-            onChange={handleChange}
-            value={formData.password}
-            required
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
-          >
-            {showPassword ? "Hide" : "Show"}
-          </button>
-        </div>
-
         <button
-          type="submit"
-          className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80"
           disabled={loading}
+          className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 disabled:opacity-80"
         >
-          {loading ? "Signing in..." : "Sign In"}
+          {loading ? 'Loading...' : 'Sign In'}
         </button>
       </form>
 
-      {error && <p className="text-red-500 mt-5">{error}</p>}
-
-      <div className="flex flex-col gap-4 mt-5">
-        <div className="flex gap-2 justify-center">
-          <p>Are you a Real Estate Company?</p>
-          <Link to="/real-estate-login" className="text-blue-700">
-            Sign in here
-          </Link>
+      {error && (
+        <div className="mt-5 text-red-500 text-center">
+          {error}
         </div>
-        <div className="flex gap-2 justify-center">
-          <p>Are you a Landlord or Tenant?</p>
-          <Link to="/sign-in" className="text-blue-700">
-            Sign in here
-          </Link>
-        </div>
-      </div>
+      )}
     </div>
   );
-};
-
-export default RealEstateAgentLogin; 
+} 

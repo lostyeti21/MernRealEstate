@@ -1,279 +1,323 @@
-import { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FaBed, FaBath, FaParking, FaMapMarkerAlt, FaStar, FaCamera } from 'react-icons/fa';
+import {
+  getStorage,
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+} from 'firebase/storage';
+import { app } from '../firebase';
 
 export default function AgentDashboard() {
   const [listings, setListings] = useState([]);
-  const [showListingsError, setShowListingsError] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [agentInfo, setAgentInfo] = useState(null);
-  const [showListingsSection, setShowListingsSection] = useState(false);
-  const [uploadError, setUploadError] = useState(null);
-  const fileRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [agentData, setAgentData] = useState(null);
+  const [file, setFile] = useState(undefined);
+  const [filePerc, setFilePerc] = useState(0);
+  const [fileUploadError, setFileUploadError] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const agent = JSON.parse(localStorage.getItem('agentInfo'));
-    setAgentInfo(agent);
+    const storedAgentInfo = localStorage.getItem('agentInfo');
+    if (storedAgentInfo) {
+      setAgentData(JSON.parse(storedAgentInfo));
+    }
   }, []);
 
-  const handleImageClick = () => {
-    fileRef.current.click();
-  };
-
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    try {
-      if (file.size > 2 * 1024 * 1024) {
-        throw new Error('Image size should be less than 2MB');
-      }
-
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const token = localStorage.getItem('agentToken');
-      const agentInfo = JSON.parse(localStorage.getItem('agentInfo'));
-
-      if (!token || !agentInfo) {
-        throw new Error('Authentication required');
-      }
-
-      // Upload image
-      const uploadRes = await fetch('/api/upload/image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const uploadData = await uploadRes.json();
-      if (!uploadData.imageUrl) {
-        throw new Error('Failed to upload image');
-      }
-
-      // Update agent avatar
-      const updateRes = await fetch('/api/agent/update-avatar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          avatar: uploadData.imageUrl,
-          agentId: agentInfo._id
-        })
-      });
-
-      if (!updateRes.ok) {
-        const errorData = await updateRes.json();
-        throw new Error(errorData.message || 'Failed to update avatar');
-      }
-
-      // Update local storage and state with new avatar
-      const updatedAgentInfo = { ...agentInfo, avatar: uploadData.imageUrl };
-      localStorage.setItem('agentInfo', JSON.stringify(updatedAgentInfo));
-      setAgentInfo(updatedAgentInfo);
-      setUploadError(null);
-      alert('Avatar updated successfully!');
-    } catch (error) {
-      console.error('Error updating avatar:', error);
-      setUploadError(error.message);
+  useEffect(() => {
+    if (file) {
+      handleFileUpload(file);
     }
+  }, [file]);
+
+  const handleFileUpload = (file) => {
+    const storage = getStorage(app);
+    const fileName = new Date().getTime() + file.name;
+    const storageRef = ref(storage, fileName);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setFilePerc(Math.round(progress));
+      },
+      (error) => {
+        setFileUploadError(true);
+        console.error('Upload error:', error);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
+          try {
+            const token = localStorage.getItem('realEstateToken');
+            const res = await fetch('/api/real-estate/update-agent-avatar', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                agentId: agentData._id,
+                avatar: downloadURL
+              })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+              setAgentData({ ...agentData, avatar: downloadURL });
+              localStorage.setItem('agentInfo', JSON.stringify({
+                ...agentData,
+                avatar: downloadURL
+              }));
+            }
+          } catch (error) {
+            console.error('Error updating avatar:', error);
+            setFileUploadError(true);
+          }
+        });
+      }
+    );
   };
 
-  const handleShowListings = async () => {
-    try {
-      if (showListingsSection) {
-        setShowListingsSection(false);
-        return;
-      }
+  useEffect(() => {
+    const fetchAgentListings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      setLoading(true);
-      setShowListingsError(false);
-      
-      const token = localStorage.getItem('agentToken');
-      const agentInfo = localStorage.getItem('agentInfo');
+        const token = localStorage.getItem('realEstateToken');
+        const agentInfo = JSON.parse(localStorage.getItem('agentInfo'));
 
-      if (!token || !agentInfo) {
-        throw new Error('No authentication token or agent info found');
-      }
-
-      const parsedAgentInfo = JSON.parse(agentInfo);
-      console.log('Searching listings with agent ID:', parsedAgentInfo._id);
-
-      const res = await fetch(`/api/listing/agent-listings/${parsedAgentInfo._id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+        if (!token || !agentInfo) {
+          throw new Error('Authentication required');
         }
-      });
 
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to fetch listings');
+        const res = await fetch(`/api/real-estate/agent/${agentInfo._id}/listings`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch listings');
+        }
+
+        setListings(data.listings || []);
+        
+        if (data.agent) {
+          setAgentData(data.agent);
+          localStorage.setItem('agentInfo', JSON.stringify(data.agent));
+        }
+
+      } catch (err) {
+        console.error('Error fetching listings:', err);
+        setError(err.message);
+
+        if (err.message.includes('Authentication required')) {
+          navigate('/real-estate-agent-login');
+        }
+      } finally {
+        setLoading(false);
       }
+    };
 
-      setListings(data.listings || []);
-      setShowListingsSection(true);
-    } catch (error) {
-      console.error('Error fetching listings:', error);
-      setShowListingsError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchAgentListings();
+  }, [navigate]);
 
-  const handleListingDelete = async (listingId) => {
+  const handleDelete = async (listingId) => {
     try {
-      // Show confirmation dialog
-      const isConfirmed = window.confirm('Are you sure you want to delete this listing?');
-      
-      if (!isConfirmed) {
-        return; // If user clicks Cancel, don't proceed with deletion
-      }
-
-      const token = localStorage.getItem('agentToken');
-      const agentInfo = JSON.parse(localStorage.getItem('agentInfo'));
-
-      if (!token || !agentInfo) {
+      const token = localStorage.getItem('realEstateToken');
+      if (!token) {
         throw new Error('Authentication required');
       }
 
-      console.log('Delete attempt:', {
-        listingId,
-        agentId: agentInfo._id,
-        token
-      });
+      const confirmed = window.confirm('Are you sure you want to delete this listing?');
+      if (!confirmed) return;
 
       const res = await fetch(`/api/listing/delete/${listingId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        console.error('Delete response:', data);
         throw new Error(data.message || 'Failed to delete listing');
       }
 
-      // Only remove listing from state if user confirmed and deletion was successful
-      setListings((prev) =>
-        prev.filter((listing) => listing._id !== listingId)
-      );
-
-      // Show success message
-      alert('Listing deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting listing:', error);
-      alert('Failed to delete listing: ' + error.message);
+      setListings(listings.filter(listing => listing._id !== listingId));
+      
+    } catch (err) {
+      console.error('Error deleting listing:', err);
+      alert(err.message);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center mt-8 p-4 bg-red-50 rounded-lg">
+        <p className="text-red-600 font-semibold">Error: {error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className='p-3 max-w-lg mx-auto'>
-      <h1 className='text-3xl font-semibold text-center my-7'>Agent Profile</h1>
-      
-      <div className="flex flex-col gap-4">
-        {agentInfo && (
-          <div className="flex items-center gap-4">
-            <div className="relative cursor-pointer group" onClick={handleImageClick}>
-              <img
-                src={agentInfo.avatar || "https://cdn-icons-png.flaticon.com/512/149/149071.png"}
-                alt="profile"
-                className="rounded-full h-24 w-24 object-cover transition-opacity group-hover:opacity-80"
-              />
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-white bg-black bg-opacity-50 px-2 py-1 rounded text-sm">
-                  Change Avatar
-                </span>
-              </div>
-              <input
-                type="file"
-                ref={fileRef}
-                hidden
-                accept="image/*"
-                onChange={handleImageChange}
-              />
-            </div>
-            <div>
-              <p className="font-semibold">{agentInfo.name}</p>
-              <p className="text-gray-600">{agentInfo.email}</p>
-              <p className="text-gray-600">{agentInfo.companyName}</p>
-            </div>
+    <div className="p-4 max-w-6xl mx-auto">
+      {/* Agent Profile Section */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="flex items-center gap-6">
+          <div className="relative">
+            <img
+              src={agentData?.avatar || '/default-profile.jpg'}
+              alt={agentData?.name}
+              className="w-24 h-24 rounded-full object-cover"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/default-profile.jpg';
+              }}
+            />
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files[0])}
+              ref={(input) => input && (input.style.display = 'none')}
+              accept="image/*"
+              id="profilePicInput"
+            />
+            <label
+              htmlFor="profilePicInput"
+              className="absolute bottom-0 right-0 bg-blue-500 p-2 rounded-full cursor-pointer hover:bg-blue-600"
+            >
+              <FaCamera className="text-white" />
+            </label>
           </div>
+          <div>
+            <h1 className="text-2xl font-semibold mb-2">{agentData?.name}</h1>
+            <p className="text-gray-600 mb-2">{agentData?.email}</p>
+            <p className="text-gray-600 mb-2">{agentData?.contact}</p>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <FaStar
+                    key={star}
+                    className={`${
+                      star <= (agentData?.averageRating || 0)
+                        ? 'text-yellow-400'
+                        : 'text-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-gray-600">
+                ({agentData?.averageRating?.toFixed(1) || 'N/A'})
+              </span>
+            </div>
+            <p className="text-gray-600 mt-2">
+              Company: {agentData?.companyName}
+            </p>
+          </div>
+        </div>
+        {fileUploadError && (
+          <p className="text-red-500 mt-2">Error uploading image</p>
         )}
-
-        {uploadError && (
-          <p className="text-red-700 text-sm mt-1">
-            {uploadError}
-          </p>
+        {filePerc > 0 && filePerc < 100 && (
+          <p className="text-green-500 mt-2">Uploading: {filePerc}%</p>
         )}
+      </div>
 
-        <Link
-          className='bg-green-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95'
-          to='/create-listing'
-        >
-          Create Listing
-        </Link>
-
+      {/* Listings Section */}
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-2xl font-semibold">My Listings ({listings.length})</h2>
         <button
-          onClick={handleShowListings}
-          className='bg-slate-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95'
-          disabled={loading}
+          onClick={() => navigate('/create-listing')}
+          className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600"
         >
-          {loading ? 'Loading...' : showListingsSection ? 'Hide Listings' : 'Show Listings'}
+          Create New Listing
         </button>
       </div>
 
-      <p className='text-red-700 mt-5'>
-        {showListingsError ? 'Error showing listings' : ''}
-      </p>
-
-      {showListingsSection && (
-        listings.length > 0 ? (
-          <div className='flex flex-col gap-4 mt-4'>
-            <h2 className='text-2xl font-semibold'>Your Listings</h2>
-            {listings.map((listing) => (
-              <div
-                key={listing._id}
-                className='border rounded-lg p-3 flex justify-between items-center gap-4'
-              >
-                <Link to={`/listing/${listing._id}`}>
-                  <img
-                    src={listing.imageUrls[0]}
-                    alt='listing cover'
-                    className='h-16 w-16 object-cover rounded-lg'
-                  />
-                </Link>
-                <Link
-                  className='text-slate-700 font-semibold flex-1 hover:underline truncate'
-                  to={`/listing/${listing._id}`}
-                >
-                  <p>{listing.name}</p>
-                </Link>
-
-                <div className='flex flex-col items-center'>
-                  <button
-                    onClick={() => handleListingDelete(listing._id)}
-                    className='text-red-700 uppercase'
-                  >
-                    Delete
-                  </button>
-                  <Link to={`/update-listing/${listing._id}`}>
-                    <button className='text-green-700 uppercase'>Edit</button>
-                  </Link>
+      {listings.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-600">No listings found</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {listings.map((listing) => (
+            <div
+              key={listing._id}
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+            >
+              <img
+                src={listing.imageUrls[0] || '/default-house.jpg'}
+                alt={listing.name}
+                className="w-full h-48 object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = '/default-house.jpg';
+                }}
+              />
+              <div className="p-4">
+                <h3 className="text-lg font-semibold mb-2">{listing.name}</h3>
+                <p className="text-gray-600 mb-2 flex items-center gap-1">
+                  <FaMapMarkerAlt className="text-green-600" />
+                  {listing.address}
+                </p>
+                <div className="flex gap-4 mb-2">
+                  <span className="flex items-center gap-1">
+                    <FaBed className="text-gray-400" />
+                    {listing.bedrooms}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FaBath className="text-gray-400" />
+                    {listing.bathrooms}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FaParking className="text-gray-400" />
+                    {listing.parking ? "Yes" : "No"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-4">
+                  <p className="text-lg font-semibold text-green-600">
+                    ${listing.regularPrice.toLocaleString()}
+                    {listing.type === 'rent' && '/month'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => navigate(`/update-listing/${listing._id}`)}
+                      className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(listing._id)}
+                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className='text-slate-700 text-center mt-4'>
-            You haven't created any listings yet.
-          </p>
-        )
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
-} 
+}

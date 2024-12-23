@@ -1,8 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useDispatch } from 'react-redux';
+import { signInStart, signInFailure, realEstateSignInSuccess } from '../redux/user/userSlice';
 
 const RealEstateLogin = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [formData, setFormData] = useState({
     companyName: "",
     email: "",
@@ -22,53 +25,46 @@ const RealEstateLogin = () => {
     setError(null);
 
     try {
+      dispatch(signInStart());
       // Validate input
       if (!formData.companyName || !formData.email || !formData.password) {
         setError('All fields are required');
-        setLoading(false);
         return;
       }
-
-      console.log('Submitting form data:', { 
-        companyName: formData.companyName, 
-        email: formData.email 
-      });
 
       const res = await fetch('/api/real-estate/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
       const data = await res.json();
-      console.log('Login response:', data);
 
       if (!data.success) {
-        setError(data.message || 'Login failed');
-        setLoading(false);
+        dispatch(signInFailure(data.message));
         return;
       }
 
-      if (!data.token) {
-        setError('No token received from server');
-        setLoading(false);
-        return;
-      }
-
+      // Store token and company info
       localStorage.setItem('realEstateToken', data.token);
-      localStorage.setItem('companyInfo', JSON.stringify(data.company));
-      
+      localStorage.setItem('realEstateCompany', JSON.stringify(data.company));
+
+      // Dispatch real estate sign in success
+      dispatch(realEstateSignInSuccess(data.company));
+
+      // Clear form and navigate
+      setFormData({
+        companyName: "",
+        email: "",
+        password: "",
+      });
+
       navigate('/real-estate-dashboard');
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'Something went wrong. Please try again.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -129,7 +125,11 @@ const RealEstateLogin = () => {
         </button>
       </form>
 
-      {error && <p className="text-red-500 mt-5">{error}</p>}
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-4">
+          {error}
+        </div>
+      )}
 
       <div className="flex gap-2 mt-5">
         <p>Don't have an account?</p>
