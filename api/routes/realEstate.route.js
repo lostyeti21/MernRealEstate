@@ -16,8 +16,32 @@ import {
   getAgent,
   getCompany
 } from "../controllers/realEstate.controller.js";
+import { RealEstateCompany } from "../models/realEstateCompany.model.js";
 
 const router = express.Router();
+
+// Move the companies route to the top and remove verifyToken for this public route
+router.get('/companies', async (req, res) => {
+  try {
+    const companies = await RealEstateCompany.find({}, {
+      companyName: 1,
+      avatar: 1,
+      companyRating: 1,
+      agents: 1
+    });
+
+    res.status(200).json({
+      success: true,
+      companies
+    });
+  } catch (error) {
+    console.error('Error fetching companies:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 
 // Company routes
 router.post("/signin", signin);

@@ -28,6 +28,7 @@ import AgentDashboard from "./pages/AgentDashboard";
 import AgentListings from './pages/AgentListings';
 import AddAgent from './pages/AddAgent';
 import AgentProfile from './pages/AgentProfile';
+import RealEstateCompanies from './pages/RealEstateCompanies';
 
 const App = () => {
   return (
@@ -46,7 +47,7 @@ const App = () => {
         <Route path="/about" element={<About />} />
         <Route path="/listing/:listingId" element={<Listing />} />
         <Route path="/search" element={<Search />} />
-        <Route path="/real-estate-sign-up" element={<RealEstateSignUp />} />
+        <Route path="/real-estate-signup" element={<RealEstateSignUp />} />
         <Route path="/admin-sign-in" element={<AdminSignIn />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/analytics" element={<Analytics />} />
@@ -57,6 +58,7 @@ const App = () => {
         <Route path="/real-estate-agent-login" element={<RealEstateAgentLogin />} />
         <Route path="/agent/:agentId/listings" element={<AgentListings />} />
         <Route path="/add-agent" element={<AddAgent />} />
+        <Route path="/real-estate-companies" element={<RealEstateCompanies />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

@@ -1,22 +1,59 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaSearch } from 'react-icons/fa';
-import { useState, useEffect } from 'react';
-import { signoutSuccess } from '../redux/user/userSlice';
+import { FaSearch, FaUsers, FaChevronDown } from 'react-icons/fa';
+import { useState, useEffect, useRef } from 'react';
+import { signoutSuccess, realEstateSignInSuccess } from '../redux/user/userSlice';
 
 export default function Header() {
-  const { currentUser } = useSelector((state) => state.user);
+  const { currentUser, isRealEstateCompany } = useSelector((state) => state.user);
   const [searchTerm, setSearchTerm] = useState("");
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
   const [isAgent, setIsAgent] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const defaultProfilePic = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
+  const usersMenuRef = useRef(null);
+
+  // Close users menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (usersMenuRef.current && !usersMenuRef.current.contains(event.target)) {
+        setIsUsersMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
+    // Check for real estate company login
+    const realEstateCompany = localStorage.getItem('realEstateCompany');
+    const realEstateToken = localStorage.getItem('realEstateToken');
     const agentInfo = localStorage.getItem('agentInfo');
+
+    // If real estate company data exists in localStorage, restore the state
+    if (realEstateCompany && realEstateToken && !currentUser) {
+      dispatch(realEstateSignInSuccess(JSON.parse(realEstateCompany)));
+    }
+
     setIsAgent(!!agentInfo);
-  }, [currentUser]);
+  }, [currentUser, dispatch]);
+
+  // Get the avatar based on user type
+  const getAvatar = () => {
+    if (isRealEstateCompany && currentUser?.avatar) {
+      return currentUser.avatar;
+    }
+    if (currentUser?.avatar) {
+      return currentUser.avatar;
+    }
+    return defaultProfilePic;
+  };
+
+  // Check if user is logged in
+  const isLoggedIn = currentUser || isAgent || isRealEstateCompany;
 
   const handleSignOut = async () => {
     try {
@@ -26,7 +63,7 @@ export default function Header() {
       localStorage.removeItem('realEstateToken');
       localStorage.removeItem('agentInfo');
       
-      // Reset agent state
+      // Reset states
       setIsAgent(false);
       setIsProfileDropdownOpen(false);
 
@@ -47,9 +84,6 @@ export default function Header() {
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
   };
-
-  // Determine if user is logged in (either as regular user or agent)
-  const isLoggedIn = currentUser || isAgent;
 
   return (
     <header className="bg-slate-200 shadow-md">
@@ -83,21 +117,46 @@ export default function Header() {
               Home
             </li>
           </Link>
+          
           <Link to="/search">
             <li className="hidden sm:inline text-slate-700 hover:underline">
               Listings
             </li>
           </Link>
-          <Link to="/landlords">
-            <li className="hidden sm:inline text-slate-700 hover:underline">
-              Landlords
-            </li>
-          </Link>
-          <Link to="/tenants">
-            <li className="hidden sm:inline text-slate-700 hover:underline">
-              Tenants
-            </li>
-          </Link>
+
+          {/* Users Menu */}
+          <div className="relative" ref={usersMenuRef}>
+            <button
+              onClick={() => setIsUsersMenuOpen(!isUsersMenuOpen)}
+              className="flex items-center gap-1 text-slate-700 hover:underline px-2 py-1 rounded-md"
+            >
+              <FaUsers className="text-lg" />
+              <span className="hidden sm:inline">Users</span>
+              <FaChevronDown className={`transition-transform duration-200 ${
+                isUsersMenuOpen ? 'rotate-180' : ''
+              }`} />
+            </button>
+
+            {isUsersMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-2 z-50">
+                <Link
+                  to="/landlords"
+                  className="block px-4 py-2 text-gray-700 hover:bg-slate-100"
+                  onClick={() => setIsUsersMenuOpen(false)}
+                >
+                  Landlords
+                </Link>
+                <Link
+                  to="/tenants"
+                  className="block px-4 py-2 text-gray-700 hover:bg-slate-100"
+                  onClick={() => setIsUsersMenuOpen(false)}
+                >
+                  Tenants
+                </Link>
+              </div>
+            )}
+          </div>
+
           <Link to="/about">
             <li className="hidden sm:inline text-slate-700 hover:underline">
               About
@@ -107,14 +166,36 @@ export default function Header() {
           {isLoggedIn ? (
             <div className="relative">
               <img
-                src={currentUser?.avatar || defaultProfilePic}
+                src={getAvatar()}
                 alt="profile"
                 className="rounded-full h-7 w-7 object-cover cursor-pointer"
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
               />
               {isProfileDropdownOpen && (
                 <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-md shadow-xl z-20">
-                  {isAgent ? (
+                  <button 
+                    onClick={() => {
+                      setIsProfileDropdownOpen(false);
+                      navigate('/profile');
+                    }}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                  >
+                    Profile
+                  </button>
+
+                  {isRealEstateCompany && (
+                    <button 
+                      onClick={() => {
+                        setIsProfileDropdownOpen(false);
+                        navigate('/real-estate-dashboard');
+                      }}
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    >
+                      Dashboard
+                    </button>
+                  )}
+
+                  {isAgent && (
                     <button 
                       onClick={() => {
                         setIsProfileDropdownOpen(false);
@@ -122,19 +203,10 @@ export default function Header() {
                       }}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
                     >
-                      Dashboard
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => {
-                        setIsProfileDropdownOpen(false);
-                        navigate('/profile');
-                      }}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                    >
-                      Profile
+                      Agent Dashboard
                     </button>
                   )}
+
                   <button
                     onClick={handleSignOut}
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"

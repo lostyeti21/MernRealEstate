@@ -377,15 +377,8 @@ const SignIn = () => {
         </div>
       )}
 
-      <div className="flex flex-col gap-4 mt-5">
-        <p className="text-center">Are you a Real Estate Company?</p>
-        <Link 
-          to="/real-estate-signup"
-          className="bg-green-700 text-white p-3 rounded-lg text-center uppercase hover:opacity-95"
-        >
-          Sign Up as Real Estate Company
-        </Link>
-      </div>
+
+
     </div>
   );
 };

@@ -39,14 +39,14 @@ const OAuth = () => {
             console.log(result);
 
         } catch (error) {
-            console.log('Couldnt sign in with Google', error);
+            console.log('could not sign in with google', error);
         }
 
     };
 
     return (
-        <button onClick={handleGoogleClick} type="button" className='bg-red-700 text-white p-3 rounde-lg uppercase hover:opacity-95'>
-            Continue with Google
+        <button onClick={handleGoogleClick} type="button" className='bg-red-700 text-white p-3 rounded-lg uppercase hover:opacity-95'>
+            Continue with google
         </button>
     )
 }

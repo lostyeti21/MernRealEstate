@@ -6,25 +6,22 @@ import { errorHandler } from "../utils/error.js";
 
 export const createListing = async (req, res, next) => {
   try {
-    const { userRef, userModel, ...listingData } = req.body;
+    const { userRef, userModel, agentInfo, ...listingData } = req.body;
 
-    console.log('Creating listing with:', {
-      userRef,
-      userModel,
-      listingData
-    });
-
-    if (!userRef) {
+    // Validate required fields
+    if (!userRef || !userModel) {
       return res.status(400).json({
         success: false,
-        message: 'User reference is required'
+        message: 'User reference and model are required'
       });
     }
 
+    // Create the listing with agent information
     const listing = await Listing.create({
       ...listingData,
       userRef,
-      userModel: userModel || 'User' // Default to User model if not specified
+      userModel,
+      agentInfo: userModel === 'Agent' ? agentInfo : undefined
     });
 
     res.status(201).json({
@@ -148,68 +145,56 @@ export const getListing = async (req, res, next) => {
 
 export const getListings = async (req, res, next) => {
   try {
-    const limit = parseInt(req.query.limit) || 8;
+    const limit = parseInt(req.query.limit) || 9;
     const page = parseInt(req.query.page) || 1;
     const skip = (page - 1) * limit;
-    
-    let query = {};
 
-    // Search term
+    const query = {};
+    
+    // Add search filters
     if (req.query.searchTerm) {
       query.$or = [
         { name: { $regex: req.query.searchTerm, $options: 'i' } },
-        { address: { $regex: req.query.searchTerm, $options: 'i' } },
         { description: { $regex: req.query.searchTerm, $options: 'i' } }
       ];
     }
 
-    // Type filter
+    // Add other filters
     if (req.query.type && req.query.type !== 'all') {
       query.type = req.query.type;
     }
 
-    // Amenities filters
-    if (req.query.parking === 'true') query.parking = true;
-    if (req.query.furnished === 'true') query.furnished = true;
-    if (req.query.backupPower === 'true') query.backupPower = true;
-    if (req.query.backupWaterSupply === 'true') query.backupWaterSupply = true;
-    if (req.query.boreholeWater === 'true') query.boreholeWater = true;
-    if (req.query.offer === 'true') query.offer = true;
-
-    // Price range
-    if (req.query.minPrice || req.query.maxPrice) {
-      query.regularPrice = {};
-      if (req.query.minPrice) query.regularPrice.$gte = parseInt(req.query.minPrice);
-      if (req.query.maxPrice) query.regularPrice.$lte = parseInt(req.query.maxPrice);
+    if (req.query.parking === 'true') {
+      query.parking = true;
     }
 
-    // Sort
-    const sort = {};
-    if (req.query.sort && req.query.order) {
-      sort[req.query.sort] = req.query.order === 'desc' ? -1 : 1;
-    } else {
-      sort.createdAt = -1;
+    if (req.query.furnished === 'true') {
+      query.furnished = true;
     }
 
-    // Get total count for pagination
+    if (req.query.offer === 'true') {
+      query.offer = true;
+    }
+
+    // Get total count
     const total = await Listing.countDocuments(query);
-    const totalPages = Math.ceil(total / limit);
 
-    // Get listings
+    // Execute query with pagination
     const listings = await Listing.find(query)
-      .sort(sort)
+      .sort({ createdAt: 'desc' })
       .skip(skip)
       .limit(limit);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       listings,
-      totalPages,
+      total,
       currentPage: page,
-      total
+      totalPages: Math.ceil(total / limit)
     });
 
   } catch (error) {
+    console.error('Error in getListings:', error);
     next(error);
   }
 };

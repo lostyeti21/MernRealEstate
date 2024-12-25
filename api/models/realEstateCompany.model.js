@@ -18,6 +18,10 @@ const agentSchema = new mongoose.Schema({
     type: [Number],
     default: []
   },
+  ratedBy: {
+    type: [String],
+    default: []
+  },
   averageRating: {
     type: Number,
     default: 0
@@ -44,10 +48,22 @@ const realEstateCompanySchema = new mongoose.Schema(
       type: String,
       default: "default-company-avatar.png"
     },
+    isCloudinaryAvatar: {
+      type: Boolean,
+      default: false
+    },
     agents: [agentSchema],
     companyRating: {
       type: Number,
       default: 0,
+    },
+    banner: {
+      type: String,
+      default: ""
+    },
+    isCloudinaryBanner: {
+      type: Boolean,
+      default: false
     },
   },
   { timestamps: true }
@@ -55,16 +71,26 @@ const realEstateCompanySchema = new mongoose.Schema(
 
 // Method to calculate and update company rating
 realEstateCompanySchema.methods.updateCompanyRating = function() {
-  if (this.agents.length === 0) {
+  const ratedAgents = this.agents.filter(agent => 
+    agent.ratings && agent.ratings.length > 0
+  );
+  
+  if (ratedAgents.length === 0) {
     this.companyRating = 0;
     return;
   }
   
-  const totalRating = this.agents.reduce((sum, agent) => {
-    return sum + (agent.averageRating || 0);
+  const totalRating = ratedAgents.reduce((sum, agent) => {
+    return sum + agent.averageRating;
   }, 0);
   
-  this.companyRating = totalRating / this.agents.length;
+  this.companyRating = totalRating / ratedAgents.length;
 };
+
+// Add this before creating the model
+realEstateCompanySchema.pre('save', function(next) {
+  this.updateCompanyRating();
+  next();
+});
 
 export const RealEstateCompany = mongoose.model("RealEstateCompany", realEstateCompanySchema);

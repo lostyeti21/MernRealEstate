@@ -55,7 +55,7 @@ const RealEstateSignUp = () => {
     }
 
     try {
-      const companyRes = await fetch('/api/real-estate/sign-up', {
+      const response = await fetch('/api/real-estate/sign-up', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,17 +73,15 @@ const RealEstateSignUp = () => {
         }),
       });
 
-      const data = await companyRes.json();
+      const data = await response.json();
 
       if (!data.success) {
-        setError(data.message);
-        setLoading(false);
-        return;
+        throw new Error(data.message);
       }
 
       navigate("/real-estate-login");
     } catch (err) {
-      setError("Something went wrong. Please try again.");
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

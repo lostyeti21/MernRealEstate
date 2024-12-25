@@ -23,8 +23,10 @@ const AgentProfile = () => {
 
         const res = await fetch(`/api/real-estate/agent/${agentId}/listings`, {
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            'Authorization': `Bearer ${token}`,
+            'x-access-token': token
+          },
+          credentials: 'include'
         });
 
         if (!res.ok) {
@@ -60,6 +62,57 @@ const AgentProfile = () => {
       localStorage.setItem('realEstateToken', localStorage.getItem('realEstateToken'));
       navigate('/agent-dashboard');
     }
+  };
+
+  const updateAgentContact = async (phoneNumber) => {
+    try {
+      const token = localStorage.getItem('realEstateToken');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      console.log('Sending request with token:', token); // Debug log
+
+      const response = await fetch(`/api/agent/update-contact/${agentId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`, // Make sure token is properly formatted
+          'x-access-token': token // Add backup token header
+        },
+        credentials: 'include', // Include cookies in the request
+        body: JSON.stringify({ phoneNumber })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update contact');
+      }
+
+      const data = await response.json();
+      setAgent(prev => ({
+        ...prev,
+        contact: data.contact
+      }));
+
+    } catch (err) {
+      console.error('Error updating contact:', err);
+      setError(err.message);
+      if (err.message.includes('Authentication required')) {
+        navigate('/real-estate-login');
+      }
+    }
+  };
+
+  const handleContactUpdate = async (e) => {
+    e.preventDefault();
+    const phoneNumber = e.target.phoneNumber.value;
+    if (!phoneNumber) {
+      setError('Phone number is required');
+      return;
+    }
+    await updateAgentContact(phoneNumber);
+    e.target.reset();
   };
 
   if (loading) {
@@ -184,6 +237,30 @@ const AgentProfile = () => {
           ))}
         </div>
       </div>
+
+      {/* Contact Update Form */}
+      <form onSubmit={handleContactUpdate} className="mt-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            name="phoneNumber"
+            placeholder="Enter phone number"
+            className="border p-2 rounded"
+          />
+          <button 
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Update Contact
+          </button>
+        </div>
+      </form>
+
+      {error && (
+        <div className="text-red-500 mt-2">
+          {error}
+        </div>
+      )}
     </div>
   );
 };

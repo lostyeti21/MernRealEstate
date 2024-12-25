@@ -101,7 +101,7 @@ export default function Home() {
 
   return (
     <div>
-      <div className="relative w-full h-[500px] overflow-hidden animate-heroZoomOut">
+      <div className="relative w-full h-[500px] overflow-hidden animate-heroZoomOut mb-4">
         {heroImages.map((image, index) => (
           <img
             key={index}
@@ -138,24 +138,25 @@ export default function Home() {
       </div>
 
       {showPopup && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full">
-            <h2 className="text-xl font-bold mb-4 text-center">Are you looking to</h2>
-
-            <div className="flex justify-around mb-4">
-              <button
-                onClick={() => handleRentOrBuy("rent")}
-                className="bg-blue-600 text-white py-2 px-4 rounded"
-              >
-                Rent
-              </button>
-              <button
-                onClick={() => handleRentOrBuy("sale")}
-                className="bg-green-600 text-white py-2 px-4 rounded"
-              >
-                Buy
-              </button>
-            </div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-8 rounded-lg max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4">Let's find your perfect place</h2>
+            {isRenting === null && (
+              <div className="flex justify-around mb-4">
+                <button
+                  onClick={() => handleRentOrBuy("rent")}
+                  className="bg-blue-600 text-white py-2 px-4 rounded"
+                >
+                  Rent
+                </button>
+                <button
+                  onClick={() => handleRentOrBuy("sale")}
+                  className="bg-green-600 text-white py-2 px-4 rounded"
+                >
+                  Buy
+                </button>
+              </div>
+            )}
 
             {isRenting !== null && (
               <>
@@ -197,71 +198,48 @@ export default function Home() {
         </div>
       )}
 
-      <Swiper navigation>
-        {offerListings &&
-          offerListings.map((listing) => (
-            <SwiperSlide key={listing._id}>
-              <div
-                style={{
-                  background: `url(${listing.imageUrls[0]}) center no-repeat`,
-                  backgroundSize: "cover",
-                }}
-                className="h-[500px]"
-              ></div>
-            </SwiperSlide>
-          ))}
-      </Swiper>
+      <div className="max-w-[1200px] mx-auto">
+        <div className="flex flex-col gap-6">
+          {/* Rent Listings */}
+          {rentListings.length > 0 && (
+            <div>
+              <div className="mb-3">
+                <h2 className="text-2xl font-semibold">Recently added places for rent</h2>
+                <Link 
+                  to="/search?type=rent"
+                  className="text-sm text-blue-800 hover:underline"
+                >
+                  Show more places for rent
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {rentListings.map((listing) => (
+                  <ListingItem key={listing._id} listing={listing} />
+                ))}
+              </div>
+            </div>
+          )}
 
-      <div className="px-10 max-w-[1200px] mx-auto flex flex-col gap-8 my-10">
-{/* Rent Listings */}
-{rentListings.length > 0 && (
-  <div>
-    <h2 className="text-2xl font-semibold">Recently added places for rent</h2>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {rentListings.map((listing) => (
-        <ListingItem key={listing._id} listing={listing} />
-      ))}
-    </div>
-    <button
-      onClick={() => {
-        const searchParams = new URLSearchParams({ type: "rent" });
-        navigate(`/search?${searchParams.toString()}`);
-        setTimeout(() => {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 50); // Ensure scrolling happens after navigation
-      }}
-      className="text-blue-600 hover:underline"
-    >
-      Show more places for rent
-    </button>
-  </div>
-)}
-
-{/* Sale Listings */}
-{saleListings.length > 0 && (
-  <div>
-    <h2 className="text-2xl font-semibold">Recently added places for sale</h2>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {saleListings.map((listing) => (
-        <ListingItem key={listing._id} listing={listing} />
-      ))}
-    </div>
-    <button
-      onClick={() => {
-        const searchParams = new URLSearchParams({ type: "sale" });
-        navigate(`/search?${searchParams.toString()}`);
-        setTimeout(() => {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 50); // Ensure scrolling happens after navigation
-      }}
-      className="text-blue-600 hover:underline"
-    >
-      Show more places for sale
-    </button>
-  </div>
-)}
-
-
+          {/* Sale Listings */}
+          {saleListings.length > 0 && (
+            <div>
+              <div className="mb-3">
+                <h2 className="text-2xl font-semibold">Recently added places for sale</h2>
+                <Link 
+                  to="/search?type=sale"
+                  className="text-sm text-blue-800 hover:underline"
+                >
+                  Show more places for sale
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {saleListings.map((listing) => (
+                  <ListingItem key={listing._id} listing={listing} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

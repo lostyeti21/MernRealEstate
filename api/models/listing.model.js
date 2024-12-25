@@ -63,7 +63,8 @@ const listingSchema = new mongoose.Schema(
     agentInfo: {
       name: String,
       email: String,
-      companyName: String
+      companyName: String,
+      contact: String
     },
     views: {
       type: Number,

@@ -43,6 +43,7 @@ export default function Search() {
   const [totalPages, setTotalPages] = useState(1);
   const listingsPerPage = 8;
   const [inputPage, setInputPage] = useState('');
+  const [error, setError] = useState('');
 
   const amenityIcons = {
     parking: <FaParking />, 
@@ -62,6 +63,8 @@ export default function Search() {
     const fetchListings = async () => {
       try {
         setLoading(true);
+        setError(null);
+        
         const urlParams = new URLSearchParams();
 
         Object.entries(sidebardata).forEach(([key, value]) => {
@@ -74,26 +77,31 @@ export default function Search() {
         urlParams.set('limit', listingsPerPage);
 
         const searchQuery = urlParams.toString();
-        console.log('Frontend: Sending request with query:', searchQuery);
+        console.log('Search query:', searchQuery);
 
-        const res = await fetch(`/api/listing/get?${searchQuery}`);
+        const res = await fetch(`/api/listing/get?${searchQuery}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          throw new Error(`Server error: ${res.status}`);
         }
 
         const data = await res.json();
-        console.log('Frontend: Received response:', data);
-
-        if (data.success && Array.isArray(data.listings)) {
-          setListings(data.listings);
-          setTotalPages(Math.ceil(data.total / listingsPerPage));
-        } else {
-          console.error('Frontend: Invalid response format or no listings');
-          setListings([]);
-          setTotalPages(1);
+        
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch listings');
         }
+
+        setListings(data.listings || []);
+        setTotalPages(Math.ceil(data.total / listingsPerPage));
+        
       } catch (error) {
-        console.error('Frontend: Error fetching listings:', error);
+        console.error('Search error:', error);
+        setError(error.message);
         setListings([]);
         setTotalPages(1);
       } finally {

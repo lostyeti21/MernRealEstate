@@ -9,6 +9,15 @@ export const agentSignin = async (req, res) => {
   try {
     const { companyName, email, password } = req.body;
 
+    // Validate input
+    if (!companyName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company name, email and password are required'
+      });
+    }
+
+    // Find company
     const company = await RealEstateCompany.findOne({ companyName });
     if (!company) {
       return res.status(404).json({
@@ -17,6 +26,7 @@ export const agentSignin = async (req, res) => {
       });
     }
 
+    // Find agent
     const agent = company.agents.find(a => a.email === email);
     if (!agent) {
       return res.status(404).json({
@@ -25,7 +35,8 @@ export const agentSignin = async (req, res) => {
       });
     }
 
-    const validPassword = bcryptjs.compareSync(password, agent.password);
+    // Verify password
+    const validPassword = await bcryptjs.compare(password, agent.password);
     if (!validPassword) {
       return res.status(401).json({
         success: false,
@@ -33,18 +44,24 @@ export const agentSignin = async (req, res) => {
       });
     }
 
+    // Create token
     const token = jwt.sign(
-      { id: agent._id, isAgent: true },
+      { 
+        id: agent._id,
+        companyId: company._id,
+        isAgent: true 
+      },
       process.env.JWT_SECRET
     );
 
-    // Include contact information in the response
+    // Prepare agent data (exclude password)
     const agentData = {
       _id: agent._id,
       name: agent.name,
       email: agent.email,
       avatar: agent.avatar,
       contact: agent.contact,
+      companyId: company._id,
       companyName: company.companyName
     };
 
@@ -53,11 +70,12 @@ export const agentSignin = async (req, res) => {
       token,
       agent: agentData
     });
+
   } catch (error) {
-    console.error('Agent signin error:', error);
+    console.error('Agent sign in error:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'An error occurred during sign in'
     });
   }
 };
@@ -118,12 +136,20 @@ export const addAgent = async (req, res, next) => {
 };
 
 // Other necessary exports
-export const signin = async (req, res, next) => {
+export const signin = async (req, res) => {
   try {
-    const { companyName, email, password } = req.body;
+    const { email, password } = req.body;
 
-    // Find the company
-    const company = await RealEstateCompany.findOne({ companyName });
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    // Find company by email
+    const company = await RealEstateCompany.findOne({ email });
     if (!company) {
       return res.status(404).json({
         success: false,
@@ -131,16 +157,8 @@ export const signin = async (req, res, next) => {
       });
     }
 
-    // Verify company email
-    if (company.email !== email) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
-    }
-
     // Verify password
-    const validPassword = bcryptjs.compareSync(password, company.password);
+    const validPassword = await bcryptjs.compare(password, company.password);
     if (!validPassword) {
       return res.status(401).json({
         success: false,
@@ -148,28 +166,14 @@ export const signin = async (req, res, next) => {
       });
     }
 
-    // Create JWT token
+    // Create token
     const token = jwt.sign(
-      { id: company._id, isCompany: true },
+      { id: company._id, isRealEstateCompany: true },
       process.env.JWT_SECRET
     );
 
-    // Prepare company data (excluding sensitive information)
-    const companyData = {
-      _id: company._id,
-      companyName: company.companyName,
-      email: company.email,
-      avatar: company.avatar,
-      agents: company.agents.map(agent => ({
-        _id: agent._id,
-        name: agent.name,
-        email: agent.email,
-        avatar: agent.avatar,
-        contact: agent.contact,
-        averageRating: agent.averageRating
-      })),
-      companyRating: company.companyRating
-    };
+    // Remove password from response
+    const { password: pass, ...companyData } = company.toObject();
 
     res.status(200).json({
       success: true,
@@ -178,8 +182,11 @@ export const signin = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('Company signin error:', error);
-    next(error);
+    console.error('Sign in error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred during sign in'
+    });
   }
 };
 

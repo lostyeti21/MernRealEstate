@@ -68,45 +68,32 @@ const CreateListing = () => {
   }, [currentUser, navigate]);
 
   const storeImage = async (file) => {
-    return new Promise((resolve, reject) => {
+    try {
       const formData = new FormData();
       formData.append('image', file);
 
-      // Get the token
-      const token = localStorage.getItem('agentToken') || 
-                   localStorage.getItem('accessToken') || 
-                   localStorage.getItem('realEstateToken');
-
-      fetch('/api/upload/image', {
+      const token = localStorage.getItem('agentToken');
+      const res = await fetch('/api/upload/image', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
         body: formData,
-      })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error('Image upload failed');
-          }
-          return response.json();
-        })
-        .then(data => {
-          if (data.error) {
-            throw new Error(data.error);
-          }
-          console.log('Image upload response:', data); // Debug log
-          setImageUploadError(false);
-          resolve(data.imageUrl);
-        })
-        .catch(error => {
-          console.error('Upload error:', error);
-          setImageUploadError('Image upload failed (2mb max per image)');
-          reject(error);
-        });
-    });
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to upload image');
+      }
+
+      return data.url;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw new Error('Image upload failed');
+    }
   };
 
-  const handleImageSubmit = async (e) => {
+  const handleImageSubmit = async () => {
     if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
       setUploading(true);
       setImageUploadError(false);
@@ -118,19 +105,15 @@ const CreateListing = () => {
 
       try {
         const urls = await Promise.all(promises);
-        console.log('Uploaded image URLs:', urls); // Debug log
-
-        setFormData(prev => ({
-          ...prev,
-          imageUrls: prev.imageUrls.concat(urls)
-        }));
+        setFormData({
+          ...formData,
+          imageUrls: formData.imageUrls.concat(urls),
+        });
         setImageUploadError(false);
       } catch (err) {
         setImageUploadError('Image upload failed (2 mb max per image)');
-        console.error('Image upload error:', err);
-      } finally {
-        setUploading(false);
       }
+      setUploading(false);
     } else {
       setImageUploadError('You can only upload 6 images per listing');
     }
@@ -139,7 +122,7 @@ const CreateListing = () => {
   const handleRemoveImage = (index) => {
     setFormData({
       ...formData,
-      imageUrls: formData.imageUrls.filter((_, i) => i !== index),
+      imageUrls: formData.imageUrls.filter((_, i) => i !== index)
     });
   };
 
@@ -159,27 +142,32 @@ const CreateListing = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Get both tokens
-      const agentToken = localStorage.getItem('agentToken');
-      const userToken = localStorage.getItem('accessToken');
-      const realEstateToken = localStorage.getItem('realEstateToken');
-      
-      // Use the appropriate token
-      const token = agentToken || userToken || realEstateToken;
-      
+      setLoading(true);
+      setError(false);
+
+      // Get agent info from localStorage
+      const agentInfo = JSON.parse(localStorage.getItem('agentInfo'));
+      if (!agentInfo) {
+        throw new Error('Agent information not found');
+      }
+
+      const token = localStorage.getItem('agentToken');
       if (!token) {
-        setError('Authentication required. Please log in again.');
-        setTimeout(() => navigate('/sign-in'), 2000);
-        return;
+        throw new Error('Authentication required');
       }
 
-      // Validate that we have images
-      if (formData.imageUrls.length === 0) {
-        setError('Please upload at least one image');
-        return;
-      }
-
-      console.log('Submitting listing with images:', formData.imageUrls); // Debug log
+      // Add agent and company information to the listing data
+      const listingData = {
+        ...formData,
+        userRef: agentInfo._id,
+        userModel: 'Agent',
+        agentInfo: {
+          name: agentInfo.name,
+          email: agentInfo.email,
+          companyName: agentInfo.companyName,
+          contact: agentInfo.contact
+        }
+      };
 
       const res = await fetch('/api/listing/create', {
         method: 'POST',
@@ -187,29 +175,19 @@ const CreateListing = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          ...formData,
-          userModel: currentUser.isAgent ? 'Agent' : 'User',
-          userRef: currentUser._id,
-          companyInfo: currentUser.companyName ? {
-            companyName: currentUser.companyName,
-            avatar: currentUser.companyAvatar
-          } : undefined
-        })
+        body: JSON.stringify(listingData)
       });
 
       const data = await res.json();
-      
       if (!data.success) {
-        setError(data.message || 'Failed to create listing');
-        return;
+        throw new Error(data.message || 'Failed to create listing');
       }
 
-      console.log('Listing created successfully:', data); // Debug log
       navigate(`/listing/${data.listing._id}`);
     } catch (error) {
-      setError(error.message || 'Something went wrong');
-      console.error('Error creating listing:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -414,12 +392,12 @@ const CreateListing = () => {
           <div className="flex flex-col gap-4">
             <div className="flex gap-4">
               <input
+                onChange={handleFileSelect}
+                className="p-3 border border-gray-300 rounded w-full"
                 type="file"
                 id="images"
                 accept="image/*"
                 multiple
-                onChange={handleFileSelect}
-                className="p-3 border border-gray-300 rounded w-full"
               />
               <button
                 type="button"
@@ -432,10 +410,10 @@ const CreateListing = () => {
                 {uploading ? "Uploading..." : "Upload"}
               </button>
             </div>
-
+            
             {/* Progress Bar */}
             {uploading && (
-              <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
                 <div
                   className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
@@ -446,30 +424,33 @@ const CreateListing = () => {
               </div>
             )}
 
+            {/* Error Message */}
             {imageUploadError && (
               <p className="text-red-700 text-sm">{imageUploadError}</p>
             )}
 
-            {formData.imageUrls.length > 0 &&
-              formData.imageUrls.map((url, index) => (
-                <div
-                  key={url}
-                  className="flex justify-between p-3 border items-center rounded"
-                >
+            {/* Image Previews */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {formData.imageUrls.map((url, index) => (
+                <div key={url} className="relative group">
                   <img
                     src={url}
-                    alt={`Upload ${index + 1}`}
-                    className="w-20 h-20 object-cover rounded"
+                    alt={`Listing ${index + 1}`}
+                    className="w-full h-40 object-cover rounded-lg"
                   />
                   <button
                     type="button"
                     onClick={() => handleRemoveImage(index)}
-                    className="p-3 text-red-700 rounded-lg uppercase hover:opacity-75"
+                    className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full 
+                             opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    Delete
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
               ))}
+            </div>
           </div>
           <button
             disabled={loading || uploading}

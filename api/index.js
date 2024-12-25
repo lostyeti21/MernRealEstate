@@ -35,6 +35,7 @@ app.use(cookieParser());
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// API routes
 app.use("/api/user", userRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/listing", listingRouter);
@@ -44,18 +45,35 @@ app.use("/api/real-estate", realEstateRouter);
 app.use("/api/upload", uploadRouter);
 app.use('/api/agent', agentRouter);
 
-app.use(express.static(path.join(__dirname, "/client/dist")));
+// Serve static files only in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, "/client/dist")));
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
-});
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.json({ message: 'API is running' });
+  });
+}
 
+// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
+  console.error('Error:', err);
+  
+  // Handle Mongoose CastError for invalid ObjectId
+  if (err.name === 'CastError' && err.kind === 'ObjectId') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid ID format'
+    });
+  }
+
+  res.status(err.status || 500).json({
     success: false,
-    message: 'Something broke!',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal Server Error'
+    message: err.message || 'Something went wrong',
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 

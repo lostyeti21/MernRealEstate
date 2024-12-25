@@ -2,28 +2,26 @@ import jwt from "jsonwebtoken";
 import { errorHandler } from "./error.js";
 
 export const verifyToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1] || 
-                req.cookies.access_token || 
+  // Check for token in multiple places
+  const token = req.cookies.access_token || 
+                req.headers.authorization?.split(' ')[1] || 
                 req.headers['x-access-token'];
 
   if (!token) {
+    console.log('No token found in:', {
+      cookies: req.cookies,
+      authHeader: req.headers.authorization,
+      xToken: req.headers['x-access-token']
+    });
     return next(errorHandler(401, 'Authentication token is missing'));
   }
 
   try {
-    // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-    
-    // Add user type to request
-    if (decoded.isAgent) {
-      req.userType = 'agent';
-    } else {
-      req.userType = 'user';
-    }
-    
     next();
   } catch (error) {
+    console.error('Token verification error:', error);
     return next(errorHandler(403, 'Invalid token'));
   }
 };
