@@ -1,6 +1,6 @@
 import { useSelector, useDispatch } from 'react-redux';
-import { Link, useNavigate } from 'react-router-dom';
-import { FaSearch, FaUsers, FaChevronDown } from 'react-icons/fa';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { FaSearch, FaUsers, FaChevronDown, FaHome, FaList } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
 import { signoutSuccess, realEstateSignInSuccess } from '../redux/user/userSlice';
 
@@ -14,6 +14,8 @@ export default function Header() {
   const dispatch = useDispatch();
   const defaultProfilePic = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
   const usersMenuRef = useRef(null);
+  const location = useLocation();
+  const isHomePage = location.pathname === '/';
 
   // Close users menu when clicking outside
   useEffect(() => {
@@ -86,55 +88,85 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-slate-200 shadow-md">
+    <header className={`${
+      isHomePage 
+        ? 'bg-transparent absolute top-0 left-0 right-0 z-50' 
+        : 'bg-slate-200'
+    }`}>
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3">
-        <Link to="/">
-          <h1 className="font-bold text-sm sm:text-xl flex flex-wrap">
-            <span className="text-slate-500">Dzimba</span>
-            <span className="text-slate-700">Estate</span>
-          </h1>
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/">
+            <h1 className={`font-bold text-sm sm:text-xl flex flex-wrap ${
+              isHomePage ? 'text-white' : ''
+            }`}>
+              <span className={isHomePage ? 'text-white' : 'text-slate-500'}>
+                Dzimba
+              </span>
+              <span className={isHomePage ? 'text-white' : 'text-slate-700'}>
+                Estate
+              </span>
+            </h1>
+          </Link>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-slate-100 p-3 rounded-lg flex items-center"
-        >
-          <input
-            type="text"
-            placeholder="Search..."
-            className="bg-transparent focus:outline-none w-24 sm:w-64"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <button>
-            <FaSearch className="text-slate-600" />
-          </button>
-        </form>
+          <form
+            onSubmit={handleSubmit}
+            className="relative"
+          >
+            <div className="w-[40px] h-[40px] hover:w-[200px] bg-[#FF0072] shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full flex group items-center transition-all duration-300 overflow-hidden">
+              <button className="flex items-center justify-center min-w-[40px]">
+                <FaSearch className="w-4 h-4 text-white" />
+              </button>
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="outline-none text-[16px] bg-transparent w-full text-white font-normal px-2 placeholder-white/70"
+              />
+            </div>
+          </form>
+        </div>
 
         <ul className="flex gap-4 items-center">
           <Link to="/">
-            <li className="hidden sm:inline text-slate-700 hover:underline">
-              Home
-            </li>
+            <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
+              isHomePage 
+                ? 'text-white border-white' 
+                : 'text-[#FF0072] border-[#FF0072]'
+            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+              <div className="flex items-center gap-1">
+                <FaHome className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
+                <span>Home</span>
+              </div>
+            </button>
           </Link>
           
           <Link to="/search">
-            <li className="hidden sm:inline text-slate-700 hover:underline">
-              Listings
-            </li>
+            <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
+              isHomePage 
+                ? 'text-white border-white' 
+                : 'text-[#FF0072] border-[#FF0072]'
+            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+              <div className="flex items-center gap-1">
+                <FaList className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
+                <span>Listings</span>
+              </div>
+            </button>
           </Link>
 
-          {/* Users Menu */}
           <div className="relative" ref={usersMenuRef}>
-            <button
+            <button 
               onClick={() => setIsUsersMenuOpen(!isUsersMenuOpen)}
-              className="flex items-center gap-1 text-slate-700 hover:underline px-2 py-1 rounded-md"
+              className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
+                isHomePage 
+                  ? 'text-white border-white' 
+                  : 'text-[#FF0072] border-[#FF0072]'
+              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}
             >
-              <FaUsers className="text-lg" />
-              <span className="hidden sm:inline">Users</span>
-              <FaChevronDown className={`transition-transform duration-200 ${
-                isUsersMenuOpen ? 'rotate-180' : ''
-              }`} />
+              <div className="flex items-center gap-1">
+                <FaUsers className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
+                <span className="hidden sm:inline">Users</span>
+              </div>
             </button>
 
             {isUsersMenuOpen && (
@@ -157,18 +189,12 @@ export default function Header() {
             )}
           </div>
 
-          <Link to="/about">
-            <li className="hidden sm:inline text-slate-700 hover:underline">
-              About
-            </li>
-          </Link>
-
           {isLoggedIn ? (
             <div className="relative">
               <img
                 src={getAvatar()}
                 alt="profile"
-                className="rounded-full h-7 w-7 object-cover cursor-pointer"
+                className="h-10 w-10 object-cover cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
               />
               {isProfileDropdownOpen && (
@@ -218,7 +244,13 @@ export default function Header() {
             </div>
           ) : (
             <Link to="/sign-in">
-              <li className="text-slate-700 hover:underline">Sign in</li>
+              <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
+                isHomePage 
+                  ? 'text-white border-white' 
+                  : 'text-[#FF0072] border-[#FF0072]'
+              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+                Sign in
+              </button>
             </Link>
           )}
         </ul>
