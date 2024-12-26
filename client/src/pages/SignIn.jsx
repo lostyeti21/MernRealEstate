@@ -3,6 +3,61 @@ import { signInStart, signInSuccess, signInFailure } from '../redux/user/userSli
 import React, { useState } from 'react'; 
 import { useNavigate, Link } from "react-router-dom";
 import OAuth from '../components/OAuth';
+import styled from 'styled-components';
+
+const StyledPopup = styled.div`
+  .cards {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    height: 150px;
+    width: 250px;
+    border-radius: 10px;
+    color: white;
+    cursor: pointer;
+    transition: 400ms;
+  }
+
+  .card.user {
+    background-color: #3b82f6;
+  }
+
+  .card.agent {
+    background-color: #22c55e;
+  }
+
+  .card.company {
+    background-color: #f43f5e;
+  }
+
+  .card p.title {
+    font-size: 1.2em;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .card p.description {
+    font-size: 0.9em;
+  }
+
+  .card:hover {
+    transform: scale(1.1, 1.1);
+  }
+
+  .cards:hover > .card:not(:hover) {
+    filter: blur(10px);
+    transform: scale(0.9, 0.9);
+  }
+`;
 
 const SignIn = () => {
   const dispatch = useDispatch();
@@ -183,33 +238,53 @@ const SignIn = () => {
     }
   };
 
+  const handleSignInChoice = (type) => {
+    switch (type) {
+      case 'user':
+        setShowPopup(false); // Hide the popup
+        // Stay on current page since we're already on the user sign-in page
+        break;
+      case 'agent':
+        navigate('/real-estate-agent-login');
+        break;
+      case 'company':
+        navigate('/real-estate-login');
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div className='p-3 max-w-lg mx-auto'>
       {showPopup && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-5 rounded-lg shadow-lg max-w-md w-full text-center">
-            <h2 className="text-xl font-semibold mb-4">Sign in as:</h2>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => setShowPopup(false)}
-                className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600"
-              >
-                Individual Landlord or Tenant
-              </button>
-              <button
-                onClick={() => navigate("/real-estate-login")}
-                className="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600"
-              >
-                Real Estate Company
-              </button>
-              <button
-                onClick={() => navigate("/real-estate-agent-login")}
-                className="bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600"
-              >
-                Real Estate Agent
-              </button>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <StyledPopup className="bg-white p-8 rounded-lg max-w-2xl w-full mx-4">
+            <h2 className="text-2xl font-bold text-center mb-6">Sign in as:</h2>
+            <div className="cards">
+              <div className="card user" onClick={() => handleSignInChoice('user')}>
+                <p className="title">Regular User</p>
+                <p className="description">Find or list your property</p>
+              </div>
+              <div className="card agent" onClick={() => handleSignInChoice('agent')}>
+                <p className="title">Real Estate Agent</p>
+                <p className="description">Manage your listings</p>
+              </div>
+              <div className="card company" onClick={() => handleSignInChoice('company')}>
+                <p className="title">Real Estate Company</p>
+                <p className="description">Manage your agency</p>
+              </div>
             </div>
-          </div>
+            <button 
+              onClick={() => {
+                setShowPopup(false);
+                navigate('/');
+              }}
+              className="mt-6 text-gray-600 hover:text-gray-800 block mx-auto"
+            >
+              Close
+            </button>
+          </StyledPopup>
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 
 const LandlordListings = () => {
   const { userId } = useParams();
@@ -18,6 +18,7 @@ const LandlordListings = () => {
     experience: 0,
   });
   const [rated, setRated] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchLandlordData = async () => {
@@ -63,39 +64,51 @@ const LandlordListings = () => {
   const handleRating = async () => {
     const { responseTime, maintenance, experience } = ratings;
 
-    if (
-      !isValidRating(responseTime) ||
-      !isValidRating(maintenance) ||
-      !isValidRating(experience)
-    ) {
-      alert("Each rating must be a valid number between 1 and 5.");
+    // First validate individual ratings are numbers and between 1-5
+    const validatedRatings = {
+      responseTime: Number(responseTime),
+      maintenance: Number(maintenance),
+      experience: Number(experience)
+    };
+
+    // Check if any rating is missing or invalid
+    if (Object.values(validatedRatings).some(rating => !rating || rating < 1 || rating > 5)) {
+      alert("Please provide valid ratings between 1 and 5 for all categories");
       return;
     }
 
     try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('access_token='))
+        ?.split('=')[1];
+
       const res = await fetch("/api/user/rate-landlord", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Authorization": `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify({
           landlordId: userId,
-          responseTime,
-          maintenance,
-          experience,
+          responseTime: validatedRatings.responseTime,
+          maintenance: validatedRatings.maintenance,
+          experience: validatedRatings.experience
         }),
       });
 
-      if (res.ok) {
-        setRated(true);
-        await fetchUpdatedLandlord();
-      } else {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to submit rating");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to submit rating');
       }
+
+      setRated(true);
+      await fetchUpdatedLandlord();
     } catch (err) {
-      alert(err.message);
+      console.error('Rating error:', err);
+      alert(err.message || 'Failed to submit rating');
     }
   };
 

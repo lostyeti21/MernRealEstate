@@ -16,12 +16,36 @@ export const createListing = async (req, res, next) => {
       });
     }
 
-    // Create the listing with agent information
+    let finalAgentInfo = undefined;
+
+    // If it's an agent listing, get the full agent info
+    if (userModel === 'Agent') {
+      const company = await RealEstateCompany.findOne({
+        'agents._id': userRef
+      });
+
+      if (company) {
+        const agent = company.agents.find(a => a._id.toString() === userRef);
+        if (agent) {
+          finalAgentInfo = {
+            _id: agent._id,
+            name: agent.name,
+            email: agent.email,
+            avatar: agent.avatar,
+            contact: agent.contact,
+            companyName: company.companyName,
+            companyId: company._id
+          };
+        }
+      }
+    }
+
+    // Create the listing with complete agent information
     const listing = await Listing.create({
       ...listingData,
       userRef,
       userModel,
-      agentInfo: userModel === 'Agent' ? agentInfo : undefined
+      agentInfo: finalAgentInfo
     });
 
     res.status(201).json({
@@ -85,7 +109,6 @@ export const getListing = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -101,45 +124,59 @@ export const getListing = async (req, res, next) => {
       });
     }
 
-    // If the listing belongs to an agent or company, get additional info
-    if (listing.userModel === 'Agent' || listing.userModel === 'RealEstateCompany') {
-      const company = await RealEstateCompany.findOne({
-        $or: [
-          { _id: listing.userRef },
-          { 'agents._id': listing.userRef }
-        ]
-      });
+    // Create a mutable copy of the listing
+    const listingData = listing.toObject();
 
-      if (company) {
-        let agentInfo = null;
-        if (listing.userModel === 'Agent') {
+    // If listing belongs to an agent, get agent info
+    if (listing.userModel === 'Agent') {
+      console.log('Looking up agent info for:', listing.userRef);
+      
+      try {
+        const company = await RealEstateCompany.findOne({
+          'agents._id': listing.userRef
+        });
+
+        if (company) {
           const agent = company.agents.find(a => a._id.toString() === listing.userRef);
           if (agent) {
-            agentInfo = {
+            const agentData = {
+              _id: agent._id.toString(),
               name: agent.name,
               email: agent.email,
               avatar: agent.avatar,
               contact: agent.contact,
-              companyName: company.companyName
+              companyName: company.companyName,
+              companyId: company._id.toString()
             };
+
+            // Update the listing data
+            listingData.agent = agentData;
+            listingData.agentInfo = agentData;
+
+            // Update the database
+            await Listing.findByIdAndUpdate(id, {
+              agentInfo: agentData
+            });
           }
         }
-
-        listing._doc.agentInfo = agentInfo;
-        listing._doc.companyInfo = {
-          companyName: company.companyName,
-          avatar: company.avatar
-        };
+      } catch (agentError) {
+        console.error('Error fetching agent data:', agentError);
+        // Continue without agent data rather than failing the request
       }
     }
 
+    // Send the response
     res.status(200).json({
       success: true,
-      listing
+      listing: listingData
     });
+
   } catch (error) {
     console.error('Error in getListing:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching listing'
+    });
   }
 };
 

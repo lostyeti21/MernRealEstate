@@ -3,6 +3,7 @@ import { RealEstateCompany } from '../models/realEstateCompany.model.js';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { verifyToken } from '../middleware/auth.js';
+import mongoose from 'mongoose';
 
 const router = express.Router();
 
@@ -188,31 +189,26 @@ router.get("/agent/:agentId", async (req, res) => {
   }
 });
 
-// Add this route to handle agent ratings
-router.post("/agent/:agentId/rate", async (req, res) => {
+// Update the agent rating endpoint
+router.post("/agent/:agentId/rate", verifyToken, async (req, res) => {
   try {
     const { agentId } = req.params;
-    const { rating, userId } = req.body;
+    const { rating } = req.body;
+    const userId = req.user.id;
 
-    console.log('Received rating request:', {
-      agentId,
-      rating,
-      userId
-    });
-
-    if (!rating || !userId) {
+    // Validate rating
+    if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({
         success: false,
-        message: 'Rating and userId are required'
+        message: 'Rating must be between 1 and 5'
       });
     }
 
     const company = await RealEstateCompany.findOne({
-      'agents._id': agentId
+      'agents._id': new mongoose.Types.ObjectId(agentId)
     });
 
     if (!company) {
-      console.log('Company not found for agent:', agentId);
       return res.status(404).json({
         success: false,
         message: 'Agent not found'
@@ -220,35 +216,25 @@ router.post("/agent/:agentId/rate", async (req, res) => {
     }
 
     const agent = company.agents.id(agentId);
-    if (!agent) {
-      console.log('Agent not found:', agentId);
-      return res.status(404).json({
+
+    // Check if user has already rated
+    if (agent.ratedBy?.includes(userId)) {
+      return res.status(400).json({
         success: false,
-        message: 'Agent not found'
+        message: 'You have already rated this agent'
       });
     }
 
-    console.log('Current agent ratings:', agent.ratings);
-    console.log('Current agent ratedBy:', agent.ratedBy);
+    // Add rating and user to rated list
+    if (!agent.ratings) agent.ratings = [];
+    if (!agent.ratedBy) agent.ratedBy = [];
     
-    // Check if user has already rated
-    const existingRatingIndex = agent.ratedBy.indexOf(userId);
-    if (existingRatingIndex !== -1) {
-      // Update existing rating
-      agent.ratings[existingRatingIndex] = rating;
-      console.log('Updated existing rating');
-    } else {
-      // Add new rating
-      agent.ratings.push(rating);
-      agent.ratedBy.push(userId);
-      console.log('Added new rating');
-    }
+    agent.ratings.push(rating);
+    agent.ratedBy.push(userId);
 
     // Calculate new average
     const sum = agent.ratings.reduce((a, b) => a + b, 0);
     agent.averageRating = sum / agent.ratings.length;
-
-    console.log('New average rating:', agent.averageRating);
 
     await company.save();
 

@@ -234,7 +234,7 @@ const Listing = () => {
     }
 
     try {
-      const res = await fetch(`/api/real-estate/agent/${listedBy.data._id}/rate`, {
+      const res = await fetch(`/api/agent/${listedBy.data._id}/rate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -253,7 +253,7 @@ const Listing = () => {
           ...prev,
           data: {
             ...prev.data,
-            averageRating: data.newAverageRating
+            averageRating: data.newAgentRating
           }
         }));
         setHasUserRated(true);

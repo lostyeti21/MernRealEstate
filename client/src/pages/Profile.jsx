@@ -164,9 +164,7 @@ const Profile = () => {
         return;
       }
 
-      console.log('Current user ID:', currentUser._id);
-
-      const res = await fetch(`/api/listing/landlord/${currentUser._id}`);
+      const res = await fetch(`/api/user/listings/${currentUser._id}`);
       
       if (!res.ok) {
         console.error('Response not OK:', res.status);
@@ -192,7 +190,6 @@ const Profile = () => {
 
   const handleListingDelete = async (listingId) => {
     try {
-      const token = localStorage.getItem('accessToken');
       const confirmed = window.confirm('Are you sure you want to delete this listing?');
       
       if (!confirmed) {
@@ -202,23 +199,24 @@ const Profile = () => {
       const res = await fetch(`/api/listing/delete/${listingId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
 
-      const data = await res.json();
-
-      if (!data.success) {
-        console.error('Failed to delete listing:', data.message);
-        return;
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Failed to delete listing');
       }
 
-      // Remove the deleted listing from the state
+      // Update the listings state after successful deletion
       setUserListings((prev) => 
         prev.filter((listing) => listing._id !== listingId)
       );
+
     } catch (error) {
       console.error('Error deleting listing:', error);
+      alert('Failed to delete listing: ' + error.message);
     }
   };
 

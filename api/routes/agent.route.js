@@ -285,7 +285,7 @@ router.post('/update-email/:agentId', verifyToken, async (req, res) => {
 });
 
 // Add this route to handle agent ratings
-router.post('/rate/:agentId', verifyToken, async (req, res) => {
+router.post('/:agentId/rate', verifyToken, async (req, res) => {
   try {
     const { agentId } = req.params;
     const { rating } = req.body;
@@ -300,7 +300,7 @@ router.post('/rate/:agentId', verifyToken, async (req, res) => {
     }
 
     const company = await RealEstateCompany.findOne({
-      'agents._id': new mongoose.Types.ObjectId(agentId)
+      'agents._id': agentId
     });
 
     if (!company) {
@@ -311,16 +311,14 @@ router.post('/rate/:agentId', verifyToken, async (req, res) => {
     }
 
     const agent = company.agents.id(agentId);
-
-    // Check if user is trying to rate themselves
-    if (userId === agentId) {
-      return res.status(400).json({
+    if (!agent) {
+      return res.status(404).json({
         success: false,
-        message: 'You cannot rate yourself'
+        message: 'Agent not found'
       });
     }
 
-    // Strict check if user has already rated
+    // Check if user has already rated
     if (agent.ratedBy?.includes(userId)) {
       return res.status(400).json({
         success: false,
@@ -328,34 +326,32 @@ router.post('/rate/:agentId', verifyToken, async (req, res) => {
       });
     }
 
-    // Add the rating and track the user
+    // Add rating and user ID
     if (!agent.ratings) agent.ratings = [];
     if (!agent.ratedBy) agent.ratedBy = [];
     
     agent.ratings.push(rating);
     agent.ratedBy.push(userId);
 
-    // Calculate new agent average
-    const newAgentAverage = agent.ratings.reduce((a, b) => a + b, 0) / agent.ratings.length;
-    agent.averageRating = newAgentAverage;
+    // Calculate new average
+    const newAverage = agent.ratings.reduce((a, b) => a + b, 0) / agent.ratings.length;
+    agent.averageRating = newAverage;
 
-    // Explicitly call the updateCompanyRating method
+    // Update company rating
     company.updateCompanyRating();
-
-    // Save the updated company document
     await company.save();
 
     res.status(200).json({
       success: true,
       message: 'Rating submitted successfully',
-      newAgentRating: newAgentAverage,
-      newCompanyRating: company.companyRating
+      newAgentRating: newAverage
     });
+
   } catch (error) {
     console.error('Error rating agent:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Error submitting rating'
     });
   }
 });

@@ -71,6 +71,128 @@ const StyledButton = styled.div`
   }
 `;
 
+const StyledLoader = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: reduceDimAndBlur 2s ease-out forwards;
+  z-index: 100;
+
+  @keyframes reduceDimAndBlur {
+    0% {
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(20px);
+    }
+    100% {
+      background: rgba(0, 0, 0, 0);
+      backdrop-filter: blur(0px);
+    }
+  }
+
+  .spinner {
+    font-size: 28px;
+    position: relative;
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+  }
+
+  .spinner.center {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+  }
+
+  .spinner .spinner-blade {
+    position: absolute;
+    left: 0.4629em;
+    bottom: 0;
+    width: 0.074em;
+    height: 0.2777em;
+    border-radius: 0.0555em;
+    background-color: transparent;
+    transform-origin: center -0.2222em;
+    animation: spinner-fade9234 1s infinite linear;
+  }
+
+  .spinner .spinner-blade:nth-child(1) {
+    animation-delay: 0s;
+    transform: rotate(0deg);
+  }
+
+  .spinner .spinner-blade:nth-child(2) {
+    animation-delay: 0.083s;
+    transform: rotate(30deg);
+  }
+
+  .spinner .spinner-blade:nth-child(3) {
+    animation-delay: 0.166s;
+    transform: rotate(60deg);
+  }
+
+  .spinner .spinner-blade:nth-child(4) {
+    animation-delay: 0.249s;
+    transform: rotate(90deg);
+  }
+
+  .spinner .spinner-blade:nth-child(5) {
+    animation-delay: 0.332s;
+    transform: rotate(120deg);
+  }
+
+  .spinner .spinner-blade:nth-child(6) {
+    animation-delay: 0.415s;
+    transform: rotate(150deg);
+  }
+
+  .spinner .spinner-blade:nth-child(7) {
+    animation-delay: 0.498s;
+    transform: rotate(180deg);
+  }
+
+  .spinner .spinner-blade:nth-child(8) {
+    animation-delay: 0.581s;
+    transform: rotate(210deg);
+  }
+
+  .spinner .spinner-blade:nth-child(9) {
+    animation-delay: 0.664s;
+    transform: rotate(240deg);
+  }
+
+  .spinner .spinner-blade:nth-child(10) {
+    animation-delay: 0.747s;
+    transform: rotate(270deg);
+  }
+
+  .spinner .spinner-blade:nth-child(11) {
+    animation-delay: 0.83s;
+    transform: rotate(300deg);
+  }
+
+  .spinner .spinner-blade:nth-child(12) {
+    animation-delay: 0.913s;
+    transform: rotate(330deg);
+  }
+
+  @keyframes spinner-fade9234 {
+    0% {
+      background-color: #ffffff;
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+`;
+
 export default function Home() {
   const [offerListings, setOfferListings] = useState([]);
   const [saleListings, setSaleListings] = useState([]);
@@ -82,6 +204,7 @@ export default function Home() {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [direction, setDirection] = useState(1);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   SwiperCore.use([Navigation]);
@@ -136,6 +259,15 @@ export default function Home() {
     }
   }, [isChatbotLoaded]);
 
+  useEffect(() => {
+    // Show loader for 2 seconds
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleStart = () => {
     setShowPopup(true);
   };
@@ -161,6 +293,25 @@ export default function Home() {
 
   return (
     <div className="relative">
+      {loading && (
+        <StyledLoader>
+          <div className="spinner center">
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+            <div className="spinner-blade"></div>
+          </div>
+        </StyledLoader>
+      )}
+      
       {/* Hero Section with Fade Transition and Zoom Effect */}
       <div className="absolute top-0 left-0 w-full h-[960px] z-0 overflow-hidden bg-black">
         <AnimatePresence initial={false}>

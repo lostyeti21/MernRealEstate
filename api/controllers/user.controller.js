@@ -170,7 +170,11 @@ export const rateLandlord = async (req, res, next) => {
     const newRating = (responseTime + maintenance + experience) / 3;
     landlord.ratings.push(newRating);
     landlord.ratedBy.push(req.user.id);
-    await landlord.updateAverageRating();
+    
+    // Calculate average rating directly
+    landlord.averageRating = landlord.ratings.reduce((sum, rating) => sum + rating, 0) / landlord.ratings.length;
+    
+    await landlord.save();
 
     res.status(200).json({
       averageRating: landlord.averageRating,
@@ -206,7 +210,8 @@ export const rateTenant = async (req, res, next) => {
     tenant.ratings.push(newRating);
     tenant.ratedBy.push(req.user.id);
 
-    await tenant.updateAverageRating();
+    tenant.updateAverageRating();
+    await tenant.save();
 
     res.status(200).json({
       message: "Rating submitted successfully!",

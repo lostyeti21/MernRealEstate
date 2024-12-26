@@ -105,6 +105,16 @@ userSchema.methods.updateCompanyRating = function () {
   return this.save();
 };
 
+// Method to calculate and update user's average rating
+userSchema.methods.updateAverageRating = function () {
+  const totalRatings = this.ratings.length;
+  if (totalRatings > 0) {
+    this.averageRating = this.ratings.reduce((sum, rating) => sum + rating, 0) / totalRatings;
+  } else {
+    this.averageRating = 0;
+  }
+};
+
 // Method to add an agent to the company
 userSchema.methods.addAgent = function (agent) {
   this.realEstateCompany.agents.push(agent);

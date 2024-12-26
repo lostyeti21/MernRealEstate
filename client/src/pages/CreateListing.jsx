@@ -142,51 +142,45 @@ const CreateListing = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      if (formData.imageUrls.length < 1)
+        return setError('You must upload at least one image');
+      if (+formData.regularPrice < +formData.discountPrice)
+        return setError('Discount price must be lower than regular price');
       setLoading(true);
       setError(false);
 
-      // Get agent info from localStorage
-      const agentInfo = JSON.parse(localStorage.getItem('agentInfo'));
-      if (!agentInfo) {
-        throw new Error('Agent information not found');
-      }
-
-      const token = localStorage.getItem('agentToken');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Add agent and company information to the listing data
       const listingData = {
         ...formData,
-        userRef: agentInfo._id,
-        userModel: 'Agent',
-        agentInfo: {
-          name: agentInfo.name,
-          email: agentInfo.email,
-          companyName: agentInfo.companyName,
-          contact: agentInfo.contact
-        }
+        userRef: currentUser._id,
+        userModel: 'User'
       };
 
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
-        body: JSON.stringify(listingData)
+        body: JSON.stringify(listingData),
       });
 
       const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to create listing');
+      setLoading(false);
+
+      if (data.success === false) {
+        setError(data.message);
+        return;
+      }
+
+      // Check if we have a valid listing ID before navigating
+      if (!data.listing || !data.listing._id) {
+        setError('Failed to create listing');
+        return;
       }
 
       navigate(`/listing/${data.listing._id}`);
     } catch (error) {
       setError(error.message);
-    } finally {
       setLoading(false);
     }
   };

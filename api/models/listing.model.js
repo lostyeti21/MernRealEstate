@@ -61,10 +61,13 @@ const listingSchema = new mongoose.Schema(
       default: 'User'
     },
     agentInfo: {
+      _id: String,
       name: String,
       email: String,
+      avatar: String,
+      contact: String,
       companyName: String,
-      contact: String
+      companyId: String
     },
     views: {
       type: Number,

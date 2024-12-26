@@ -10,6 +10,8 @@ const AgentListings = () => {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [rated, setRated] = useState(false);
+  const [rating, setRating] = useState(0);
 
   useEffect(() => {
     const fetchAgentListings = async () => {
@@ -68,6 +70,61 @@ const AgentListings = () => {
       setLoading(false);
     }
   }, [agentId, navigate]);
+
+  const handleRating = async () => {
+    try {
+      const token = localStorage.getItem('realEstateToken');
+      
+      if (!token) {
+        alert('Please sign in to rate agents');
+        return;
+      }
+
+      if (!agentData || !agentData._id) {
+        alert('Agent data not loaded properly');
+        return;
+      }
+
+      console.log(`Sending request to: /api/agent/${agentData._id}/rate`);
+
+      const res = await fetch(`/api/agent/${agentData._id}/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rating: Number(rating)
+        })
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Error response:', errorText);
+        throw new Error('Failed to submit rating');
+      }
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to submit rating');
+      }
+
+      setAgentData(prev => ({
+        ...prev,
+        averageRating: data.newAgentRating
+      }));
+      setRated(true);
+
+    } catch (error) {
+      console.error('Rating error:', error);
+      alert(error.message || 'Error submitting rating. Please try again.');
+    }
+  };
+
+  const handleRatingClick = (value) => {
+    setRating(value);
+  };
 
   if (loading) {
     return (
@@ -151,6 +208,33 @@ const AgentListings = () => {
             </div>
           </div>
         </div>
+
+        {/* Add Rating UI */}
+        {!rated && (
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-2">Rate this agent:</h3>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  onClick={() => handleRatingClick(value)}
+                  className={`p-2 ${
+                    rating >= value ? 'text-yellow-500' : 'text-gray-300'
+                  }`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleRating}
+              disabled={!rating}
+              className="mt-2 px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+            >
+              Submit Rating
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Listings Grid */}
