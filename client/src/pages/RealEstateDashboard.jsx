@@ -9,10 +9,14 @@ import { app } from "../firebase";
 const defaultProfilePic = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
 
 const safeJSONParse = (str) => {
+  if (!str) return null;
   try {
-    return str ? JSON.parse(str) : null;
+    // Check if str is already an object
+    if (typeof str === 'object') return str;
+    // Try to parse the string
+    return JSON.parse(str);
   } catch (e) {
-    console.error('Error parsing JSON:', e);
+    console.error('Error parsing JSON:', { error: e, value: str });
     return null;
   }
 };
@@ -43,121 +47,6 @@ export default function RealEstateDashboard() {
   const [bannerUploadError, setBannerUploadError] = useState(null);
   const avatarRef = useRef(null);
   const bannerRef = useRef(null);
-
-  useEffect(() => {
-    const fetchCompanyData = async () => {
-      try {
-        // Get stored company info
-        const companyInfoStr = localStorage.getItem('companyInfo');
-        const token = localStorage.getItem('realEstateToken');
-
-        if (!companyInfoStr || !token) {
-          throw new Error('No company info or token found');
-        }
-
-        const companyInfo = JSON.parse(companyInfoStr);
-
-        const response = await fetch(`/api/real-estate/company/${companyInfo._id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch company data');
-        }
-
-        const data = await response.json();
-
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch company data');
-        }
-
-        setCompanyData(data.company);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching company data:', err);
-        setError(err.message);
-        if (err.message.includes('No company info')) {
-          navigate('/real-estate-login');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCompanyData();
-  }, [navigate]);
-
-  useEffect(() => {
-    const fetchListings = async () => {
-      if (activeTab !== 'listings') return;
-      
-      try {
-        setListingsLoading(true);
-        setListingsError(null);
-        
-        const token = localStorage.getItem('realEstateToken');
-        const companyInfo = safeJSONParse(localStorage.getItem('companyInfo'));
-
-        if (!token || !companyInfo?._id) {
-          console.log('Missing token or company info');
-          navigate('/real-estate-login');
-          return;
-        }
-
-        // Get all listings from all agents
-        const allListings = [];
-        
-        if (companyData?.agents && companyData.agents.length > 0) {
-          console.log('Found agents:', companyData.agents.map(a => ({ id: a._id, name: a.name })));
-          
-          // Fetch listings for each agent
-          const listingPromises = companyData.agents.map(async agent => {
-            console.log(`Fetching listings for agent: ${agent.name} (${agent._id})`);
-            const res = await fetch(`/api/listing/agent/${agent._id}`, {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            });
-            const data = await res.json();
-            
-            // Add agent info to each listing
-            if (data.success && data.listings) {
-              return data.listings.map(listing => ({
-                ...listing,
-                agent: {
-                  _id: agent._id,
-                  name: agent.name,
-                  email: agent.email,
-                  avatar: agent.avatar,
-                  averageRating: agent.averageRating
-                }
-              }));
-            }
-            return [];
-          });
-
-          const results = await Promise.all(listingPromises);
-          const combinedListings = results.flat();
-          console.log('Combined listings with agent data:', combinedListings);
-          setListings(combinedListings);
-        } else {
-          console.log('No agents found in company data');
-          setListings([]);
-        }
-        
-      } catch (error) {
-        console.error('Error fetching listings:', error);
-        setListingsError(error.message);
-      } finally {
-        setListingsLoading(false);
-      }
-    };
-
-    fetchListings();
-  }, [activeTab, navigate, companyData]);
 
   const handleAvatarClick = () => {
     if (fileRef.current) {
@@ -204,8 +93,8 @@ export default function RealEstateDashboard() {
       const uploadData = await uploadRes.json();
       
       // Update company avatar
-      const token = localStorage.getItem('realEstateToken');
-      const companyInfo = JSON.parse(localStorage.getItem('companyInfo'));
+      const token = localStorage.getItem('access_token');
+      const companyInfo = JSON.parse(localStorage.getItem('realEstateCompany'));
 
       const updateRes = await fetch('/api/real-estate/update-avatar', {
         method: 'POST',
@@ -244,7 +133,7 @@ export default function RealEstateDashboard() {
 
     try {
       setDeleteLoading(true);
-      const token = localStorage.getItem('realEstateToken');
+      const token = localStorage.getItem('access_token');
       
       const res = await fetch(`/api/real-estate/remove-agent/${agentToDelete._id}`, {
         method: 'DELETE',
@@ -291,11 +180,74 @@ export default function RealEstateDashboard() {
     }
   };
 
-  const handleBannerUpload = (e) => {
+  const handleBannerUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setBannerFile(file);
-      handleImageUpload(file, 'banner');
+    if (!file) return;
+
+    try {
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error('Banner size should be less than 2MB');
+      }
+
+      setBannerUploadProgress(0);
+      setBannerUploadError(null);
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // Upload image
+      const uploadRes = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('Failed to upload banner');
+      }
+
+      const uploadData = await uploadRes.json();
+
+      // Update company with new banner URL
+      const updateRes = await fetch(`/api/company/update/${companyData._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          banner: uploadData.url
+        })
+      });
+
+      if (!updateRes.ok) {
+        throw new Error('Failed to update company banner');
+      }
+
+      const updateData = await updateRes.json();
+
+      // Update state and localStorage
+      setCompanyData(updateData.company);
+      localStorage.setItem('realEstateCompany', JSON.stringify(updateData.company));
+
+      // Force banner image update
+      const bannerImg = document.querySelector('.company-banner');
+      if (bannerImg) {
+        bannerImg.src = uploadData.url;
+      }
+
+    } catch (error) {
+      console.error('Banner upload error:', error);
+      setBannerUploadError(error.message);
+    } finally {
+      setBannerUploadProgress(0);
     }
   };
 
@@ -305,53 +257,115 @@ export default function RealEstateDashboard() {
       const formData = new FormData();
       formData.append('image', file);
 
+      // Get company info and token
+      const token = localStorage.getItem('access_token');
+      let companyInfo;
+      try {
+        const storedInfo = localStorage.getItem('realEstateCompany');
+        companyInfo = JSON.parse(storedInfo);
+        console.log('Retrieved company info:', companyInfo);
+      } catch (e) {
+        console.error('Error parsing company info:', e);
+        throw new Error('Invalid company information');
+      }
+
+      if (!token || !companyInfo?._id) {
+        throw new Error('Missing authentication or company information');
+      }
+
+      console.log('Starting image upload...', { type, companyId: companyInfo._id });
+
       // Upload to Cloudinary through our backend
       const uploadRes = await fetch('/api/upload/image', {
         method: 'POST',
         body: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (!uploadRes.ok) {
+        const errorText = await uploadRes.text();
+        console.error('Upload response error:', errorText);
         throw new Error('Failed to upload image');
       }
 
-      const uploadData = await uploadRes.json();
-      
+      let uploadData;
+      try {
+        uploadData = await uploadRes.json();
+        console.log('Upload successful:', uploadData);
+      } catch (e) {
+        console.error('Error parsing upload response:', e);
+        throw new Error('Invalid response from upload service');
+      }
+
       if (!uploadData.success) {
-        throw new Error(uploadData.message);
+        throw new Error(uploadData.message || 'Failed to upload image');
       }
 
       // Update company profile with the new Cloudinary URL
-      const res = await fetch(`/api/real-estate/update-${type}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          companyId: companyData._id,
-          [type]: uploadData.url,
-          isCloudinary: true // Add flag to indicate this is a Cloudinary URL
-        }),
+      const updateEndpoint = `/api/company/update/${companyInfo._id}`;
+      const updateBody = { [type]: uploadData.url };
+
+      console.log('Updating company profile...', {
+        endpoint: updateEndpoint,
+        body: updateBody,
+        token: !!token
       });
 
-      const data = await res.json();
-      
-      if (data.success) {
-        setCompanyData(prev => ({
-          ...prev,
-          [type]: uploadData.url
-        }));
-        
-        if (type === 'avatar') {
-          setAvatarUploadError(null);
-        } else {
-          setBannerUploadError(null);
-        }
-        
-        alert(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`);
-      } else {
-        throw new Error(data.message);
+      const res = await fetch(updateEndpoint, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateBody)
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Update response error:', errorText);
+        throw new Error(`Failed to update ${type}`);
       }
+
+      let responseData;
+      try {
+        responseData = await res.json();
+        console.log('Update successful:', responseData);
+      } catch (e) {
+        console.error('Error parsing update response:', e);
+        throw new Error('Invalid response from update service');
+      }
+
+      if (!responseData.success) {
+        throw new Error(responseData.message || `Failed to update ${type}`);
+      }
+
+      // Update local state and storage with the entire updated company data
+      console.log('Updating local state with response data:', {
+        companyId: responseData.company._id,
+        hasBanner: !!responseData.company.banner,
+        bannerUrl: responseData.company.banner
+      });
+
+      localStorage.setItem('realEstateCompany', JSON.stringify(responseData.company));
+      setCompanyData(responseData.company);
+
+      // Show success message
+      alert(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`);
+      
+      if (type === 'banner') {
+        setBannerUploadProgress(100);
+        // Force a re-render of the banner
+        const bannerImg = document.querySelector('.company-banner');
+        if (bannerImg) {
+          console.log('Forcing banner image update with URL:', responseData.company.banner);
+          bannerImg.src = responseData.company.banner;
+        }
+      } else {
+        setAvatarUploadProgress(100);
+      }
+
     } catch (error) {
       console.error(`Error uploading ${type}:`, error);
       if (type === 'avatar') {
@@ -370,47 +384,329 @@ export default function RealEstateDashboard() {
 
   // Add this function to handle image URL display
   const getImageUrl = (imageUrl, type) => {
+    console.log('Processing image URL:', { imageUrl, type });
+
+    // Default images
+    const defaultAvatarUrl = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+    const defaultBannerUrl = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1466&q=80";
+
+    // If no image URL provided, return default
     if (!imageUrl) {
-      return type === 'avatar' 
-        ? "https://via.placeholder.com/150" 
-        : "https://via.placeholder.com/1200x400";
+      console.log(`No ${type} URL provided, using default`);
+      return type === 'avatar' ? defaultAvatarUrl : defaultBannerUrl;
     }
 
-    // Check if it's a Cloudinary URL
+    // Handle Cloudinary URLs
     if (imageUrl.includes('cloudinary.com')) {
+      console.log(`Using Cloudinary ${type} URL:`, imageUrl);
       return imageUrl;
     }
 
-    // Handle Firebase URL
-    if (imageUrl.startsWith('firebase')) {
-      const storage = getStorage(app);
-      const imageRef = ref(storage, imageUrl);
-      return getDownloadURL(imageRef);
+    // Handle default images
+    if (type === 'avatar' && imageUrl === 'default-company-avatar.png') {
+      console.log('Using default avatar');
+      return defaultAvatarUrl;
     }
 
-    return imageUrl;
+    // If URL is absolute
+    if (imageUrl.startsWith('http')) {
+      console.log(`Using absolute ${type} URL:`, imageUrl);
+      return imageUrl;
+    }
+
+    console.log(`No valid ${type} URL found, using default`);
+    return type === 'avatar' ? defaultAvatarUrl : defaultBannerUrl;
   };
 
-  // Add loading state
+  // Add initial data loading
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Get token and stored company info
+        const token = localStorage.getItem('access_token');
+        const storedCompanyInfo = localStorage.getItem('realEstateCompany');
+        
+        console.log('Initial stored company info:', storedCompanyInfo);
+        
+        let parsedCompanyInfo;
+        try {
+          parsedCompanyInfo = JSON.parse(storedCompanyInfo);
+          console.log('Parsed stored company info:', parsedCompanyInfo);
+        } catch (e) {
+          console.error('Error parsing stored company info:', e);
+        }
+
+        if (!token || !parsedCompanyInfo?._id) {
+          console.error('Missing token or company ID');
+          navigate('/real-estate-login');
+          return;
+        }
+
+        // Fetch fresh company data
+        const response = await fetch(`/api/company/${parsedCompanyInfo._id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+        console.log('Received fresh company data:', data);
+        
+        if (data.success && data.company) {
+          // Merge fresh data with stored banner/avatar info
+          const mergedCompanyData = {
+            ...data.company,
+            banner: data.company.banner || parsedCompanyInfo.banner || '',
+            avatar: data.company.avatar || parsedCompanyInfo.avatar || 'default-company-avatar.png',
+            isCloudinaryBanner: data.company.isCloudinaryBanner || parsedCompanyInfo.isCloudinaryBanner,
+            isCloudinaryAvatar: data.company.isCloudinaryAvatar || parsedCompanyInfo.isCloudinaryAvatar
+          };
+          
+          console.log('Merged company data:', mergedCompanyData);
+          
+          setCompanyData(mergedCompanyData);
+          localStorage.setItem('realEstateCompany', JSON.stringify(mergedCompanyData));
+        } else {
+          throw new Error(data.message || 'Failed to fetch company data');
+        }
+
+      } catch (error) {
+        console.error('Error loading company data:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, [navigate]);
+
+  // Load company data safely
+  useEffect(() => {
+    const loadCompanyData = () => {
+      try {
+        const storedData = localStorage.getItem('realEstateCompany');
+        if (storedData) {
+          // Safely parse the JSON data
+          try {
+            const parsedData = JSON.parse(storedData);
+            setCompanyData(parsedData);
+          } catch (parseError) {
+            console.error('Error parsing company data:', parseError);
+            // If parse fails, try to get fresh data from API
+            fetchCompanyData();
+          }
+        } else {
+          fetchCompanyData();
+        }
+      } catch (error) {
+        console.error('Error loading company data:', error);
+        setError('Error loading company data');
+      }
+    };
+
+    const fetchCompanyData = async () => {
+      try {
+        const response = await fetch(`/api/company/${currentUser._id}`, {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch company data');
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          setCompanyData(data.company);
+          localStorage.setItem('realEstateCompany', JSON.stringify(data.company));
+        }
+      } catch (error) {
+        console.error('Error fetching company data:', error);
+        setError('Error fetching company data');
+      }
+    };
+
+    loadCompanyData();
+  }, [currentUser._id, currentUser.token]);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      if (activeTab !== 'listings') return;
+      
+      try {
+        setListingsLoading(true);
+        setListingsError(null);
+        
+        const token = localStorage.getItem('access_token');
+        const companyInfo = safeJSONParse(localStorage.getItem('realEstateCompany'));
+
+        if (!token || !companyInfo?._id) {
+          console.log('Missing token or company info');
+          navigate('/real-estate-login');
+          return;
+        }
+
+        // Get all listings from all agents
+        const allListings = [];
+        
+        if (companyData?.agents && companyData.agents.length > 0) {
+          console.log('Found agents:', companyData.agents.map(a => ({ id: a._id, name: a.name })));
+          
+          // Fetch listings for each agent
+          const listingPromises = companyData.agents.map(async agent => {
+            console.log(`Fetching listings for agent: ${agent.name} (${agent._id})`);
+            const res = await fetch(`/api/listing/agent/${agent._id}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              credentials: 'include'
+            });
+
+            if (!res.ok) {
+              const errorData = await res.json();
+              console.error(`Error fetching listings for agent ${agent.name}:`, errorData);
+              return [];
+            }
+
+            const data = await res.json();
+            console.log(`Received listings for agent ${agent.name}:`, data);
+            
+            // Add agent info to each listing
+            if (data.success && data.listings) {
+              return data.listings.map(listing => ({
+                ...listing,
+                agent: {
+                  _id: agent._id,
+                  name: agent.name,
+                  email: agent.email,
+                  avatar: agent.avatar,
+                  averageRating: agent.averageRating
+                }
+              }));
+            }
+            return [];
+          });
+
+          const results = await Promise.all(listingPromises);
+          const combinedListings = results.flat();
+          console.log('Combined listings:', {
+            total: combinedListings.length,
+            byAgent: results.map((r, i) => ({
+              agent: companyData.agents[i].name,
+              count: r.length
+            }))
+          });
+          setListings(combinedListings);
+        } else {
+          console.log('No agents found in company data');
+          setListings([]);
+        }
+        
+      } catch (error) {
+        console.error('Error fetching listings:', error);
+        setListingsError(error.message);
+      } finally {
+        setListingsLoading(false);
+      }
+    };
+
+    fetchListings();
+  }, [activeTab, navigate, companyData]);
+
+  // Add this function to handle agent form submission
+  const handleAgentSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const agentData = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        password: formData.get('password'),
+        contact: formData.get('contact')
+      };
+
+      console.log('Creating new agent:', { ...agentData, password: '***' });
+
+      const response = await fetch(`/api/real-estate/${companyData._id}/agents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(agentData)
+      });
+
+      const data = await response.json();
+      console.log('Agent creation response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create agent');
+      }
+
+      // Update company data with new agent
+      setCompanyData(prevData => ({
+        ...prevData,
+        agents: [...(prevData.agents || []), data.agent]
+      }));
+
+      // Update localStorage
+      const storedCompany = JSON.parse(localStorage.getItem('realEstateCompany'));
+      localStorage.setItem('realEstateCompany', JSON.stringify({
+        ...storedCompany,
+        agents: [...(storedCompany.agents || []), data.agent]
+      }));
+
+      // Show success message
+      alert('Agent created successfully!');
+      
+      // Reset form
+      e.target.reset();
+
+    } catch (error) {
+      console.error('Error creating agent:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Render loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl">Loading...</div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
-  // Add error state
+  // Render error state
   if (error) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl text-red-500">
-          {error}
+        <div className="text-red-500 text-center">
+          <p className="text-xl font-semibold">Error loading dashboard</p>
+          <p className="mt-2">{error}</p>
           <button 
-            onClick={() => navigate('/real-estate-login')}
-            className="ml-4 bg-blue-500 text-white px-4 py-2 rounded"
+            onClick={() => window.location.reload()} 
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            Return to Login
+            Retry
           </button>
         </div>
       </div>
@@ -435,11 +731,27 @@ export default function RealEstateDashboard() {
       {/* Company Info Section */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <div className="flex items-center gap-4">
-          <img
-            src={companyData.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
-            alt="Company Logo"
-            className="w-24 h-24 rounded-full object-cover"
-          />
+          {(() => {
+            console.log('Company Avatar Debug:', {
+              avatarUrl: companyData.avatar,
+              processedUrl: getImageUrl(companyData.avatar, 'avatar')
+            });
+
+            return (
+              <img
+                src={getImageUrl(companyData.avatar, 'avatar')}
+                alt="Company Logo"
+                className="w-24 h-24 rounded-full object-cover"
+                onError={(e) => {
+                  console.error('Company avatar image error:', {
+                    originalSrc: e.target.src
+                  });
+                  e.target.onerror = null;
+                  e.target.src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+                }}
+              />
+            );
+          })()}
           <div>
             <h2 className="text-2xl font-semibold">{companyData.companyName}</h2>
             <p className="text-gray-600">{companyData.email}</p>
@@ -490,24 +802,40 @@ export default function RealEstateDashboard() {
               </Link>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {companyData.agents?.map((agent) => (
+              {companyData.agents?.map((agent) => {
+                console.log('Rendering agent:', {
+                  name: agent.name,
+                  avatarUrl: agent.avatar,
+                  processedUrl: getImageUrl(agent.avatar, 'avatar')
+                });
+
+                return (
                 <div
                   key={agent._id}
                   className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow"
                 >
                   <img
-                    src={agent.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
+                    src={getImageUrl(agent.avatar, 'avatar')}
                     alt={agent.name}
                     className="w-20 h-20 rounded-full mx-auto mb-3 object-cover"
+                    onError={(e) => {
+                      console.error('Agent avatar image error:', {
+                        agentName: agent.name,
+                        originalSrc: e.target.src
+                      });
+                      e.target.onerror = null;
+                      e.target.src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+                    }}
                   />
                   <h3 className="text-lg font-semibold text-center">{agent.name}</h3>
                   <p className="text-gray-600 text-center">{agent.email}</p>
-                  <div className="flex justify-center items-center mt-2">
+                  <div className="flex items-center mt-2">
                     <StarRating rating={agent.averageRating || 0} />
                     <span className="ml-2">({agent.averageRating?.toFixed(1) || 'N/A'})</span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -657,77 +985,56 @@ export default function RealEstateDashboard() {
         <h2 className="text-2xl font-semibold mb-4">Company Profile</h2>
         
         {/* Banner Section */}
-        <div className="mb-6">
-          <div className="relative h-[200px] md:h-[300px] rounded-lg overflow-hidden mb-2">
-            <img
-              src={getImageUrl(companyData?.banner, 'banner')}
-              alt="Company Banner"
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1466&q=80"; // Default company banner
-              }}
+        <div className="relative w-full h-48 mb-8 overflow-hidden rounded-lg shadow-md">
+          <img
+            src={getImageUrl(companyData.banner, 'banner')}
+            alt="Company Banner"
+            className="company-banner w-full h-full object-cover"
+            onError={(e) => {
+              console.error('Banner load error:', {
+                src: e.target.src,
+                originalBanner: companyData.banner
+              });
+              e.target.onerror = null;
+              e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1466&q=80";
+            }}
+          />
+          
+          {/* Banner Upload Button */}
+          <div className="absolute bottom-4 right-4">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleBannerUpload}
+              ref={bannerRef}
+              className="hidden"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent">
-              <div className="absolute bottom-4 left-4 text-white">
-                <h3 className="text-2xl font-bold">{companyData.companyName}</h3>
-                {companyData.companyRating > 0 && (
-                  <div className="flex items-center mt-2">
-                    <div className="flex items-center">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <span
-                          key={star}
-                          className={`text-xl ${
-                            star <= companyData.companyRating
-                              ? 'text-yellow-400'
-                              : 'text-gray-400'
-                          }`}
-                        >
-                          ★
-                        </span>
-                      ))}
-                    </div>
-                    <span className="ml-2">
-                      ({companyData.companyRating.toFixed(1)})
-                    </span>
-                  </div>
-                )}
+            <button
+              onClick={() => bannerRef.current.click()}
+              className="bg-white text-gray-700 px-4 py-2 rounded-lg shadow hover:bg-gray-100 transition-colors"
+              disabled={loading}
+            >
+              {loading ? 'Uploading...' : 'Change Banner'}
+            </button>
+          </div>
+
+          {/* Upload Progress */}
+          {bannerUploadProgress > 0 && bannerUploadProgress < 100 && (
+            <div className="absolute bottom-16 right-4 w-32 bg-white rounded-lg shadow p-2">
+              <div className="h-2 bg-gray-200 rounded">
+                <div
+                  className="h-full bg-blue-500 rounded"
+                  style={{ width: `${bannerUploadProgress}%` }}
+                ></div>
               </div>
             </div>
-            <div className="absolute top-4 right-4">
-              <button
-                onClick={() => bannerRef.current.click()}
-                className="bg-white/90 hover:bg-white text-gray-800 px-4 py-2 rounded-lg transition-colors duration-200 flex items-center gap-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                </svg>
-                Edit Banner
-              </button>
-            </div>
-          </div>
-          <input
-            type="file"
-            ref={bannerRef}
-            hidden
-            accept="image/*"
-            onChange={handleBannerUpload}
-          />
-          {bannerUploadProgress > 0 && bannerUploadProgress < 100 && (
-            <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
-              <div
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                style={{ width: `${bannerUploadProgress}%` }}
-              ></div>
-            </div>
           )}
+
+          {/* Error Message */}
           {bannerUploadError && (
-            <p className="text-red-500 text-sm mt-2">{bannerUploadError}</p>
+            <div className="absolute bottom-16 right-4 bg-red-100 text-red-600 px-4 py-2 rounded-lg">
+              {bannerUploadError}
+            </div>
           )}
         </div>
 

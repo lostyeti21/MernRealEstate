@@ -54,8 +54,14 @@ const RealEstateSignUp = () => {
       return;
     }
 
+    console.log('Submitting sign-up:', {
+      companyName: formData.companyName,
+      email: formData.email,
+      agentsCount: agents.length
+    });
+
     try {
-      const response = await fetch('/api/real-estate/sign-up', {
+      const response = await fetch('/api/real-estate/company-signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,13 +79,42 @@ const RealEstateSignUp = () => {
         }),
       });
 
-      const data = await response.json();
+      console.log('Full fetch details:', {
+        url: '/api/real-estate/company-signup',
+        method: 'POST',
+        body: {
+          companyName: formData.companyName,
+          email: formData.email,
+          agentsCount: agents.length
+        }
+      });
 
-      if (!data.success) {
-        throw new Error(data.message);
+      console.log('Response details:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      // Check for network errors or non-OK responses
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response text:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
 
-      navigate("/real-estate-login");
+      const data = await response.json();
+      console.log('Parsed response data:', data);
+
+      if (!data.success) {
+        throw new Error(data.message || 'Sign up failed');
+      }
+
+      // Navigate to login page with success message
+      navigate("/real-estate-login", { 
+        state: { 
+          message: 'Company registered successfully. Please log in.' 
+        } 
+      });
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -103,8 +138,7 @@ const RealEstateSignUp = () => {
         dispatch(signInFailure(data.message));
         return;
       }
-      localStorage.setItem('realEstateToken', data.token);
-      dispatch(realEstateSignInSuccess(data.company));
+      dispatch(realEstateSignInSuccess(data));
       navigate('/real-estate-dashboard');
     } catch (error) {
       dispatch(signInFailure(error.message));

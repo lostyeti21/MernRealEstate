@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const listingSchema = new mongoose.Schema(
   {
@@ -22,21 +22,21 @@ const listingSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
-    bedrooms: {
+    bathrooms: {
       type: Number,
       required: true,
     },
-    bathrooms: {
+    bedrooms: {
       type: Number,
       required: true,
     },
     furnished: {
       type: Boolean,
-      required: true,
+      default: false,
     },
     parking: {
       type: Boolean,
-      required: true,
+      default: false,
     },
     type: {
       type: String,
@@ -44,70 +44,86 @@ const listingSchema = new mongoose.Schema(
     },
     offer: {
       type: Boolean,
-      required: true,
+      default: false,
     },
     imageUrls: {
       type: Array,
       required: true,
     },
     userRef: {
-      type: String,
-      ref: 'User',
-      required: true
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      refPath: 'userModel'
     },
     userModel: {
       type: String,
-      enum: ['User', 'Agent', 'RealEstateCompany'],
-      default: 'User'
+      required: true,
+      enum: ['User', 'Agent']
+    },
+    companyRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RealEstateCompany'
     },
     agentInfo: {
-      _id: String,
-      name: String,
-      email: String,
-      avatar: String,
-      contact: String,
-      companyName: String,
-      companyId: String
-    },
-    views: {
-      type: Number,
-      default: 0, // Initialize with zero
-    },
-    clicks: {
-      type: Number,
-      default: 0, // Initialize with zero
-    },
-    location: {
       type: {
-        lat: { type: Number },
-        lng: { type: Number },
+        _id: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true
+        },
+        name: {
+          type: String,
+          required: true
+        },
+        email: {
+          type: String,
+          required: true
+        },
+        phone: {
+          type: String
+        },
+        avatar: {
+          type: String
+        },
+        companyName: {
+          type: String,
+          required: true
+        },
+        companyId: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true
+        },
+        companyEmail: {
+          type: String
+        },
+        companyPhone: {
+          type: String
+        },
+        companyAddress: {
+          type: String
+        }
       },
-      required: false, // Optional field for geographic data
+      default: null
     },
     m2: {
       type: Number,
-      required: true, // Makes this field mandatory
-      min: 0, // Ensures the value cannot be negative
+      default: 0
     },
     backupPower: {
       type: Boolean,
-      required: false, // Optional field
-      default: false, // Default value is false
+      default: false
     },
     backupWaterSupply: {
       type: Boolean,
-      required: false, // Optional field
-      default: false, // Default value is false
+      default: false
     },
     boreholeWater: {
       type: Boolean,
-      required: false, // Optional field
-      default: false, // Default value is false
-    },
+      default: false
+    }
   },
   { timestamps: true }
 );
 
-const Listing = mongoose.model("Listing", listingSchema);
+const Listing = mongoose.model('Listing', listingSchema);
 
 export default Listing;

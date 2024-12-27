@@ -25,7 +25,7 @@ export default function RealEstateLogin() {
       setError(null);
       dispatch(signInStart());
 
-      const res = await fetch('/api/real-estate/signin', {
+      const res = await fetch('/api/company/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -35,19 +35,40 @@ export default function RealEstateLogin() {
       });
 
       const data = await res.json();
+      console.log('Login response:', data);
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Failed to sign in');
       }
 
       // Store token
-      localStorage.setItem('realEstateToken', data.token);
+      if (data.token) {
+        localStorage.setItem('access_token', data.token);
+      }
       
-      // Store company data
-      localStorage.setItem('realEstateCompany', JSON.stringify(data.company));
+      // Store complete company data including banner
+      if (data.company) {
+        const companyToStore = {
+          _id: data.company._id,
+          companyName: data.company.companyName,
+          email: data.company.email,
+          banner: data.company.banner || '',
+          isCloudinaryBanner: data.company.isCloudinaryBanner || false,
+          avatar: data.company.avatar || 'default-company-avatar.png',
+          isCloudinaryAvatar: data.company.isCloudinaryAvatar || false,
+          agents: data.company.agents || []
+        };
+        localStorage.setItem('realEstateCompany', JSON.stringify(companyToStore));
+        console.log('Stored company data:', companyToStore);
+      } else {
+        throw new Error('No company data received');
+      }
 
       // Update Redux state
-      dispatch(realEstateSignInSuccess(data.company));
+      dispatch(realEstateSignInSuccess({
+        ...data.company,
+        token: data.token
+      }));
 
       // Navigate to dashboard
       navigate('/real-estate-dashboard');

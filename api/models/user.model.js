@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: false,
+      required: true,
       unique: true,
     },
     password: {
@@ -49,7 +49,7 @@ const userSchema = new mongoose.Schema(
     avatar: {
       type: String,
       default:
-        "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png",
+        "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png",
     },
     phoneNumbers: {
       type: [String],
@@ -72,19 +72,24 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false, // Regular users are not admins by default
     },
+    isAgent: {
+      type: Boolean,
+      default: false,
+    },
+    agentCompanyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "RealEstateCompany",
+      default: null,
+    },
+    agentDetails: {
+      name: String,
+      contact: String,
+      email: String,
+    },
     realEstateCompany: {
-      name: {
-        type: String,
-        required: false,
-      },
-      agents: {
-        type: [agentSchema], // List of agents under the company
-        default: [],
-      },
-      companyRating: {
-        type: Number,
-        default: 0,
-      },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "RealEstateCompany",
+      default: null,
     },
   },
   { timestamps: true }

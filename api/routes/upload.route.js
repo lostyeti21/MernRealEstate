@@ -9,7 +9,7 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -19,6 +19,42 @@ const upload = multer({
   },
 });
 
-router.post('/image', verifyToken, upload.single('image'), uploadImage);
+// Add logging middleware
+const logRequest = (req, res, next) => {
+  console.log('Upload request:', {
+    user: req.user?._id,
+    isAgent: req.user?.isAgent,
+    hasFile: !!req.file
+  });
+  next();
+};
+
+router.post('/image', 
+  verifyToken, 
+  logRequest,
+  upload.single('image'), 
+  uploadImage
+);
+
+// Add this route to test Cloudinary configuration
+router.get('/test-config', (req, res) => {
+  try {
+    const config = {
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      hasApiKey: !!process.env.CLOUDINARY_API_KEY,
+      hasApiSecret: !!process.env.CLOUDINARY_API_SECRET
+    };
+    
+    res.json({
+      success: true,
+      config
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 export default router;

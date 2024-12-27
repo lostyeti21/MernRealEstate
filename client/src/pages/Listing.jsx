@@ -100,7 +100,12 @@ const Listing = () => {
 
           if (listingData.userModel === 'Agent') {
             try {
-              const agentRes = await fetch(`/api/real-estate/agent/${listingData.userRef}`, {
+              console.log('Attempting to fetch agent details:', {
+                url: `/api/agent/${listingData.userRef}`,
+                userRef: listingData.userRef
+              });
+
+              const agentRes = await fetch(`/api/agent/${listingData.userRef}`, {
                 credentials: 'include',
                 headers: {
                   'Content-Type': 'application/json'
@@ -108,6 +113,12 @@ const Listing = () => {
               });
               
               if (!agentRes.ok) {
+                const errorText = await agentRes.text();
+                console.error('Agent fetch failed:', {
+                  status: agentRes.status,
+                  statusText: agentRes.statusText,
+                  response: errorText
+                });
                 throw new Error(`Agent not found: ${agentRes.status}`);
               }
               
@@ -117,15 +128,28 @@ const Listing = () => {
               if (agentData.success && agentData.agent) {
                 const companyId = agentData.agent.companyId;
                 if (companyId) {
-                  const companyRes = await fetch(`/api/real-estate/company/${companyId}`, {
+                  console.log('Fetching company details:', {
+                    companyId,
+                    url: `/api/company/${companyId}`
+                  });
+
+                  const companyRes = await fetch(`/api/company/${companyId}`, {
                     credentials: 'include',
                     headers: {
                       'Content-Type': 'application/json'
                     }
                   });
+
                   if (!companyRes.ok) {
+                    const errorText = await companyRes.text();
+                    console.error('Company fetch failed:', {
+                      status: companyRes.status,
+                      statusText: companyRes.statusText,
+                      response: errorText
+                    });
                     throw new Error(`Company not found: ${companyRes.status}`);
                   }
+
                   const companyData = await companyRes.json();
                   console.log('Company Data:', companyData);
 
@@ -136,7 +160,7 @@ const Listing = () => {
                         _id: agentData.agent._id,
                         name: agentData.agent.name,
                         email: agentData.agent.email,
-                        contact: agentData.agent.contact,
+                        contact: agentData.agent.phone,
                         avatar: agentData.agent.avatar,
                         averageRating: agentData.agent.averageRating || 0,
                         companyName: companyData.company.companyName,

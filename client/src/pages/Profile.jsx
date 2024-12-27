@@ -7,21 +7,19 @@ import {
   updateUserSuccess,
   updateUserFailure,
   deleteUserStart,
-  deleteUserFailure,
   deleteUserSuccess,
-  signOutUserStart,
-  signOutUserSuccess,
-  signOutUserFailure,
+  deleteUserFailure,
+  signOut
 } from "../redux/user/userSlice.js";
 import { useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 
 const Profile = () => {
   const fileRef = useRef(null);
-  const [file, setFile] = useState(undefined);
-  const { currentUser, loading, error } = useSelector((state) => state.user);
+  const { currentUser, loading, error, isRealEstateCompany, realEstateCompany } = useSelector((state) => state.user);
   const navigate = useNavigate();
 
+  const [file, setFile] = useState(undefined);
   const [filePerc, setFilePerc] = useState(0);
   const [fileUploadError, setFileUploadError] = useState(false);
   const [formData, setFormData] = useState({});
@@ -68,9 +66,50 @@ const Profile = () => {
         setFileUploadError(error);
       },
       () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
-          setFormData({ ...formData, avatar: downloadURL })
-        );
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          // Determine the update endpoint based on user type
+          const updateEndpoint = isRealEstateCompany 
+            ? `/api/real-estate/update-avatar`
+            : `/api/user/update/${currentUser._id}`;
+
+          // Prepare the request body
+          const requestBody = isRealEstateCompany 
+            ? { 
+                companyId: currentUser._id, 
+                avatar: downloadURL, 
+                isCloudinary: false 
+              }
+            : { avatar: downloadURL };
+
+          // Send update request
+          fetch(updateEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Update form data and potentially Redux state
+              setFormData({ ...formData, avatar: downloadURL });
+              
+              // For real estate company, update current user
+              if (isRealEstateCompany) {
+                dispatch(realEstateSignInSuccess({
+                  ...currentUser,
+                  avatar: downloadURL
+                }));
+              } else {
+                dispatch(updateUserSuccess({ ...currentUser, avatar: downloadURL }));
+              }
+            }
+          })
+          .catch(error => {
+            console.error('Avatar update error:', error);
+          });
+        });
       }
     );
   };
@@ -140,16 +179,15 @@ const Profile = () => {
 
   const handleSignOut = async () => {
     try {
-      dispatch(signOutUserStart());
-      const res = await fetch(`/api/auth/signout`);
+      const res = await fetch('/api/auth/signout');
       const data = await res.json();
       if (data.success === false) {
-        dispatch(signOutUserFailure(data.message));
+        console.log(data.message);
         return;
       }
-      dispatch(signOutUserSuccess(data));
+      dispatch(signOut());
     } catch (error) {
-      dispatch(signOutUserFailure(error.message));
+      console.log(error);
     }
   };
 
@@ -220,6 +258,22 @@ const Profile = () => {
     }
   };
 
+  // Determine which avatar to use
+  const getUserAvatar = () => {
+    // For real estate company
+    if (isRealEstateCompany && currentUser?.avatar) {
+      return currentUser.avatar;
+    }
+    
+    // For regular user
+    if (currentUser?.avatar) {
+      return currentUser.avatar;
+    }
+
+    // Fallback to default
+    return "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
+  };
+
   return (
     <div className="p-3 max-w-lg mx-auto">
       <h1 className="text-3xl font-semibold text-center my-7">Profile</h1>
@@ -233,7 +287,7 @@ const Profile = () => {
         />
         <img
           onClick={() => fileRef.current.click()}
-          src={formData.avatar || currentUser.avatar}
+          src={getUserAvatar()}
           alt="profile"
           className="rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2"
         />

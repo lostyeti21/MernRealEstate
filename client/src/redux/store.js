@@ -1,30 +1,51 @@
-import { combineReducers, configureStore } from '@reduxjs/toolkit';
+import { configureStore } from '@reduxjs/toolkit';
+import userReducer from './user/userSlice';
 import { persistStore, persistReducer } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
-import userReducer from './user/userSlice';
-import realEstateReducer from './realEstate/realEstateSlice';
 
+// Load initial state from localStorage
+let preloadedState = {};
+try {
+  const storedUser = localStorage.getItem('currentUser');
+  if (storedUser) {
+    preloadedState = {
+      user: {
+        currentUser: JSON.parse(storedUser),
+        loading: false,
+        error: null
+      }
+    };
+  }
+} catch (error) {
+  console.error('Error loading persisted state:', error);
+}
+
+// Configuration for Redux Persist
 const persistConfig = {
   key: 'root',
   storage,
-  version: 1,
+  whitelist: ['user'] // Only persist user reducer
 };
 
-// Combine reducers
-const rootReducer = combineReducers({
-  user: userReducer,
-  realEstate: realEstateReducer,
-});
-
 // Create persisted reducer
-const persistedReducer = persistReducer(persistConfig, rootReducer);
+const persistedReducer = persistReducer(persistConfig, userReducer);
 
+// Create store with middleware configuration
 export const store = configureStore({
-  reducer: persistedReducer,
+  reducer: {
+    user: persistedReducer
+  },
+  preloadedState,
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: false,
-    }),
+      serializableCheck: {
+        ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE']
+      }
+    })
 });
 
-export const persistor = persistStore(store);
+// Initialize persistor after store creation
+export const persistor = persistStore(store, null, () => {
+  console.log('Rehydration complete');
+  console.log('Current state:', store.getState());
+});

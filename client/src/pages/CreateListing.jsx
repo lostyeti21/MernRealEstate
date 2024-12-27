@@ -7,6 +7,7 @@ const CreateListing = () => {
   const [files, setFiles] = useState([]);
   const [formData, setFormData] = useState({
     imageUrls: [],
+    title: "",
     name: "",
     description: "",
     address: "",
@@ -142,45 +143,152 @@ const CreateListing = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Validate form data before submission
       if (formData.imageUrls.length < 1)
         return setError('You must upload at least one image');
       if (+formData.regularPrice < +formData.discountPrice)
         return setError('Discount price must be lower than regular price');
+
+      // Debug log form data
+      console.log('Form Data:', {
+        ...formData,
+        name: formData.title || formData.name // Handle both title and name fields
+      });
+
+      // Validate required fields
+      const requiredFields = [
+        'title', 'description', 'address', 
+        'regularPrice', 'bedrooms', 'bathrooms', 'type'
+      ];
+      
+      const missingFields = requiredFields.filter(field => {
+        const value = formData[field] || formData[field === 'title' ? 'name' : field];
+        return !value && value !== 0;
+      });
+      
+      if (missingFields.length > 0) {
+        console.error('Missing Fields:', missingFields);
+        setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+
       setLoading(true);
       setError(false);
 
-      const listingData = {
-        ...formData,
-        userRef: currentUser._id,
-        userModel: 'User'
+      // Determine user type and token source
+      const isAgent = currentUser.isAgent || 
+        (currentUser.role === 'agent') || 
+        (currentUser.agents && currentUser.agents.length > 0);
+      const isRealEstateCompany = currentUser.isRealEstateCompany || 
+        (currentUser.role === 'company') || 
+        (currentUser.companyName);
+
+      // Token retrieval with multiple fallback methods
+      const getToken = () => {
+        const tokens = [
+          localStorage.getItem('access_token'),
+          currentUser?.token,
+          isAgent ? localStorage.getItem('agentToken') : null,
+          isRealEstateCompany ? localStorage.getItem('realEstateToken') : null,
+          document.cookie.split('; ')
+            .find(row => row.startsWith('access_token='))
+            ?.split('=')[1]
+        ];
+
+        return tokens.find(token => token && token.trim() !== '');
       };
 
+      const token = getToken();
+
+      // Determine user model based on user type
+      const userModel = 
+        isAgent ? 'Agent' : 
+        isRealEstateCompany ? 'RealEstateCompany' : 
+        'User';
+
+      // Prepare listing data
+      const listingData = {
+        ...formData,
+        title: formData.title || formData.name, // Handle both title and name fields
+        userRef: currentUser._id,
+        userModel: userModel,
+        // Ensure imageUrls is always an array
+        imageUrls: Array.isArray(formData.imageUrls) ? formData.imageUrls : []
+      };
+
+      // Debug logging
+      console.log('Listing Creation Debug:', {
+        userType: {
+          isAgent,
+          isRealEstateCompany
+        },
+        userModel,
+        tokenAvailable: !!token,
+        currentUser,
+        listingData,
+        formData
+      });
+
+      // Enhanced fetch with multiple token passing methods
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': token ? `Bearer ${token}` : '',
+          'X-Access-Token': token || '',
+          'X-User-Model': userModel
         },
         body: JSON.stringify(listingData),
+        credentials: 'include'
       });
 
-      const data = await res.json();
-      setLoading(false);
+      // Detailed error handling
+      if (!res.ok) {
+        let errorText = '';
+        let errorDetails = {};
+        
+        try {
+          errorDetails = await res.json();
+          errorText = errorDetails.message || 'Failed to create listing';
+          
+          // Log the full error response
+          console.error('Server Error Response:', {
+            status: res.status,
+            statusText: res.statusText,
+            errorDetails
+          });
+        } catch {
+          errorText = await res.text() || 'Unknown error occurred';
+        }
 
-      if (data.success === false) {
-        setError(data.message);
+        setError(`Failed to create listing: ${errorText}`);
+        setLoading(false);
+        return;
+      }
+
+      const data = await res.json();
+
+      // Validate successful response
+      if (!data.success) {
+        console.error('Unsuccessful Response:', data);
+        setError(`Failed to create listing: ${data.message || 'Unknown error'}`);
+        setLoading(false);
         return;
       }
 
       // Check if we have a valid listing ID before navigating
       if (!data.listing || !data.listing._id) {
-        setError('Failed to create listing');
+        console.error('Invalid Listing Response:', data);
+        setError('Failed to create listing: No listing ID returned');
+        setLoading(false);
         return;
       }
 
+      setLoading(false);
       navigate(`/listing/${data.listing._id}`);
     } catch (error) {
-      setError(error.message);
+      console.error('Listing Creation Error:', error);
+      setError(`Unexpected error: ${error.message}`);
       setLoading(false);
     }
   };
@@ -215,11 +323,21 @@ const CreateListing = () => {
         <div className="flex flex-col gap-4 flex-1">
           <input
             type="text"
+            id="title"
+            placeholder="Title"
+            maxLength="62"
+            minLength="10"
+            required
+            className="border p-3 rounded-lg"
+            onChange={handleChange}
+            value={formData.title}
+          />
+          <input
+            type="text"
             id="name"
             placeholder="Name"
             maxLength="62"
             minLength="10"
-            required
             className="border p-3 rounded-lg"
             onChange={handleChange}
             value={formData.name}

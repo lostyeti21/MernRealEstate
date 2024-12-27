@@ -16,7 +16,7 @@ import {
   getAgent,
   getCompany
 } from "../controllers/realEstate.controller.js";
-import { RealEstateCompany } from "../models/realEstateCompany.model.js";
+import RealEstateCompany from "../models/realestatecompany.model.js";
 
 const router = express.Router();
 

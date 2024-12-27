@@ -48,15 +48,6 @@ const realEstateCompanySchema = new mongoose.Schema(
       type: String,
       default: "default-company-avatar.png"
     },
-    isCloudinaryAvatar: {
-      type: Boolean,
-      default: false
-    },
-    agents: [agentSchema],
-    companyRating: {
-      type: Number,
-      default: 0,
-    },
     banner: {
       type: String,
       default: ""
@@ -65,32 +56,39 @@ const realEstateCompanySchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    isCloudinaryAvatar: {
+      type: Boolean,
+      default: false
+    },
+    agents: {
+      type: [agentSchema],
+      default: []
+    },
+    companyRating: {
+      type: Number,
+      default: 0
+    }
   },
   { timestamps: true }
 );
 
-// Method to calculate and update company rating
+// Method to update company rating
 realEstateCompanySchema.methods.updateCompanyRating = function() {
-  const ratedAgents = this.agents.filter(agent => 
-    agent.ratings && agent.ratings.length > 0
-  );
-  
-  if (ratedAgents.length === 0) {
+  if (this.agents && this.agents.length > 0) {
+    const totalRatings = this.agents.reduce((sum, agent) => sum + agent.averageRating, 0);
+    this.companyRating = totalRatings / this.agents.length;
+  } else {
     this.companyRating = 0;
-    return;
   }
-  
-  const totalRating = ratedAgents.reduce((sum, agent) => {
-    return sum + agent.averageRating;
-  }, 0);
-  
-  this.companyRating = totalRating / ratedAgents.length;
 };
 
-// Add this before creating the model
+// Pre-save hook to update rating
 realEstateCompanySchema.pre('save', function(next) {
   this.updateCompanyRating();
   next();
 });
 
-export const RealEstateCompany = mongoose.model("RealEstateCompany", realEstateCompanySchema);
+// Use mongoose.models to check if the model exists
+const RealEstateCompany = mongoose.models.RealEstateCompany || mongoose.model('RealEstateCompany', realEstateCompanySchema);
+
+export default RealEstateCompany;

@@ -73,52 +73,43 @@ const AgentListings = () => {
 
   const handleRating = async () => {
     try {
-      const token = localStorage.getItem('realEstateToken');
-      
-      if (!token) {
-        alert('Please sign in to rate agents');
+      const token = localStorage.getItem('access_token');
+      const userId = currentUser._id;
+
+      if (!token || !userId) {
+        setError('You must be logged in to rate an agent');
         return;
       }
 
-      if (!agentData || !agentData._id) {
-        alert('Agent data not loaded properly');
-        return;
-      }
-
-      console.log(`Sending request to: /api/agent/${agentData._id}/rate`);
-
-      const res = await fetch(`/api/agent/${agentData._id}/rate`, {
+      const response = await fetch(`/api/agent/${agentId}/rate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          rating: Number(rating)
+          rating,
+          userId
         })
       });
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Error response:', errorText);
-        throw new Error('Failed to submit rating');
-      }
+      const data = await response.json();
 
-      const data = await res.json();
-
-      if (!data.success) {
+      if (!response.ok) {
         throw new Error(data.message || 'Failed to submit rating');
       }
 
-      setAgentData(prev => ({
-        ...prev,
-        averageRating: data.newAgentRating
-      }));
-      setRated(true);
-
+      if (data.success) {
+        setRated(true);
+        // Update the agent's rating in the UI
+        setAgentData(prev => ({
+          ...prev,
+          averageRating: data.newRating
+        }));
+      }
     } catch (error) {
       console.error('Rating error:', error);
-      alert(error.message || 'Error submitting rating. Please try again.');
+      setError(error.message);
     }
   };
 

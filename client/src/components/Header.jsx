@@ -2,7 +2,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { FaSearch, FaUsers, FaChevronDown, FaHome, FaList } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
-import { signoutSuccess, realEstateSignInSuccess } from '../redux/user/userSlice';
+import { signOut, realEstateSignInSuccess } from '../redux/user/userSlice';
 
 export default function Header() {
   const { currentUser, isRealEstateCompany } = useSelector((state) => state.user);
@@ -12,7 +12,6 @@ export default function Header() {
   const [isAgent, setIsAgent] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const defaultProfilePic = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
   const usersMenuRef = useRef(null);
   const location = useLocation();
   const isHomePage = location.pathname === '/';
@@ -45,12 +44,19 @@ export default function Header() {
 
   // Get the avatar based on user type
   const getAvatar = () => {
+    const defaultProfilePic = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
+    
+    // For Real Estate Company
     if (isRealEstateCompany && currentUser?.avatar) {
       return currentUser.avatar;
     }
+    
+    // For regular user
     if (currentUser?.avatar) {
       return currentUser.avatar;
     }
+
+    // Fallback to default
     return defaultProfilePic;
   };
 
@@ -59,18 +65,27 @@ export default function Header() {
 
   const handleSignOut = async () => {
     try {
+      const res = await fetch('/api/auth/signout');
+      const data = await res.json();
+      
+      if (data.success === false) {
+        console.error('Error signing out:', data.message);
+        return;
+      }
+
       // Clear all auth tokens
       localStorage.removeItem('accessToken');
       localStorage.removeItem('agentToken');
       localStorage.removeItem('realEstateToken');
       localStorage.removeItem('agentInfo');
+      localStorage.removeItem('realEstateCompany');
       
       // Reset states
       setIsAgent(false);
       setIsProfileDropdownOpen(false);
 
       // Dispatch signout action
-      dispatch(signoutSuccess());
+      dispatch(signOut());
 
       // Navigate to home page
       navigate('/');
@@ -86,6 +101,19 @@ export default function Header() {
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
   };
+
+  // Close dropdown when clicking outside
+  const dropdownRef = useRef(null);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsProfileDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <header className={`${
@@ -190,54 +218,46 @@ export default function Header() {
           </div>
 
           {isLoggedIn ? (
-            <div className="relative">
+            <div className='relative' ref={dropdownRef}>
               <img
                 src={getAvatar()}
                 alt="profile"
                 className="h-10 w-10 object-cover cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
+                }}
               />
               {isProfileDropdownOpen && (
-                <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-md shadow-xl z-20">
-                  <button 
-                    onClick={() => {
-                      setIsProfileDropdownOpen(false);
-                      navigate('/profile');
-                    }}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                  >
-                    Profile
-                  </button>
+                <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-md shadow-lg z-20">
+                  <Link to='/profile'>
+                    <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
+                      Profile
+                    </button>
+                  </Link>
 
                   {isRealEstateCompany && (
-                    <button 
-                      onClick={() => {
-                        setIsProfileDropdownOpen(false);
-                        navigate('/real-estate-dashboard');
-                      }}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                    >
-                      Dashboard
-                    </button>
+                    <Link to='/real-estate-dashboard'>
+                      <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
+                        Dashboard
+                      </button>
+                    </Link>
                   )}
 
                   {isAgent && (
-                    <button 
-                      onClick={() => {
-                        setIsProfileDropdownOpen(false);
-                        navigate('/agent-dashboard');
-                      }}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
-                    >
-                      Agent Dashboard
-                    </button>
+                    <Link to='/agent-dashboard'>
+                      <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
+                        Agent Dashboard
+                      </button>
+                    </Link>
                   )}
 
                   <button
                     onClick={handleSignOut}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                    className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
                   >
-                    Sign out
+                    Sign Out
                   </button>
                 </div>
               )}

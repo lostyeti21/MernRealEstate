@@ -1,4 +1,4 @@
-import RealEstateCompany from "../models/realEstateCompany.model.js";
+import RealEstateCompany from "../models/realestatecompany.model.js";
 import User from "../models/user.model.js";
 import bcryptjs from "bcryptjs";
 

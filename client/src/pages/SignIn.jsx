@@ -131,6 +131,7 @@ const SignIn = () => {
     e.preventDefault();
     try {
       dispatch(signInStart());
+      
       const res = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: {
@@ -141,17 +142,28 @@ const SignIn = () => {
       });
 
       const data = await res.json();
-      
+
       if (!data.success) {
         dispatch(signInFailure(data.message));
         return;
       }
 
-      localStorage.setItem('currentUser', JSON.stringify(data.user));
-      dispatch(signInSuccess(data.user));
-      navigate('/');
+      // Store user data in Redux and localStorage
+      const userData = {
+        ...data.user,
+        token: data.user.token
+      };
+
+      localStorage.setItem('currentUser', JSON.stringify(userData));
+      dispatch(signInSuccess(userData));
+
+      // Navigate based on user type
+      if (userData.isAgent) {
+        navigate('/agent-dashboard');
+      } else {
+        navigate('/');
+      }
     } catch (error) {
-      console.error('Sign in error:', error);
       dispatch(signInFailure(error.message));
     }
   };

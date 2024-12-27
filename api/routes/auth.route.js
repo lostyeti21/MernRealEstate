@@ -1,5 +1,5 @@
 import express from "express";
-import { signin, signup, google, signOut } from "../controllers/auth.controller.js";
+import { signin, signup, google, signout } from "../controllers/auth.controller.js";
 import { sendConfirmationCode } from "../controllers/email.controller.js"; // Import the controller for sending confirmation codes
 import User from "../models/user.model.js"; // Import the User model for email checking
 
@@ -15,7 +15,7 @@ router.post("/signin", signin);
 router.post("/google", google);
 
 // Route to handle user signout
-router.get("/signout", signOut);
+router.get("/signout", signout);
 
 // Route to send confirmation codes
 router.post("/send-confirmation-code", sendConfirmationCode);

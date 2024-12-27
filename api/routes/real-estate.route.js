@@ -1,16 +1,32 @@
 import express from 'express';
-import { RealEstateCompany } from '../models/realEstateCompany.model.js';
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import RealEstateCompany from '../models/realestatecompany.model.js';
 import { verifyToken } from '../middleware/auth.js';
-import mongoose from 'mongoose';
+import { 
+  createRealEstateCompany, 
+  signinRealEstateCompany, 
+  updateRealEstateCompany, 
+  deleteRealEstateCompany,
+  addAgent,
+  removeAgent,
+  getRealEstateCompany
+} from '../controllers/real-estate.controller.js';
 
 const router = express.Router();
 
+// Middleware to log all incoming requests
+router.use((req, res, next) => {
+  console.log(`Incoming ${req.method} request to ${req.path}`);
+  next();
+});
+
 // Real Estate Company Sign Up endpoint
-router.post('/sign-up', async (req, res) => {
+router.post('/company-signup', async (req, res) => {
   try {
     const { companyName, email, password, agents } = req.body;
+
+    console.log('Received sign-up request:', { companyName, email, agents: agents?.length });
 
     // Check if company already exists
     const existingCompany = await RealEstateCompany.findOne({
@@ -27,13 +43,13 @@ router.post('/sign-up', async (req, res) => {
     // Hash the company password
     const hashedPassword = await bcryptjs.hash(password, 10);
 
-    // Hash passwords for all agents
-    const agentsWithHashedPasswords = await Promise.all(
+    // Hash passwords for all agents if they exist
+    const agentsWithHashedPasswords = agents ? await Promise.all(
       agents.map(async (agent) => ({
         ...agent,
         password: await bcryptjs.hash(agent.password, 10)
       }))
-    );
+    ) : [];
 
     // Create new company with agents
     const newCompany = new RealEstateCompany({
@@ -47,33 +63,44 @@ router.post('/sign-up', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Company registered successfully'
+      message: 'Company registered successfully',
+      company: {
+        companyName: newCompany.companyName,
+        email: newCompany.email,
+        _id: newCompany._id
+      }
     });
 
   } catch (error) {
     console.error('Error in real estate sign up:', error);
     res.status(500).json({
       success: false,
-      message: 'Error creating company account'
+      message: error.message || 'Error creating company account'
     });
   }
 });
 
-// Update the signin route
+// Company signin route
 router.post('/signin', async (req, res) => {
   try {
+    console.log('Received signin request body:', req.body);
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: 'Email and password are required'
       });
     }
 
-    // Find company by email
-    const company = await RealEstateCompany.findOne({ email });
+    // Find company with all fields
+    const company = await RealEstateCompany.findOne({ email }).select('+banner +isCloudinaryBanner +isCloudinaryAvatar');
+    console.log('Found company:', company ? {
+      id: company._id,
+      hasBanner: !!company.banner,
+      bannerUrl: company.banner
+    } : 'not found');
+
     if (!company) {
       return res.status(404).json({
         success: false,
@@ -81,70 +108,105 @@ router.post('/signin', async (req, res) => {
       });
     }
 
-    // Check password
+    // Verify password
     const validPassword = await bcryptjs.compare(password, company.password);
     if (!validPassword) {
       return res.status(401).json({
         success: false,
-        message: 'Wrong credentials'
+        message: 'Invalid credentials'
       });
     }
 
-    // Create token
+    // Generate token
     const token = jwt.sign(
-      { id: company._id, role: 'realEstate' },
+      { 
+        companyId: company._id,
+        isRealEstateCompany: true 
+      },
       process.env.JWT_SECRET
     );
 
-    // Remove password from company object
-    const { password: pass, ...companyData } = company._doc;
+    // Prepare safe company data including banner and avatar info
+    const safeCompanyData = {
+      _id: company._id,
+      companyName: company.companyName,
+      email: company.email,
+      banner: company.banner || '',
+      isCloudinaryBanner: company.isCloudinaryBanner || false,
+      avatar: company.avatar || 'default-company-avatar.png',
+      isCloudinaryAvatar: company.isCloudinaryAvatar || false,
+      agents: company.agents.map(agent => ({
+        _id: agent._id,
+        name: agent.name,
+        email: agent.email,
+        phone: agent.phone || '',
+        avatar: agent.avatar || ''
+      }))
+    };
 
-    // Send response
-    res.status(200).json({
-      success: true,
-      token,
-      company: companyData
+    console.log('Sending signin response for company:', {
+      id: company._id,
+      hasBanner: !!safeCompanyData.banner,
+      bannerUrl: safeCompanyData.banner
     });
 
+    // Set cookie and send response
+    res
+      .cookie('access_token', token, { httpOnly: true })
+      .status(200)
+      .json({
+        success: true,
+        company: safeCompanyData,
+        token
+      });
+
   } catch (error) {
-    console.error('Real estate signin error:', error);
+    console.error('Error in real estate signin:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Error during sign in'
     });
   }
 });
 
-// Add this route to get company data
-router.get('/company/:companyId', async (req, res) => {
+// Get company by ID
+router.get('/company/:companyId', verifyToken, async (req, res) => {
   try {
+    console.log('Fetching company details for:', req.params.companyId);
+    
     const company = await RealEstateCompany.findById(req.params.companyId);
     
     if (!company) {
+      console.log('Company not found:', req.params.companyId);
       return res.status(404).json({
         success: false,
         message: 'Company not found'
       });
     }
 
-    // Remove sensitive information but keep all other data
-    const { password, ...companyData } = company._doc;
+    // Ensure banner field exists
+    const companyData = company.toObject();
+    if (!companyData.banner) {
+      companyData.banner = '';
+    }
+
+    console.log('Returning company data:', {
+      id: companyData._id,
+      banner: companyData.banner,
+      hasAvatar: !!companyData.avatar,
+      hasBanner: !!companyData.banner
+    });
 
     res.status(200).json({
       success: true,
-      company: {
-        ...companyData,
-        agents: company.agents.map(agent => ({
-          ...agent._doc,
-          password: undefined
-        }))
-      }
+      company: companyData
     });
+
   } catch (error) {
     console.error('Error fetching company:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching company data'
+      message: error.message
     });
   }
 });
@@ -184,7 +246,7 @@ router.get("/agent/:agentId", async (req, res) => {
     console.error('Error in /agent/:agentId route:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Error fetching agent data'
     });
   }
 });
@@ -195,6 +257,8 @@ router.post("/agent/:agentId/rate", verifyToken, async (req, res) => {
     const { agentId } = req.params;
     const { rating } = req.body;
     const userId = req.user.id;
+
+    console.log('Received rating request:', { agentId, rating });
 
     // Validate rating
     if (!rating || rating < 1 || rating > 5) {
@@ -248,7 +312,7 @@ router.post("/agent/:agentId/rate", verifyToken, async (req, res) => {
     console.error('Error rating agent:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Error rating agent'
     });
   }
 });
@@ -258,17 +322,25 @@ router.post("/update-avatar", async (req, res) => {
   try {
     const { companyId, avatar, isCloudinary } = req.body;
     
-    const updateData = {
-      avatar,
-      isCloudinaryAvatar: isCloudinary // Add flag to track URL type
-    };
+    console.log('Received avatar update request:', { 
+      companyId, 
+      avatar, 
+      isCloudinary,
+      avatarType: typeof avatar,
+      avatarLength: avatar ? avatar.length : 'N/A'
+    });
 
-    const company = await RealEstateCompany.findByIdAndUpdate(
-      companyId,
-      updateData,
-      { new: true }
-    );
+    // Validate input
+    if (!companyId || !avatar) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID and avatar are required'
+      });
+    }
 
+    // Find the company
+    const company = await RealEstateCompany.findById(companyId);
+    
     if (!company) {
       return res.status(404).json({
         success: false,
@@ -276,15 +348,25 @@ router.post("/update-avatar", async (req, res) => {
       });
     }
 
+    // Update avatar
+    company.avatar = avatar;
+    await company.save();
+
+    console.log('Avatar updated successfully:', {
+      companyName: company.companyName,
+      newAvatarUrl: avatar
+    });
+
     res.status(200).json({
       success: true,
-      company
+      message: 'Avatar updated successfully',
+      avatar: avatar
     });
   } catch (error) {
     console.error('Error updating avatar:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Error updating avatar'
     });
   }
 });
@@ -293,6 +375,8 @@ router.post("/update-banner", async (req, res) => {
   try {
     const { companyId, banner, isCloudinary } = req.body;
     
+    console.log('Received banner update request:', { companyId, banner });
+
     const updateData = {
       banner,
       isCloudinaryBanner: isCloudinary // Add flag to track URL type
@@ -319,40 +403,45 @@ router.post("/update-banner", async (req, res) => {
     console.error('Error updating banner:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Error updating banner'
     });
   }
 });
 
 // Add or update the agent signin route
-router.post('/agent/signin', async (req, res) => {
+router.post('/agent-signin', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { companyName, email, password } = req.body;
+
+    console.log('Received agent signin request:', { companyName, email });
 
     // Validate input
-    if (!email || !password) {
+    if (!companyName || !email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: 'Please provide company name, email, and password'
       });
     }
 
-    // Find company that has an agent with this email
-    const company = await RealEstateCompany.findOne({
-      'agents.email': email
-    });
-
+    // Find company by name
+    const company = await RealEstateCompany.findOne({ companyName });
     if (!company) {
       return res.status(404).json({
         success: false,
-        message: 'Agent not found'
+        message: 'Company not found'
       });
     }
 
-    // Find the agent
+    // Find the specific agent within the company
     const agent = company.agents.find(a => a.email === email);
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found in the company'
+      });
+    }
 
-    // Verify password
+    // Check agent password
     const validPassword = await bcryptjs.compare(password, agent.password);
     if (!validPassword) {
       return res.status(401).json({
@@ -366,30 +455,38 @@ router.post('/agent/signin', async (req, res) => {
       { 
         id: agent._id, 
         role: 'agent',
-        companyId: company._id 
+        companyId: company._id,
+        companyName: company.companyName,
+        email: agent.email
       },
       process.env.JWT_SECRET
     );
 
-    // Remove password from agent object
-    const agentWithoutPassword = {
-      ...agent.toObject(),
-      password: undefined,
-      companyId: company._id,
-      companyName: company.companyName
-    };
+    // Prepare agent data to return
+    const { password: pass, ...agentData } = agent.toObject();
 
+    // Send response
     res.status(200).json({
       success: true,
       token,
-      agent: agentWithoutPassword
+      agent: {
+        _id: agent._id,
+        name: agent.name,
+        email: agent.email,
+        contact: agent.contact,
+        avatar: agent.avatar || null,
+        companyName: company.companyName,
+        companyId: company._id
+      }
     });
 
   } catch (error) {
     console.error('Agent signin error:', error);
+    
+    // Ensure a proper JSON response
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: error.message || 'Internal server error'
     });
   }
 });
@@ -398,6 +495,8 @@ router.post('/agent/signin', async (req, res) => {
 router.post('/agent/update-profile', verifyToken, async (req, res) => {
   try {
     const { agentId, avatar, contact } = req.body;
+
+    console.log('Received agent profile update request:', { agentId, avatar, contact });
 
     // Find company that has this agent
     const company = await RealEstateCompany.findOne({
@@ -443,9 +542,220 @@ router.post('/agent/update-profile', verifyToken, async (req, res) => {
     console.error('Error updating agent profile:', error);
     res.status(500).json({
       success: false,
+      message: error.message || 'Error updating agent profile'
+    });
+  }
+});
+
+// Add this route near the other agent routes
+router.get('/agent/:agentId', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    console.log('Fetching agent details for:', agentId);
+
+    // Find company containing this agent
+    const company = await RealEstateCompany.findOne({
+      'agents._id': agentId
+    });
+
+    if (!company) {
+      console.log('Company not found for agent:', agentId);
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found'
+      });
+    }
+
+    // Find the specific agent in the company
+    const agent = company.agents.find(a => 
+      a._id.toString() === agentId
+    );
+
+    if (!agent) {
+      console.log('Agent not found in company');
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found'
+      });
+    }
+
+    // Return agent data with company info
+    res.status(200).json({
+      success: true,
+      agent: {
+        _id: agent._id,
+        name: agent.name,
+        email: agent.email,
+        phone: agent.phone || '',
+        avatar: agent.avatar || '',
+        companyId: company._id,
+        companyName: company.companyName,
+        companyEmail: company.email || '',
+        companyPhone: company.phone || '',
+        companyAddress: company.address || '',
+        averageRating: agent.averageRating || 0,
+        ratings: agent.ratings || []
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching agent:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching agent details'
+    });
+  }
+});
+
+// Get company details
+router.get('/:companyId', async (req, res) => {
+  try {
+    console.log('Fetching company details for:', req.params.companyId);
+    
+    const company = await RealEstateCompany.findById(req.params.companyId)
+      .select('-password')  // Exclude password
+      .populate({
+        path: 'agents',
+        select: '-password', // Exclude agent passwords
+      });
+    
+    if (!company) {
+      console.log('Company not found:', req.params.companyId);
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found'
+      });
+    }
+
+    console.log('Found company with agents:', {
+      companyId: company._id,
+      agentsCount: company.agents?.length || 0
+    });
+
+    // Return company data without sensitive information
+    res.status(200).json({
+      success: true,
+      company: {
+        _id: company._id,
+        companyName: company.companyName,
+        email: company.email,
+        phone: company.phone || '',
+        address: company.address || '',
+        avatar: company.avatar || '',
+        companyRating: company.companyRating || 0,
+        agents: company.agents?.map(agent => ({
+          _id: agent._id,
+          name: agent.name,
+          email: agent.email,
+          phone: agent.phone || '',
+          avatar: agent.avatar || '',
+          averageRating: agent.averageRating || 0
+        })) || []
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching company:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching company details'
+    });
+  }
+});
+
+// Update company
+router.put('/company/update/:id', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    console.log('Incoming company update request:', {
+      id,
+      updates,
+      hasBanner: !!updates.banner,
+      bannerUrl: updates.banner
+    });
+
+    // Find and update company
+    const company = await RealEstateCompany.findById(id);
+    
+    if (!company) {
+      console.log('Company not found:', id);
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found'
+      });
+    }
+
+    console.log('Found company before update:', {
+      id: company._id,
+      currentBanner: company.banner,
+      isCloudinaryBanner: company.isCloudinaryBanner
+    });
+
+    // Update fields
+    if (updates.banner) {
+      console.log('Updating banner:', updates.banner);
+      company.banner = updates.banner;
+      company.isCloudinaryBanner = true;
+    }
+    if (updates.avatar) {
+      company.avatar = updates.avatar;
+      company.isCloudinaryAvatar = true;
+    }
+    if (updates.companyName) company.companyName = updates.companyName;
+    if (updates.email) company.email = updates.email;
+    if (updates.password) {
+      company.password = await bcryptjs.hash(updates.password, 10);
+    }
+
+    console.log('Saving company with updates:', {
+      id: company._id,
+      newBanner: company.banner,
+      isCloudinaryBanner: company.isCloudinaryBanner
+    });
+
+    await company.save();
+
+    // Get updated company data
+    const updatedCompany = await RealEstateCompany.findById(id);
+    console.log('Company after save:', {
+      id: updatedCompany._id,
+      hasBanner: !!updatedCompany.banner,
+      bannerUrl: updatedCompany.banner
+    });
+
+    const { password, ...rest } = updatedCompany.toObject();
+    
+    console.log('Sending response:', {
+      success: true,
+      hasBanner: !!rest.banner,
+      bannerUrl: rest.banner
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Company updated successfully',
+      company: rest
+    });
+  } catch (error) {
+    console.error('Error updating company:', error);
+    res.status(500).json({
+      success: false,
       message: error.message
     });
   }
 });
 
-export default router; 
+// Real Estate Company Routes
+router.post('/create', createRealEstateCompany);
+router.post('/signin', signinRealEstateCompany);
+router.put('/update/:id', verifyToken, updateRealEstateCompany);
+router.delete('/delete/:id', verifyToken, deleteRealEstateCompany);
+router.get('/:id', verifyToken, getRealEstateCompany);
+
+// Agent Management Routes
+router.post('/:companyId/agents', verifyToken, addAgent);
+router.delete('/:companyId/agents/:agentId', verifyToken, removeAgent);
+
+export default router;
