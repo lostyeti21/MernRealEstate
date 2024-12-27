@@ -200,7 +200,8 @@ export const getListings = async (req, res, next) => {
     if (req.query.offer) query.offer = req.query.offer === 'true';
     if (req.query.furnished) query.furnished = req.query.furnished === 'true';
     if (req.query.parking) query.parking = req.query.parking === 'true';
-    if (req.query.type) query.type = req.query.type;
+    if (req.query.type && req.query.type !== 'all') query.type = req.query.type;
+    if (req.query.userModel && req.query.userModel !== 'all') query.userModel = req.query.userModel;
 
     // Price and bedrooms range filters
     if (req.query.searchTerm) {

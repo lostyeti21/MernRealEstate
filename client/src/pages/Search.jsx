@@ -24,6 +24,7 @@ export default function Search() {
   const initialState = {
     searchTerm: '',
     type: 'all',
+    userModel: 'all',
     parking: false,
     furnished: false,
     backupPower: false,
@@ -197,6 +198,24 @@ export default function Search() {
               value={sidebardata.searchTerm}
               onChange={handleChange}
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold">Listed By:</label>
+            {['all', 'Agent', 'User'].map((model) => (
+              <div className="flex items-center gap-2" key={model}>
+                <input
+                  type="radio"
+                  id="userModel"
+                  value={model}
+                  name="userModel"
+                  className="w-5"
+                  onChange={handleChange}
+                  checked={sidebardata.userModel === model}
+                />
+                <span>{model === 'all' ? 'All' : `${model}s`}</span>
+              </div>
+            ))}
           </div>
 
           <div className="flex flex-col gap-2">

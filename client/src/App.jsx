@@ -30,6 +30,7 @@ import AddAgent from './pages/AddAgent';
 import AgentProfile from './pages/AgentProfile';
 import RealEstateCompanies from './pages/RealEstateCompanies';
 import AgentCreateListing from './pages/AgentCreateListing';
+import AgentListing from "./pages/AgentListing";
 
 const App = () => {
   return (
@@ -47,6 +48,7 @@ const App = () => {
         <Route path="/sign-up" element={<SignUp />} />
         <Route path="/about" element={<About />} />
         <Route path="/listing/:listingId" element={<Listing />} />
+        <Route path="/agent-listing/:listingId" element={<AgentListing />} />
         <Route path="/search" element={<Search />} />
         <Route path="/real-estate-signup" element={<RealEstateSignUp />} />
         <Route path="/admin-sign-in" element={<AdminSignIn />} />

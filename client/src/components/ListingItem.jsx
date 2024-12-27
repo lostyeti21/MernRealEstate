@@ -29,7 +29,8 @@ export default function ListingItem({ listing }) {
     furnished,
     backupPower,
     backupWaterSupply,
-    boreholeWater
+    boreholeWater,
+    userModel
   } = listing;
 
   // Format price with proper checks
@@ -40,6 +41,9 @@ export default function ListingItem({ listing }) {
 
   // Determine the display price
   const displayPrice = offer ? formatPrice(discountPrice) : formatPrice(regularPrice);
+
+  // Determine the listing route based on userModel
+  const listingRoute = userModel === 'Agent' ? `/agent-listing/${_id}` : `/listing/${_id}`;
 
   return (
     <div className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px]'>
@@ -52,7 +56,7 @@ export default function ListingItem({ listing }) {
         {type === 'sale' ? 'For Sale' : 'For Rent'}
       </div>
 
-      <Link to={`/listing/${_id}`}>
+      <Link to={listingRoute}>
         <img
           src={imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
           alt='listing cover'
