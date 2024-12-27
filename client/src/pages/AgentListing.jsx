@@ -317,13 +317,13 @@ const AgentListing = () => {
                     )
                   )}
                 </div>
-                {agent.contact && currentUser && (
+                {agent.contact && (
                   <div className="mt-2 flex items-center gap-2 text-gray-600">
                     <FaPhoneAlt className="text-green-600" />
                     <span>{agent.contact}</span>
                   </div>
                 )}
-                {agent.email && currentUser && (
+                {agent.email && (
                   <div className="mt-1 flex items-center gap-2 text-gray-600">
                     <FaEnvelope className="text-green-600" />
                     <span>{agent.email}</span>
