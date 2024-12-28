@@ -93,7 +93,7 @@ export default function RealEstateDashboard() {
       const uploadData = await uploadRes.json();
       
       // Update company avatar
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('realEstateToken');
       const companyInfo = JSON.parse(localStorage.getItem('realEstateCompany'));
 
       const updateRes = await fetch('/api/real-estate/update-avatar', {
@@ -133,7 +133,7 @@ export default function RealEstateDashboard() {
 
     try {
       setDeleteLoading(true);
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('realEstateToken');
       
       const res = await fetch(`/api/real-estate/remove-agent/${agentToDelete._id}`, {
         method: 'DELETE',
@@ -195,7 +195,7 @@ export default function RealEstateDashboard() {
       const formData = new FormData();
       formData.append('image', file);
 
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('realEstateToken');
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -258,7 +258,7 @@ export default function RealEstateDashboard() {
       formData.append('image', file);
 
       // Get company info and token
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('realEstateToken');
       let companyInfo;
       try {
         const storedInfo = localStorage.getItem('realEstateCompany');
@@ -426,7 +426,7 @@ export default function RealEstateDashboard() {
         setError(null);
 
         // Get token and stored company info
-        const token = localStorage.getItem('access_token');
+        const token = localStorage.getItem('realEstateToken');
         const storedCompanyInfo = localStorage.getItem('realEstateCompany');
         
         console.log('Initial stored company info:', storedCompanyInfo);
@@ -441,17 +441,29 @@ export default function RealEstateDashboard() {
 
         if (!token || !parsedCompanyInfo?._id) {
           console.error('Missing token or company ID');
-          navigate('/real-estate-login');
+          navigate('/real-estate-login', { replace: true });
           return;
         }
 
         // Fetch fresh company data
-        const response = await fetch(`/api/company/${parsedCompanyInfo._id}`, {
+        const response = await fetch(`/api/real-estate/company/${parsedCompanyInfo._id}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Server response:', errorText);
+          if (response.status === 401) {
+            localStorage.removeItem('realEstateToken');
+            localStorage.removeItem('realEstateCompany');
+            navigate('/real-estate-login', { replace: true });
+            return;
+          }
+          throw new Error('Failed to fetch company data');
+        }
 
         const data = await response.json();
         console.log('Received fresh company data:', data);
@@ -477,6 +489,11 @@ export default function RealEstateDashboard() {
       } catch (error) {
         console.error('Error loading company data:', error);
         setError(error.message);
+        if (error.message.includes('Authentication') || error.message.includes('token')) {
+          localStorage.removeItem('realEstateToken');
+          localStorage.removeItem('realEstateCompany');
+          navigate('/real-estate-login', { replace: true });
+        }
       } finally {
         setLoading(false);
       }
@@ -543,7 +560,7 @@ export default function RealEstateDashboard() {
         setListingsLoading(true);
         setListingsError(null);
         
-        const token = localStorage.getItem('access_token');
+        const token = localStorage.getItem('realEstateToken');
         const companyInfo = safeJSONParse(localStorage.getItem('realEstateCompany'));
 
         if (!token || !companyInfo?._id) {
@@ -629,7 +646,7 @@ export default function RealEstateDashboard() {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('realEstateToken');
       if (!token) {
         throw new Error('Authentication required');
       }
@@ -683,6 +700,55 @@ export default function RealEstateDashboard() {
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add delete agent handler
+  const handleDeleteAgent = async (agentId, agentName) => {
+    if (!window.confirm(`Are you sure you want to delete agent ${agentName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('realEstateToken');
+      const companyData = JSON.parse(localStorage.getItem('realEstateCompany'));
+      
+      if (!token || !companyData) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`/api/real-estate/${companyData._id}/agents/${agentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Server response:', errorData);
+        throw new Error('Failed to delete agent');
+      }
+
+      // Update local state
+      setCompanyData(prev => ({
+        ...prev,
+        agents: prev.agents.filter(agent => agent._id !== agentId)
+      }));
+
+      // Update localStorage
+      const storedCompany = JSON.parse(localStorage.getItem('realEstateCompany'));
+      const updatedCompany = {
+        ...storedCompany,
+        agents: storedCompany.agents.filter(agent => agent._id !== agentId)
+      };
+      localStorage.setItem('realEstateCompany', JSON.stringify(updatedCompany));
+
+      alert('Agent deleted successfully');
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      alert(error.message || 'Failed to delete agent');
     }
   };
 
@@ -797,6 +863,18 @@ export default function RealEstateDashboard() {
               <Link
                 to="/add-agent"
                 className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const token = localStorage.getItem('realEstateToken');
+                  const companyData = localStorage.getItem('realEstateCompany');
+                  
+                  if (!token || !companyData) {
+                    navigate('/real-estate-login', { replace: true });
+                    return;
+                  }
+                  
+                  navigate('/add-agent');
+                }}
               >
                 Add New Agent
               </Link>
@@ -833,6 +911,12 @@ export default function RealEstateDashboard() {
                     <StarRating rating={agent.averageRating || 0} />
                     <span className="ml-2">({agent.averageRating?.toFixed(1) || 'N/A'})</span>
                   </div>
+                  <button
+                    onClick={() => handleDeleteAgent(agent._id, agent.name)}
+                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 mt-4"
+                  >
+                    Delete Agent
+                  </button>
                 </div>
                 );
               })}

@@ -42,6 +42,8 @@ const userSlice = createSlice({
       state.currentUser = action.payload;
       state.loading = false;
       state.error = null;
+      // Set isAgent flag based on the user data
+      state.isAgent = action.payload.isAgent || false;
       // Save to localStorage
       localStorage.setItem('currentUser', JSON.stringify(action.payload));
     },

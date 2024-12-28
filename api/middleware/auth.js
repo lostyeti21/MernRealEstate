@@ -35,6 +35,7 @@ export const verifyToken = async (req, res, next) => {
         companyName: company.companyName,
         email: company.email
       };
+      next();
     } else if (decoded.isAgent) {
       // Find the company that has this agent
       const company = await RealEstateCompany.findOne({
@@ -54,24 +55,30 @@ export const verifyToken = async (req, res, next) => {
       // Add agent info to request
       req.user = {
         _id: agent._id,
-        companyId: company._id,
         isAgent: true,
+        name: agent.name,
         email: agent.email,
-        name: agent.name
+        companyId: company._id,
+        companyName: company.companyName
       };
+      next();
     } else {
-      // Regular user verification
+      // Handle regular user authentication
       const user = await User.findById(decoded.id);
       if (!user) {
         return next(errorHandler(401, 'User not found'));
       }
-      req.user = user;
-    }
 
-    next();
+      req.user = {
+        _id: user._id,
+        username: user.username,
+        email: user.email
+      };
+      next();
+    }
   } catch (error) {
     console.error('Token verification error:', error);
-    next(errorHandler(401, 'Invalid token'));
+    return next(errorHandler(401, 'Invalid token'));
   }
 };
 

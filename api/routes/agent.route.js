@@ -449,6 +449,58 @@ router.post('/update-email/:agentId', verifyAgent, async (req, res) => {
   }
 });
 
+// Add route for updating agent name
+router.post('/update-name/:agentId', verifyAgent, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required'
+      });
+    }
+
+    const company = await RealEstateCompany.findOne({
+      'agents._id': new mongoose.Types.ObjectId(agentId)
+    });
+
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found'
+      });
+    }
+
+    const agentIndex = company.agents.findIndex(
+      agent => agent._id.toString() === agentId
+    );
+
+    if (agentIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found'
+      });
+    }
+
+    company.agents[agentIndex].name = name;
+    await company.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Name updated successfully',
+      name: name
+    });
+  } catch (error) {
+    console.error('Error updating name:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 // Add this route to handle agent ratings
 router.post('/:agentId/rate', verifyToken, async (req, res) => {
   try {

@@ -48,7 +48,7 @@ app.use('/api/user', userRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/listing', listingRouter);
 app.use('/api/agent', agentRouter);
-app.use('/api/company', companyRouter);
+app.use('/api/real-estate', companyRouter);
 app.use('/api/upload', uploadRouter);
 
 // Only serve static files in production

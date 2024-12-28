@@ -170,6 +170,54 @@ router.post('/signin', async (req, res) => {
 });
 
 // Get company by ID
+router.get('/company/:id', async (req, res) => {
+  try {
+    console.log('Fetching company with ID:', req.params.id);
+    
+    const company = await RealEstateCompany.findById(req.params.id)
+      .select('-password')  // Exclude password
+      .select('+banner +isCloudinaryBanner +isCloudinaryAvatar'); // Include these fields
+    
+    if (!company) {
+      console.log('Company not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found'
+      });
+    }
+
+    console.log('Found company:', {
+      id: company._id,
+      name: company.companyName,
+      agentsCount: company.agents?.length
+    });
+
+    res.status(200).json({
+      success: true,
+      company: {
+        _id: company._id,
+        companyName: company.companyName,
+        email: company.email,
+        agents: company.agents,
+        avatar: company.avatar,
+        banner: company.banner,
+        isCloudinaryAvatar: company.isCloudinaryAvatar,
+        isCloudinaryBanner: company.isCloudinaryBanner,
+        companyRating: company.companyRating,
+        createdAt: company.createdAt,
+        updatedAt: company.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching company:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error fetching company data'
+    });
+  }
+});
+
+// Get company by ID
 router.get('/company/:companyId', verifyToken, async (req, res) => {
   try {
     console.log('Fetching company details for:', req.params.companyId);
@@ -743,6 +791,90 @@ router.put('/company/update/:id', verifyToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+});
+
+// Add Agent route
+router.post('/add-agent', verifyToken, async (req, res) => {
+  try {
+    console.log('Received add agent request:', req.body);
+    const { companyId, agent } = req.body;
+    const { name, email, password, contact } = agent;
+
+    // Validate required fields
+    if (!companyId || !name || !email || !password || !contact) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Find the company
+    const company = await RealEstateCompany.findById(companyId);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found'
+      });
+    }
+
+    // Check if agent with email already exists
+    const existingAgent = company.agents.find(a => a.email === email);
+    if (existingAgent) {
+      return res.status(400).json({
+        success: false,
+        message: 'An agent with this email already exists'
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcryptjs.hash(password, 10);
+
+    // Create new agent object
+    const newAgent = {
+      name,
+      email,
+      password: hashedPassword,
+      contact,
+      avatar: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
+      ratings: [],
+      averageRating: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Add agent to company
+    company.agents.push(newAgent);
+    await company.save();
+
+    // Get the newly added agent (exclude password)
+    const addedAgent = company.agents[company.agents.length - 1];
+    const agentResponse = {
+      _id: addedAgent._id,
+      name: addedAgent.name,
+      email: addedAgent.email,
+      contact: addedAgent.contact,
+      avatar: addedAgent.avatar,
+      ratings: addedAgent.ratings,
+      averageRating: addedAgent.averageRating,
+      createdAt: addedAgent.createdAt,
+      updatedAt: addedAgent.updatedAt
+    };
+
+    console.log('Successfully added agent:', agentResponse);
+
+    res.status(201).json({
+      success: true,
+      message: 'Agent added successfully',
+      agent: agentResponse
+    });
+
+  } catch (error) {
+    console.error('Error adding agent:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error adding agent'
     });
   }
 });

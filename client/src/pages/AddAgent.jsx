@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 
 export default function AddAgent() {
   const [formData, setFormData] = useState({
@@ -11,6 +12,32 @@ export default function AddAgent() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { currentUser, isRealEstateCompany } = useSelector((state) => state.user);
+
+  // Check authentication on mount
+  useEffect(() => {
+    // Check authentication on mount
+    const token = localStorage.getItem('realEstateToken');
+    const companyData = localStorage.getItem('realEstateCompany');
+    
+    if (!token || !companyData) {
+      navigate('/real-estate-login', { replace: true });
+      return;
+    }
+
+    try {
+      // Verify the token and company data are valid
+      const parsedCompanyData = JSON.parse(companyData);
+      if (!parsedCompanyData._id) {
+        throw new Error('Invalid company data');
+      }
+    } catch (error) {
+      console.error('Error parsing company data:', error);
+      localStorage.removeItem('realEstateToken');
+      localStorage.removeItem('realEstateCompany');
+      navigate('/real-estate-login', { replace: true });
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({
@@ -33,10 +60,25 @@ export default function AddAgent() {
       }
       
       const token = localStorage.getItem('realEstateToken');
-      if (!token) {
+      const companyData = JSON.parse(localStorage.getItem('realEstateCompany'));
+      
+      if (!token || !companyData) {
+        setError('Please login as a real estate company first');
         navigate('/real-estate-login');
         return;
       }
+
+      // Log the request data
+      console.log('Sending request with:', {
+        token,
+        companyId: companyData._id,
+        agent: {
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          contact: formData.contact
+        }
+      });
 
       const res = await fetch('/api/real-estate/add-agent', {
         method: 'POST',
@@ -45,20 +87,45 @@ export default function AddAgent() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          ...formData,
-          avatar: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png' // Default avatar
+          companyId: companyData._id,
+          agent: {
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            contact: formData.contact
+          }
         })
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (error) {
+        console.error('Error parsing response:', error);
+        const text = await res.text();
+        console.error('Raw response:', text);
+        throw new Error('Invalid response from server');
+      }
 
-      if (!res.ok) {
+      console.log('Response:', data);
+
+      if (!res.ok || data.success === false) {
         throw new Error(data.message || 'Failed to add agent');
       }
 
+      // Update company data in localStorage with new agent
+      const updatedCompanyData = {
+        ...companyData,
+        agents: [...companyData.agents, data.agent]
+      };
+      localStorage.setItem('realEstateCompany', JSON.stringify(updatedCompanyData));
+
+      // Show success message
+      alert('Agent added successfully!');
       navigate('/real-estate-dashboard');
     } catch (error) {
-      setError(error.message);
+      console.error('Error adding agent:', error);
+      setError(error.message || 'Failed to add agent. Please try again.');
     } finally {
       setLoading(false);
     }

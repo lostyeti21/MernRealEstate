@@ -231,34 +231,53 @@ export default function Header() {
               />
               {isProfileDropdownOpen && (
                 <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-md shadow-lg z-20">
-                  <Link to='/profile'>
-                    <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
-                      Profile
-                    </button>
-                  </Link>
-
-                  {isRealEstateCompany && (
-                    <Link to='/real-estate-dashboard'>
-                      <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
-                        Dashboard
+                  {/* Show different options based on user type */}
+                  {isAgent ? (
+                    // Agent options
+                    <>
+                      <Link to='/agent-dashboard'>
+                        <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
+                          Agent Dashboard
+                        </button>
+                      </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+                      >
+                        Sign Out
                       </button>
-                    </Link>
-                  )}
-
-                  {isAgent && (
-                    <Link to='/agent-dashboard'>
-                      <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
-                        Agent Dashboard
+                    </>
+                  ) : isRealEstateCompany ? (
+                    // Real Estate Company options
+                    <>
+                      <Link to='/real-estate-dashboard'>
+                        <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
+                          Dashboard
+                        </button>
+                      </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+                      >
+                        Sign Out
                       </button>
-                    </Link>
+                    </>
+                  ) : (
+                    // Regular user options
+                    <>
+                      <Link to='/profile'>
+                        <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
+                          Profile
+                        </button>
+                      </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+                      >
+                        Sign Out
+                      </button>
+                    </>
                   )}
-
-                  <button
-                    onClick={handleSignOut}
-                    className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
-                  >
-                    Sign Out
-                  </button>
                 </div>
               )}
             </div>

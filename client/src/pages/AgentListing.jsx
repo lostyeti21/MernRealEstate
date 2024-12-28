@@ -113,10 +113,10 @@ const AgentListing = () => {
               if (companyId) {
                 console.log('Fetching company details:', {
                   companyId,
-                  url: `/api/company/${companyId}`
+                  url: `/api/real-estate/company/${companyId}`
                 });
 
-                const companyRes = await fetch(`/api/company/${companyId}`, {
+                const companyRes = await fetch(`/api/real-estate/company/${companyId}`, {
                   credentials: 'include',
                   headers: {
                     'Content-Type': 'application/json'

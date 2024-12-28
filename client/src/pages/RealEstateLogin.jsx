@@ -25,7 +25,7 @@ export default function RealEstateLogin() {
       setError(null);
       dispatch(signInStart());
 
-      const res = await fetch('/api/company/signin', {
+      const res = await fetch('/api/real-estate/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -43,7 +43,7 @@ export default function RealEstateLogin() {
 
       // Store token
       if (data.token) {
-        localStorage.setItem('access_token', data.token);
+        localStorage.setItem('realEstateToken', data.token);
       }
       
       // Store complete company data including banner

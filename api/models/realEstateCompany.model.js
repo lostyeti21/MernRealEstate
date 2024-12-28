@@ -75,10 +75,17 @@ const realEstateCompanySchema = new mongoose.Schema(
 // Method to update company rating
 realEstateCompanySchema.methods.updateCompanyRating = function() {
   if (this.agents && this.agents.length > 0) {
-    const totalRatings = this.agents.reduce((sum, agent) => sum + agent.averageRating, 0);
-    this.companyRating = totalRatings / this.agents.length;
+    // Only consider agents who have been rated (have entries in ratedBy array)
+    const ratedAgents = this.agents.filter(agent => agent.ratedBy && agent.ratedBy.length > 0);
+    
+    if (ratedAgents.length > 0) {
+      const totalRatings = ratedAgents.reduce((sum, agent) => sum + agent.averageRating, 0);
+      this.companyRating = totalRatings / ratedAgents.length;
+    } else {
+      this.companyRating = 0; // No agents have been rated yet
+    }
   } else {
-    this.companyRating = 0;
+    this.companyRating = 0; // No agents in company
   }
 };
 

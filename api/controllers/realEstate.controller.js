@@ -83,9 +83,29 @@ export const agentSignin = async (req, res) => {
 // Add Agent
 export const addAgent = async (req, res, next) => {
   try {
-    const { companyId } = req.body;
-    const { name, email, password, contact } = req.body.agent;
+    console.log('Request body:', req.body);
+    console.log('Request user:', req.user);
 
+    const { companyId, agent } = req.body;
+    const { name, email, password, contact } = agent;
+
+    // Validate required fields
+    if (!companyId || !name || !email || !password || !contact) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Verify that the company making the request matches the companyId
+    if (req.user._id.toString() !== companyId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to add agent to this company'
+      });
+    }
+
+    // Find the company
     const company = await RealEstateCompany.findById(companyId);
     if (!company) {
       return res.status(404).json({
@@ -95,43 +115,62 @@ export const addAgent = async (req, res, next) => {
     }
 
     // Check if agent with email already exists
-    const existingAgent = company.agents.find(agent => agent.email === email);
+    const existingAgent = company.agents.find(a => a.email === email);
     if (existingAgent) {
       return res.status(400).json({
         success: false,
-        message: 'Agent with this email already exists'
+        message: 'An agent with this email already exists'
       });
     }
 
-    // Hash the password
+    // Hash password
     const hashedPassword = await bcryptjs.hash(password, 10);
 
-    // Create new agent with contact as string
+    // Create new agent object
     const newAgent = {
       name,
       email,
       password: hashedPassword,
-      contact, // Store contact directly as string
-      avatar: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png",
+      contact,
+      avatar: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
       ratings: [],
-      averageRating: 0
+      averageRating: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
+    // Add agent to company
     company.agents.push(newAgent);
     await company.save();
+
+    // Get the newly added agent (exclude password)
+    const addedAgent = company.agents[company.agents.length - 1];
+    const agentResponse = {
+      _id: addedAgent._id,
+      name: addedAgent.name,
+      email: addedAgent.email,
+      contact: addedAgent.contact,
+      avatar: addedAgent.avatar,
+      ratings: addedAgent.ratings,
+      averageRating: addedAgent.averageRating,
+      createdAt: addedAgent.createdAt,
+      updatedAt: addedAgent.updatedAt
+    };
+
+    console.log('Successfully added agent:', agentResponse);
 
     res.status(201).json({
       success: true,
       message: 'Agent added successfully',
-      agent: {
-        ...newAgent,
-        password: undefined
-      }
+      agent: agentResponse
     });
 
   } catch (error) {
     console.error('Error adding agent:', error);
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error adding agent'
+    });
   }
 };
 

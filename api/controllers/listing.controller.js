@@ -96,17 +96,56 @@ export const updateListing = async (req, res, next) => {
       });
     }
 
+    // Convert IDs to strings for comparison
+    const listingUserId = listing.userRef.toString();
+    const requestUserId = req.user.isAgent ? req.user._id.toString() : req.user.id;
+
     // Check if user has permission to update
-    if (listing.userRef.toString() !== req.user.id && !req.user.isAdmin) {
+    if (listingUserId !== requestUserId) {
       return res.status(401).json({
         success: false,
         message: 'You can only update your own listings!'
       });
     }
 
+    // Prepare update data
+    const updateData = {
+      ...req.body,
+      userRef: req.user.isAgent ? req.user._id : req.user.id,
+      userModel: req.user.isAgent ? 'Agent' : 'User'
+    };
+
+    // If it's an agent, get and include agent info
+    if (req.user.isAgent) {
+      const company = await RealEstateCompany.findOne({
+        'agents._id': req.user._id
+      });
+
+      if (company) {
+        const agent = company.agents.find(a => 
+          a._id.toString() === req.user._id.toString()
+        );
+
+        if (agent) {
+          updateData.agentInfo = {
+            _id: agent._id,
+            name: agent.name,
+            email: agent.email,
+            phone: agent.phone || '',
+            avatar: agent.avatar || '',
+            companyName: company.companyName,
+            companyId: company._id,
+            companyEmail: company.email || '',
+            companyPhone: company.phone || '',
+            companyAddress: company.address || ''
+          };
+        }
+      }
+    }
+
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true }
     );
 
