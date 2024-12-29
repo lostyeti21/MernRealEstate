@@ -221,17 +221,28 @@ export default function Home() {
   useEffect(() => {
     const fetchListings = async (query, setter) => {
       try {
+        setLoading(true);
         const res = await fetch(`/api/listing/get?${query}`);
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         const data = await res.json();
         setter(data.listings || []);
       } catch (error) {
         console.error("Error fetching listings:", error);
+        setter([]); // Set empty array on error
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchListings("offer=true&limit=4", setOfferListings);
-    fetchListings("type=rent&limit=3", setRentListings);
-    fetchListings("type=sale&limit=6", setSaleListings);
+    Promise.all([
+      fetchListings("offer=true&limit=4", setOfferListings),
+      fetchListings("type=rent&limit=3", setRentListings),
+      fetchListings("type=sale&limit=6", setSaleListings)
+    ]).catch(error => {
+      console.error("Error fetching listings:", error);
+    });
   }, []);
 
   useEffect(() => {
@@ -241,19 +252,25 @@ export default function Home() {
       script1.async = true;
       document.body.appendChild(script1);
 
-      const script2 = document.createElement("script");
-      script2.src =
-        "https://files.bpcontent.cloud/2024/12/11/21/20241211212011-RZ6GS430.js";
-      script2.async = true;
-      script2.onload = () => {
-        window.botpressWebChat.init({
-          botId: "your-bot-id-here",
-          hostUrl: "https://cdn.botpress.cloud/webchat/v2.2",
-          showCloseButton: true,
-          enableTranscriptDownload: true,
-        });
+      script1.onload = () => {
+        const script2 = document.createElement("script");
+        script2.src =
+          "https://files.bpcontent.cloud/2024/12/11/21/20241211212011-RZ6GS430.js";
+        script2.async = true;
+        script2.onload = () => {
+          if (window.botpressWebChat) {
+            window.botpressWebChat.init({
+              botId: "your-bot-id-here",
+              hostUrl: "https://cdn.botpress.cloud/webchat/v2.2",
+              showCloseButton: true,
+              enableTranscriptDownload: true,
+            });
+          } else {
+            console.error('Botpress WebChat not loaded properly');
+          }
+        };
+        document.body.appendChild(script2);
       };
-      document.body.appendChild(script2);
 
       setIsChatbotLoaded(true);
     }

@@ -4,13 +4,16 @@ import dotenv from 'dotenv';
 import userRouter from './routes/user.route.js';
 import authRouter from './routes/auth.route.js';
 import listingRouter from './routes/listing.route.js';
-import agentRouter from './routes/agent.route.js';
-import companyRouter from './routes/real-estate.route.js';
+import messageRouter from './routes/message.route.js';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createServer } from 'http';
+import { initializeSocket } from './socket/socket.js';
 import cors from 'cors';
 import uploadRouter from './routes/upload.route.js';
+import agentRouter from './routes/agent.route.js';
+import companyRouter from './routes/real-estate.route.js';
 
 // Load environment variables at the very start
 dotenv.config();
@@ -34,6 +37,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const httpServer = createServer(app);
+const io = initializeSocket(httpServer);
 
 app.use(cors({
   origin: 'http://localhost:5173',
@@ -47,9 +52,10 @@ app.use(cookieParser());
 app.use('/api/user', userRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/listing', listingRouter);
+app.use('/api/messages', messageRouter);
+app.use('/api/upload', uploadRouter);
 app.use('/api/agent', agentRouter);
 app.use('/api/real-estate', companyRouter);
-app.use('/api/upload', uploadRouter);
 
 // Only serve static files in production
 if (process.env.NODE_ENV === 'production') {
@@ -65,7 +71,6 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   const statusCode = err.statusCode || 500;
@@ -77,7 +82,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}!`);
+const port = process.env.PORT || 3000;
+httpServer.listen(port, () => {
+  console.log(`Server is running on port ${port}!`);
 });

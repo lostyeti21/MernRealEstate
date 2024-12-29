@@ -8,7 +8,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "swiper/css/bundle";
 import { useSelector } from "react-redux";
-import { geocodeAddress } from "../../../api/utils/geocode";
+import { toast } from 'react-hot-toast';
 import {
   FaBath,
   FaBed,
@@ -24,272 +24,249 @@ import {
   FaEnvelope,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
+import { geocodeAddress } from "../../../api/utils/geocode";
 
-const Listing = () => {
-  SwiperCore.use([Navigation]);
-
-  const params = useParams();
-  const navigate = useNavigate();
-  const { currentUser } = useSelector((state) => state.user);
-
+export default function Listing() {
   const [listing, setListing] = useState(null);
-  const [landlord, setLandlord] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showFullscreen, setShowFullscreen] = useState(false);
-  const [fullscreenIndex, setFullscreenIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
   const [contact, setContact] = useState(false);
   const [listedBy, setListedBy] = useState(null);
   const [coordinates, setCoordinates] = useState(null);
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [fullscreenIndex, setFullscreenIndex] = useState(0);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [rating, setRating] = useState(0);
   const [ratingHover, setRatingHover] = useState(0);
   const [hasUserRated, setHasUserRated] = useState(false);
-
-  const defaultLat = -1.2921;
-  const defaultLng = 36.8219;
-
-  const fetchLandlordData = async (userRef) => {
-    try {
-      const landlordRes = await fetch(`/api/user/${userRef}`);
-      const landlordData = await landlordRes.json();
-      return landlordData;
-    } catch (error) {
-      console.error("Error fetching landlord data:", error);
-      return null;
-    }
-  };
-
-  const checkIfUserHasRated = (agent, userId) => {
-    return agent.ratedBy.includes(userId);
-  };
+  const params = useParams();
+  const { currentUser } = useSelector((state) => state.user);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchListing = async () => {
       try {
         setLoading(true);
-        console.log('Fetching listing with ID:', params.listingId);
-        
-        const res = await fetch(`/api/listing/get/${params.listingId}`);
-        const data = await res.json();
-        console.log('Raw listing data:', data);
+        const token = localStorage.getItem('token') || (currentUser && currentUser.token);
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
 
-        if (!data.success) {
-          console.error('Failed to fetch listing:', data.message);
-          setError(data.message || 'Failed to fetch listing');
+        const res = await fetch(`/api/listing/get/${params.listingId}`, {
+          headers
+        });
+        const data = await res.json();
+
+        if (data.success === false) {
+          setError(data.message);
           return;
         }
 
         const listingData = data.listing;
+        console.log('Listing data:', listingData); // Debug log
         setListing(listingData);
-        console.log('Processed listing data:', listingData);
 
-        // Geocode address
+        // Geocode address using the original implementation
         try {
           const coords = await geocodeAddress(listingData.address);
-          setCoordinates(coords);
-          console.log('Geocoded coordinates:', coords);
+          if (coords) {
+            setCoordinates(coords);
+            console.log('Geocoded coordinates:', coords);
+          } else {
+            console.warn('Geocoding failed, using default coordinates');
+            setCoordinates({ lat: -1.2921, lng: 36.8219 }); // Default to Nairobi
+          }
         } catch (geoError) {
           console.warn('Geocoding failed:', geoError);
+          setCoordinates({ lat: -1.2921, lng: 36.8219 }); // Default to Nairobi
         }
 
-        // Fetch agent or landlord data
+        // Fetch user or agent data based on userModel
         if (listingData.userRef) {
-          console.log('User Model:', listingData.userModel);
-          console.log('User Ref:', listingData.userRef);
-
           if (listingData.userModel === 'Agent') {
-            try {
-              console.log('Attempting to fetch agent details:', {
-                url: `/api/agent/${listingData.userRef}`,
-                userRef: listingData.userRef
-              });
-
-              const agentRes = await fetch(`/api/agent/${listingData.userRef}`, {
-                credentials: 'include',
-                headers: {
-                  'Content-Type': 'application/json'
+            const agentRes = await fetch(`/api/agent/${listingData.userRef}`);
+            const agentData = await agentRes.json();
+            
+            if (agentData.success && agentData.agent) {
+              setListedBy({
+                type: 'agent',
+                data: {
+                  _id: agentData.agent._id,
+                  name: agentData.agent.name,
+                  email: agentData.agent.email,
+                  phone: agentData.agent.phone,
+                  avatar: agentData.agent.avatar,
+                  userModel: 'Agent'
                 }
               });
-              
-              if (!agentRes.ok) {
-                const errorText = await agentRes.text();
-                console.error('Agent fetch failed:', {
-                  status: agentRes.status,
-                  statusText: agentRes.statusText,
-                  response: errorText
-                });
-                throw new Error(`Agent not found: ${agentRes.status}`);
-              }
-              
-              const agentData = await agentRes.json();
-              console.log('Agent Data:', agentData);
-
-              if (agentData.success && agentData.agent) {
-                const companyId = agentData.agent.companyId;
-                if (companyId) {
-                  console.log('Fetching company details:', {
-                    companyId,
-                    url: `/api/company/${companyId}`
-                  });
-
-                  const companyRes = await fetch(`/api/company/${companyId}`, {
-                    credentials: 'include',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    }
-                  });
-
-                  if (!companyRes.ok) {
-                    const errorText = await companyRes.text();
-                    console.error('Company fetch failed:', {
-                      status: companyRes.status,
-                      statusText: companyRes.statusText,
-                      response: errorText
-                    });
-                    throw new Error(`Company not found: ${companyRes.status}`);
-                  }
-
-                  const companyData = await companyRes.json();
-                  console.log('Company Data:', companyData);
-
-                  if (companyData.success) {
-                    setListedBy({
-                      type: 'agent',
-                      data: {
-                        _id: agentData.agent._id,
-                        name: agentData.agent.name,
-                        email: agentData.agent.email,
-                        contact: agentData.agent.phone,
-                        avatar: agentData.agent.avatar,
-                        averageRating: agentData.agent.averageRating || 0,
-                        companyName: companyData.company.companyName,
-                        companyAvatar: companyData.company.avatar,
-                        companyRating: companyData.company.companyRating || 0
-                      }
-                    });
-                    console.log('Listed by agent:', listedBy);
-                  } else {
-                    console.error('Failed to fetch company data:', companyData.message);
-                  }
-                } else {
-                  console.warn('No company ID found for agent');
-                }
-
-                if (currentUser) {
-                  const userHasRated = checkIfUserHasRated(agentData.agent, currentUser._id);
-                  setHasUserRated(userHasRated);
-                }
-              } else {
-                console.error('Failed to fetch agent data:', agentData.message);
-              }
-            } catch (error) {
-              console.error('Error fetching agent/company data:', error);
             }
           } else {
-            // Fetch landlord data
-            const landlordRes = await fetch(`/api/user/${listingData.userRef}`);
-            const landlordData = await landlordRes.json();
-            console.log('Landlord Data:', landlordData);
+            const userRes = await fetch(`/api/user/${listingData.userRef}`);
+            const userData = await userRes.json();
             
-            if (landlordData) {
+            if (userData) {
               setListedBy({
-                type: 'landlord',
-                data: landlordData
+                type: 'user',
+                data: {
+                  ...userData,
+                  userModel: 'User'
+                }
               });
-              setLandlord(landlordData);
-              console.log('Listed by landlord:', listedBy);
             }
           }
         }
 
         setError(null);
-      } catch (err) {
-        console.error("Error fetching listing details:", err);
-        setError('Something went wrong!');
+      } catch (error) {
+        setError('Failed to fetch listing');
       } finally {
         setLoading(false);
       }
     };
 
     fetchListing();
-  }, [params.listingId, currentUser]);
+  }, [params.listingId]);
 
-  const customIcon = new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-  });
-
-  const handleImageClick = (index) => {
-    setFullscreenIndex(index);
-    setShowFullscreen(true);
-  };
-
-  const handleMarkerClick = () => {
-    const address = encodeURIComponent(listing.address);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
-  };
-
-  const renderStars = (averageRating) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <span
-          key={i}
-          className={`text-xl ${i <= averageRating ? "text-yellow-500" : "text-gray-300"}`}
-        >
-          ★
-        </span>
-      );
-    }
-    return stars;
-  };
-
-  const handleRatingSubmit = async () => {
+  const startChat = async (userId) => {
     if (!currentUser) {
       navigate('/sign-in');
       return;
     }
 
-    if (!rating) {
-      alert('Please select a rating');
+    try {
+      const res = await fetch('/api/messages/conversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('realEstateToken')}`
+        },
+        body: JSON.stringify({
+          receiverId: userId,
+          receiverModel: 'User'
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        navigate('/messages');
+      } else {
+        setError('Failed to start conversation');
+      }
+    } catch (error) {
+      setError('Error starting chat');
+    }
+  };
+
+  const handleContact = async () => {
+    if (!currentUser) {
+      navigate('/sign-in');
       return;
     }
 
     try {
-      const res = await fetch(`/api/agent/${listedBy.data._id}/rate`, {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/sign-in');
+        return;
+      }
+
+      // Get the owner's model type
+      let ownerModel = 'User';
+      if (listing.userModel) {
+        ownerModel = listing.userModel;
+      } else if (listing.agent) {
+        ownerModel = 'Agent';
+      }
+
+      const initialMessage = `Hi, I'm ${currentUser.username} and I'm interested in ${listing.name}`;
+
+      console.log('Creating conversation with:', {
+        receiverId: listing.userRef,
+        receiverModel: ownerModel,
+        listingId: listing._id,
+        initialMessage,
+        senderId: currentUser._id
+      });
+
+      // Create or get conversation
+      const res = await fetch('/api/messages/conversation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          rating,
-          userId: currentUser._id
-        }),
-        credentials: 'include'
+          receiverId: listing.userRef,
+          receiverModel: ownerModel,
+          listingId: listing._id,
+          initialMessage,
+          senderId: currentUser._id
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to start conversation');
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        navigate('/messages');
+      } else {
+        throw new Error(data.message || 'Failed to start conversation');
+      }
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      toast.error('Failed to start conversation. Please try again.');
+    }
+  };
+
+  const renderStars = (rating) => {
+    return [...Array(5)].map((_, index) => (
+      <span
+        key={index}
+        className={`text-xl ${
+          index < rating ? 'text-yellow-400' : 'text-gray-300'
+        }`}
+      >
+        ★
+      </span>
+    ));
+  };
+
+  const handleRatingSubmit = async () => {
+    if (!rating || !currentUser || !listedBy) return;
+
+    try {
+      const endpoint = listedBy.type === 'agent' 
+        ? `/api/agent/${listedBy.data._id}/rate`
+        : `/api/user/${listedBy.data._id}/rate`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify({ rating })
       });
 
       const data = await res.json();
-
+      
       if (data.success) {
-        setListedBy(prev => ({
-          ...prev,
-          data: {
-            ...prev.data,
-            averageRating: data.newAgentRating
-          }
-        }));
         setHasUserRated(true);
         setShowRatingModal(false);
-        setRating(0);
-        alert('Rating submitted successfully!');
+        // Refresh the listing to update ratings
+        fetchListing();
       } else {
-        alert(data.message || 'Failed to submit rating');
+        setError('Failed to submit rating');
       }
     } catch (error) {
-      console.error('Error submitting rating:', error);
-      alert('Error submitting rating. Please try again.');
+      setError('Error submitting rating');
     }
   };
 
@@ -353,10 +330,10 @@ const Listing = () => {
                       )
                     )}
                   </div>
-                  {agent.contact && currentUser && (
+                  {agent.phone && currentUser && (
                     <div className="mt-2 flex items-center gap-2 text-gray-600">
                       <FaPhoneAlt className="text-green-600" />
-                      <span>{agent.contact}</span>
+                      <span>{agent.phone}</span>
                     </div>
                   )}
                   {agent.email && currentUser && (
@@ -368,17 +345,6 @@ const Listing = () => {
                 </div>
               </div>
             </div>
-
-            {currentUser && (
-              <div className="mt-4">
-                <button
-                  onClick={() => setContact(true)}
-                  className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 transition-all duration-200"
-                >
-                  Contact Agent
-                </button>
-              </div>
-            )}
           </div>
         </div>
       );
@@ -404,7 +370,7 @@ const Listing = () => {
                   ({landlord?.averageRating?.toFixed(1) || 'N/A'})
                 </span>
               </div>
-              {landlord?.phoneNumbers && (
+              {landlord?.phoneNumbers && currentUser && (
                 <div className="mt-2">
                   {landlord.phoneNumbers.map((phone, index) => (
                     <div
@@ -412,47 +378,103 @@ const Listing = () => {
                       className="flex items-center gap-2 text-gray-600 text-sm"
                     >
                       <FaPhoneAlt className="text-green-600" />
-                      <span>{currentUser ? phone : "*********"}</span>
+                      <span>{phone}</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           </div>
-          {currentUser && (
+          {currentUser && currentUser._id !== landlord?._id && (
             <button
               onClick={() => navigate(`/landlord/${listing.userRef}`)}
               className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
             >
-              Rate this Landlord
+              Rate Landlord
             </button>
           )}
         </div>
 
-        {currentUser && (
-          <div className="mt-4">
-            <button
-              onClick={() => setContact(true)}
-              className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
-            >
-              Contact Landlord
-            </button>
-          </div>
-        )}
+        <div className="mt-4">
+          <button
+            onClick={handleContact}
+            className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
+          >
+            Contact Landlord
+          </button>
+        </div>
       </div>
     );
   };
 
+  const handleImageClick = (index) => {
+    setFullscreenIndex(index);
+    setShowFullscreen(true);
+  };
+
+  const closeFullscreen = () => {
+    setShowFullscreen(false);
+  };
+
+  const fetchLandlordData = async (userRef) => {
+    try {
+      const landlordRes = await fetch(`/api/user/${userRef}`);
+      const landlordData = await landlordRes.json();
+      return landlordData;
+    } catch (error) {
+      console.error("Error fetching landlord data:", error);
+      return null;
+    }
+  };
+
+  const checkIfUserHasRated = (agent, userId) => {
+    return agent.ratedBy.includes(userId);
+  };
+
+  const customIcon = new L.Icon({
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+  });
+
+  const handleMarkerClick = () => {
+    const address = encodeURIComponent(listing.address);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <p className="text-2xl">Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <p className="text-red-500 text-2xl">{error}</p>
+      </div>
+    );
+  }
+
+  if (!listing) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <p className="text-2xl">Listing not found</p>
+      </div>
+    );
+  }
+
+  SwiperCore.use([Navigation]);
+
+  const defaultLat = -1.2921;
+  const defaultLng = 36.8219;
+
   return (
     <main>
-      {loading && <p className="text-center my-7 text-2xl">Loading...</p>}
-      {error && (
-        <p className="text-center my-7 text-2xl text-red-500">
-          Something went wrong. Please try again later.
-        </p>
-      )}
-      {listing && !loading && !error && (
-        <div>
+      {listing.imageUrls && listing.imageUrls.length > 0 ? (
+        <>
           <Swiper
             navigation
             slidesPerView={listing.imageUrls.length > 2 ? 3 : 2}
@@ -460,7 +482,7 @@ const Listing = () => {
             spaceBetween={20}
             className={`w-full ${listing.imageUrls.length === 2 ? "justify-end" : ""}`}
           >
-            {listing.imageUrls?.map((url, index) => (
+            {listing.imageUrls.map((url, index) => (
               <SwiperSlide key={index}>
                 <div
                   className="h-[400px] rounded-lg overflow-hidden shadow-lg hover:scale-105 transition-transform duration-300 cursor-pointer"
@@ -477,133 +499,165 @@ const Listing = () => {
           </Swiper>
 
           {showFullscreen && (
-            <div className="fixed inset-0 bg-black bg-opacity-90 z-[9999] flex items-center justify-center">
+            <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
               <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowFullscreen(false);
-                }}
-                className="absolute top-4 right-4 text-white text-4xl z-[10000] p-4 hover:text-gray-300 transition-colors"
+                onClick={closeFullscreen}
+                className="absolute top-4 right-4 text-white text-4xl z-10 hover:text-gray-300"
               >
-                <FaTimes style={{ pointerEvents: 'none' }} />
+                <FaTimes />
               </button>
-              <div className="w-full h-full relative">
-                <Swiper 
-                  navigation 
-                  initialSlide={fullscreenIndex} 
-                  className="w-full h-full"
-                >
-                  {listing.imageUrls?.map((url, index) => (
-                    <SwiperSlide key={index}>
-                      <div className="w-full h-full flex items-center justify-center">
-                        <img
-                          src={url}
-                          alt={`Fullscreen ${index + 1}`}
-                          className="max-w-full max-h-full object-contain"
-                          style={{ pointerEvents: 'none' }}
-                        />
-                      </div>
-                    </SwiperSlide>
-                  ))}
-                </Swiper>
-              </div>
+              <Swiper
+                navigation
+                initialSlide={fullscreenIndex}
+                className="w-full h-full"
+              >
+                {listing.imageUrls.map((url, index) => (
+                  <SwiperSlide key={index}>
+                    <div className="w-full h-full flex items-center justify-center">
+                      <img
+                        src={url}
+                        alt={`Fullscreen ${index + 1}`}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                  </SwiperSlide>
+                ))}
+              </Swiper>
             </div>
           )}
+        </>
+      ) : (
+        <div className="h-[400px] flex items-center justify-center bg-gray-100 rounded-lg">
+          <p className="text-gray-500">No images available</p>
+        </div>
+      )}
 
-          <div className="flex flex-col lg:flex-row max-w-6xl mx-auto my-7 gap-6">
-            <div className="flex flex-col flex-1">
-              {renderListedBy()}
+      <div className="flex flex-col lg:flex-row max-w-6xl mx-auto my-7 gap-6">
+        <div className="flex flex-col flex-1">
+          {renderListedBy()}
 
-              <div className="bg-white p-6 rounded-lg shadow-md">
-                <p className="text-2xl font-semibold mb-1">{listing.name}</p>
-                <p className="text-gray-500 text-sm mb-4 flex items-center gap">
-                  <FaMapMarkerAlt className="text-red-500" /> {listing.address}
-                </p>
-                <div className="bg-green-600 text-white text-lg font-semibold px-4 py-2 rounded-full inline-block mb-4">
-                  ${listing.offer
-                    ? listing.discountPrice.toLocaleString("en-US")
-                    : listing.regularPrice.toLocaleString("en-US")}
-                  {listing.type === "rent" && " / month"}
-                </div>
-                <p className="text-slate-800 mb-4">
-                  <span className="font-semibold text-black">Description</span>
-                  <br />
-                  {listing.description}
-                </p>
-                <ul className="flex flex-wrap gap-4">
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaBed /> {listing.bedrooms} Beds
-                  </li>
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaBath /> {listing.bathrooms} Baths
-                  </li>
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaParking /> {listing.parking ? "Parking Spot" : "No Parking"}
-                  </li>
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaChair /> {listing.furnished ? "Furnished" : "Unfurnished"}
-                  </li>
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaRulerCombined /> {listing.m2} m²
-                  </li>
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaBolt /> {listing.backupPower ? "Backup Power" : "No Backup Power"}
-                  </li>
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaTint /> {listing.backupWaterSupply ? "Backup Water Supply" : "No Backup Water"}
-                  </li>
-                  <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                    <FaWater /> {listing.boreholeWater ? "Borehole Water" : "No Borehole Water"}
-                  </li>
-                </ul>
-              </div>
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <p className="text-2xl font-semibold mb-1">{listing.name}</p>
+            <p className="text-gray-500 text-sm mb-4 flex items-center gap-2">
+              <FaMapMarkerAlt className="text-red-500" />
+              {listing.address}
+            </p>
+            <div className="bg-green-600 text-white text-lg font-semibold px-4 py-2 rounded-full inline-block mb-4">
+              ${listing.offer
+                ? listing.discountPrice.toLocaleString("en-US")
+                : listing.regularPrice.toLocaleString("en-US")}
+              {listing.type === "rent" && " / month"}
             </div>
+            <p className="text-slate-800 mb-4">
+              <span className="font-semibold text-black">Description</span>
+              <br />
+              {listing.description}
+            </p>
+            <ul className="flex flex-wrap gap-4">
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaBed /> {listing.bedrooms} Beds
+              </li>
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaBath /> {listing.bathrooms} Baths
+              </li>
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaParking /> {listing.parking ? "Parking Spot" : "No Parking"}
+              </li>
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaChair /> {listing.furnished ? "Furnished" : "Unfurnished"}
+              </li>
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaRulerCombined /> {listing.m2} m²
+              </li>
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaBolt /> {listing.backupPower ? "Backup Power" : "No Backup Power"}
+              </li>
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaTint /> {listing.backupWaterSupply ? "Backup Water Supply" : "No Backup Water"}
+              </li>
+              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                <FaWater /> {listing.boreholeWater ? "Borehole Water" : "No Borehole Water"}
+              </li>
+            </ul>
 
-            <div 
-              className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${
-                showFullscreen ? 'hidden' : ''
-              }`}
-            >
-              {coordinates ? (
-                <MapContainer
-                  center={[coordinates.lat, coordinates.lng]}
-                  zoom={13}
-                  scrollWheelZoom={false}
-                  className="h-full w-full"
+            {currentUser && currentUser._id !== listing.userRef && (
+              <div className="mt-4">
+                <button
+                  onClick={handleContact}
+                  className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
                 >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <Marker
-                    position={[coordinates.lat, coordinates.lng]}
-                    icon={customIcon}
-                    eventHandlers={{ click: handleMarkerClick }}
-                  >
-                    <Popup>
-                      <div>
-                        <p className="font-semibold">{listing.name}</p>
-                        <p>{listing.address}</p>
-                        <button 
-                          onClick={handleMarkerClick}
-                          className="text-blue-500 hover:underline mt-2"
-                        >
-                          Get Directions
-                        </button>
-                      </div>
-                    </Popup>
-                  </Marker>
-                </MapContainer>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                  <p>Map location not available</p>
-                </div>
-              )}
+                  Contact Landlord
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md">
+          {coordinates ? (
+            <MapContainer
+              center={[coordinates.lat, coordinates.lng]}
+              zoom={13}
+              scrollWheelZoom={false}
+              className="h-full w-full"
+            >
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <Marker
+                position={[coordinates.lat, coordinates.lng]}
+                icon={customIcon}
+              >
+                <Popup>
+                  <div>
+                    <p className="font-semibold">{listing.name}</p>
+                    <p>{listing.address}</p>
+                    <button 
+                      onClick={handleMarkerClick}
+                      className="text-blue-500 hover:underline mt-2"
+                    >
+                      Get Directions
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            </MapContainer>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+              <p>Loading map location...</p>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add Message button for landlords */}
+      {currentUser && 
+       currentUser._id === listing.userRef && 
+       listing.interestedUsers && 
+       listing.interestedUsers.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-xl font-semibold mb-2">Interested Users</h3>
+          <div className="space-y-2">
+            {listing.interestedUsers.map((user) => (
+              <div key={user._id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+                <div>
+                  <p className="font-medium">{user.username}</p>
+                  <p className="text-sm text-gray-500">{user.email}</p>
+                </div>
+                <button
+                  onClick={() => startChat(user._id)}
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                >
+                  Message
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
+      {contact && <Contact listing={listing} />}
+
       {showRatingModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
             <h3 className="text-xl font-semibold mb-4">Rate {listedBy.data.name}</h3>
             <div className="flex justify-center gap-2 mb-6">
@@ -646,6 +700,4 @@ const Listing = () => {
       )}
     </main>
   );
-};
-
-export default Listing;
+}

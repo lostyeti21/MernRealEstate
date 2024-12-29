@@ -1,8 +1,9 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FaSearch, FaUsers, FaChevronDown, FaHome, FaList } from 'react-icons/fa';
+import { FaSearch, FaUsers, FaChevronDown, FaHome, FaList, FaBell } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
 import { signOut, realEstateSignInSuccess } from '../redux/user/userSlice';
+import { io } from 'socket.io-client';
 
 export default function Header() {
   const { currentUser, isRealEstateCompany } = useSelector((state) => state.user);
@@ -10,11 +11,92 @@ export default function Header() {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
   const [isAgent, setIsAgent] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const socket = useRef();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const usersMenuRef = useRef(null);
   const location = useLocation();
   const isHomePage = location.pathname === '/';
+  const isMessagesPage = location.pathname === '/messages';
+
+  // Initialize socket connection and fetch initial unread count
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    socket.current = io('http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket', 'polling']
+    });
+
+    // Listen for new messages
+    socket.current.on('new_message', (data) => {
+      if (!isMessagesPage) {
+        setUnreadCount(prev => prev + 1);
+      }
+    });
+
+    return () => {
+      if (socket.current) {
+        socket.current.disconnect();
+      }
+    };
+  }, [currentUser, isMessagesPage]);
+
+  // Don't show notifications on Messages page
+  const shouldShowNotifications = location.pathname !== '/messages';
+
+  // Handle unread count updates
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        if (!currentUser) return;
+
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        console.log('Fetching unread count for user:', currentUser._id);
+        const res = await fetch('/api/messages/unread-count', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch unread count');
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          // Only update unread count if we're not on the Messages page
+          if (shouldShowNotifications) {
+            setUnreadCount(data.count);
+          } else {
+            setUnreadCount(0);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching unread count:', error);
+      }
+    };
+
+    fetchUnreadCount();
+
+    // Set up interval to fetch unread count
+    const interval = setInterval(fetchUnreadCount, 30000); // Every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [currentUser, location.pathname]);
+
+  // Reset unread count when entering messages page
+  useEffect(() => {
+    if (isMessagesPage) {
+      setUnreadCount(0);
+    }
+  }, [isMessagesPage]);
 
   // Close users menu when clicking outside
   useEffect(() => {
@@ -74,7 +156,7 @@ export default function Header() {
       }
 
       // Clear all auth tokens
-      localStorage.removeItem('accessToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('agentToken');
       localStorage.removeItem('realEstateToken');
       localStorage.removeItem('agentInfo');
@@ -114,6 +196,15 @@ export default function Header() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleMessagesClick = (e) => {
+    e.preventDefault();
+    if (!currentUser) {
+      navigate('/sign-in');
+      return;
+    }
+    navigate('/messages');
+  };
 
   return (
     <header className={`${
@@ -162,11 +253,11 @@ export default function Header() {
                 ? 'text-white border-white' 
                 : 'text-[#FF0072] border-[#FF0072]'
             } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
-              <div className="flex items-center gap-1">
-                <FaHome className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
-                <span>Home</span>
-              </div>
-            </button>
+            <div className="flex items-center gap-1">
+              <FaHome className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
+              <span>Home</span>
+            </div>
+          </button>
           </Link>
           
           <Link to="/search">
@@ -175,11 +266,11 @@ export default function Header() {
                 ? 'text-white border-white' 
                 : 'text-[#FF0072] border-[#FF0072]'
             } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
-              <div className="flex items-center gap-1">
-                <FaList className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
-                <span>Listings</span>
-              </div>
-            </button>
+            <div className="flex items-center gap-1">
+              <FaList className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
+              <span>Listings</span>
+            </div>
+          </button>
           </Link>
 
           <div className="relative" ref={usersMenuRef}>
@@ -229,50 +320,71 @@ export default function Header() {
                   e.target.src = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
                 }}
               />
+              {shouldShowNotifications && unreadCount > 0 && (
+                <span className='absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs'>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
               {isProfileDropdownOpen && (
                 <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-md shadow-lg z-20">
-                  {/* Show different options based on user type */}
-                  {isAgent ? (
-                    // Agent options
+                  {currentUser && (
                     <>
-                      <Link to='/agent-dashboard'>
-                        <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
-                          Agent Dashboard
-                        </button>
-                      </Link>
-                      <button
-                        onClick={handleSignOut}
-                        className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+                      <div className="px-4 py-2 text-sm text-gray-700">
+                        <span className="block font-medium text-gray-900">
+                          {currentUser.username || currentUser.name}
+                        </span>
+                        <span className="block text-gray-500 text-xs">
+                          {currentUser.email}
+                        </span>
+                      </div>
+                      <hr className="border-gray-200" />
+                      
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setIsProfileDropdownOpen(false)}
                       >
-                        Sign Out
-                      </button>
-                    </>
-                  ) : isRealEstateCompany ? (
-                    // Real Estate Company options
-                    <>
-                      <Link to='/real-estate-dashboard'>
-                        <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
-                          Dashboard
-                        </button>
+                        Profile
                       </Link>
-                      <button
-                        onClick={handleSignOut}
-                        className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+                      
+                      <Link
+                        to="/messages"
+                        className={`block px-4 py-2 text-sm hover:bg-gray-100 relative ${
+                          shouldShowNotifications && unreadCount > 0 ? 'font-bold text-[#FF0072]' : 'text-gray-700'
+                        }`}
+                        onClick={() => setIsProfileDropdownOpen(false)}
                       >
-                        Sign Out
-                      </button>
-                    </>
-                  ) : (
-                    // Regular user options
-                    <>
-                      <Link to='/profile'>
-                        <button className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'>
-                          Profile
-                        </button>
+                        <div className="flex items-center justify-between">
+                          <span>Messages</span>
+                          {shouldShowNotifications && unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                              {unreadCount > 99 ? '99+' : unreadCount}
+                            </span>
+                          )}
+                        </div>
                       </Link>
+                      
+                      <Link
+                        to="/create-listing"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                      >
+                        Create Listing
+                      </Link>
+                      
+                      <Link
+                        to="/my-listings"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                      >
+                        My Listings
+                      </Link>
+                      
+                      <hr className="border-gray-200" />
+                      
                       <button
                         onClick={handleSignOut}
-                        className='block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100'
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
                         Sign Out
                       </button>

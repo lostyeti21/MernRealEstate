@@ -44,8 +44,19 @@ const userSlice = createSlice({
       state.error = null;
       // Set isAgent flag based on the user data
       state.isAgent = action.payload.isAgent || false;
-      // Save to localStorage
-      localStorage.setItem('currentUser', JSON.stringify(action.payload));
+      state.isRealEstateCompany = action.payload.isRealEstateCompany || false;
+      
+      // Ensure token is properly stored
+      const userToStore = {
+        ...action.payload,
+        token: action.payload.token || action.payload.accessToken
+      };
+      
+      // Store in localStorage
+      localStorage.setItem('currentUser', JSON.stringify(userToStore));
+      
+      // Also store token separately for easy access
+      localStorage.setItem('token', userToStore.token);
     },
     signInFailure: (state, action) => {
       state.loading = false;
@@ -88,8 +99,12 @@ const userSlice = createSlice({
       state.isAgent = false;
       state.isRealEstateCompany = false;
       state.realEstateCompany = null;
-      // Clear localStorage
+      // Clear all auth related data
       localStorage.removeItem('currentUser');
+      localStorage.removeItem('token');
+      localStorage.removeItem('realEstateCompany');
+      localStorage.removeItem('realEstateToken');
+      localStorage.removeItem('agentInfo');
     },
     realEstateSignInSuccess: (state, action) => {
       state.currentUser = action.payload;

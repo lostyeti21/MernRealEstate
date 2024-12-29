@@ -9,6 +9,7 @@ const AgentProfile = () => {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     const fetchAgentData = async () => {
@@ -115,6 +116,31 @@ const AgentProfile = () => {
     e.target.reset();
   };
 
+  const startChat = async () => {
+    try {
+      const res = await fetch('/api/messages/conversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken') || localStorage.getItem('realEstateToken')}`
+        },
+        body: JSON.stringify({
+          receiverId: agent._id,
+          receiverModel: 'Agent'
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        navigate('/messages');
+      } else {
+        console.error('Failed to start conversation:', data.message);
+      }
+    } catch (error) {
+      console.error('Error starting chat:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -180,13 +206,21 @@ const AgentProfile = () => {
           </div>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 flex gap-4">
           <button
             onClick={handleShowListings}
             className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600"
           >
             Show Listings ({listings.length})
           </button>
+          {currentUser && currentUser._id !== agent._id && (
+            <button
+              onClick={startChat}
+              className='bg-blue-500 text-white p-3 rounded-lg uppercase hover:opacity-95'
+            >
+              Message Agent
+            </button>
+          )}
         </div>
       </div>
 

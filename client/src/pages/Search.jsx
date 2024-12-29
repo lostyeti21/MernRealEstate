@@ -80,25 +80,20 @@ export default function Search() {
         const searchQuery = urlParams.toString();
         console.log('Search query:', searchQuery);
 
-        const res = await fetch(`/api/listing/get?${searchQuery}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-
+        const res = await fetch(`/api/listing/get?${searchQuery}`);
         if (!res.ok) {
           throw new Error(`Server error: ${res.status}`);
         }
 
         const data = await res.json();
+        console.log('Search response:', data);
         
         if (!data.success) {
           throw new Error(data.message || 'Failed to fetch listings');
         }
 
         setListings(data.listings || []);
-        setTotalPages(Math.ceil(data.total / listingsPerPage));
+        setTotalPages(data.totalPages || 1);
         
       } catch (error) {
         console.error('Search error:', error);

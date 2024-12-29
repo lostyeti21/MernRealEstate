@@ -32,11 +32,11 @@ const listingSchema = new mongoose.Schema(
     },
     furnished: {
       type: Boolean,
-      default: false,
+      required: true,
     },
     parking: {
       type: Boolean,
-      default: false,
+      required: true,
     },
     type: {
       type: String,
@@ -44,81 +44,40 @@ const listingSchema = new mongoose.Schema(
     },
     offer: {
       type: Boolean,
-      default: false,
+      required: true,
     },
     imageUrls: {
       type: Array,
       required: true,
     },
     userRef: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
       required: true,
-      refPath: 'userModel'
     },
     userModel: {
       type: String,
+      enum: ['User', 'Agent'],
       required: true,
-      enum: ['User', 'Agent']
     },
-    companyRef: {
+    interestedUsers: [{
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'RealEstateCompany'
-    },
-    agentInfo: {
-      type: {
-        _id: {
-          type: mongoose.Schema.Types.ObjectId,
-          required: true
-        },
-        name: {
-          type: String,
-          required: true
-        },
-        email: {
-          type: String,
-          required: true
-        },
-        phone: {
-          type: String
-        },
-        avatar: {
-          type: String
-        },
-        companyName: {
-          type: String,
-          required: true
-        },
-        companyId: {
-          type: mongoose.Schema.Types.ObjectId,
-          required: true
-        },
-        companyEmail: {
-          type: String
-        },
-        companyPhone: {
-          type: String
-        },
-        companyAddress: {
-          type: String
-        }
-      },
-      default: null
-    },
+      ref: 'User'
+    }],
     m2: {
       type: Number,
-      default: 0
+      required: true,
     },
     backupPower: {
       type: Boolean,
-      default: false
+      required: true,
     },
     backupWaterSupply: {
       type: Boolean,
-      default: false
+      required: true,
     },
     boreholeWater: {
       type: Boolean,
-      default: false
+      required: true,
     }
   },
   { timestamps: true }

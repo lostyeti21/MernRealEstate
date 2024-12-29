@@ -228,100 +228,91 @@ export const getListing = async (req, res, next) => {
 
 export const getListings = async (req, res, next) => {
   try {
-    // Parse query parameters with defaults
-    const limit = parseInt(req.query.limit) || 9;
-    const startIndex = parseInt(req.query.startIndex) || 0;
-    const sort = req.query.sort || 'createdAt';
-    const order = req.query.order || 'desc';
+    const {
+      searchTerm,
+      type,
+      parking,
+      furnished,
+      offer,
+      sort,
+      order,
+      minPrice,
+      maxPrice,
+      page = 1,
+      limit = 8
+    } = req.query;
 
-    // Build query object dynamically
+    // Calculate skip for pagination
+    const skip = (page - 1) * limit;
+
+    // Build query object
     const query = {};
-    if (req.query.offer) query.offer = req.query.offer === 'true';
-    if (req.query.furnished) query.furnished = req.query.furnished === 'true';
-    if (req.query.parking) query.parking = req.query.parking === 'true';
-    if (req.query.type && req.query.type !== 'all') query.type = req.query.type;
-    if (req.query.userModel && req.query.userModel !== 'all') query.userModel = req.query.userModel;
 
-    // Price and bedrooms range filters
-    if (req.query.searchTerm) {
+    // Add filters
+    if (type && type !== 'all') {
+      query.type = type;
+    }
+
+    if (parking === 'true') {
+      query.parking = true;
+    }
+
+    if (furnished === 'true') {
+      query.furnished = true;
+    }
+
+    if (offer === 'true') {
+      query.offer = true;
+    }
+
+    if (searchTerm) {
       query.$or = [
-        { name: { $regex: req.query.searchTerm, $options: 'i' } },
-        { description: { $regex: req.query.searchTerm, $options: 'i' } },
-        { address: { $regex: req.query.searchTerm, $options: 'i' } }
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { description: { $regex: searchTerm, $options: 'i' } }
       ];
     }
 
-    if (req.query.bedrooms) query.bedrooms = req.query.bedrooms;
-    if (req.query.bathrooms) query.bathrooms = req.query.bathrooms;
-
-    // Price range filter
-    if (req.query.minPrice) query.regularPrice = { $gte: req.query.minPrice };
-    if (req.query.maxPrice) {
-      query.regularPrice = query.regularPrice || {};
-      query.regularPrice.$lte = req.query.maxPrice;
+    if (minPrice || maxPrice) {
+      query.regularPrice = {};
+      if (minPrice) query.regularPrice.$gte = parseInt(minPrice);
+      if (maxPrice) query.regularPrice.$lte = parseInt(maxPrice);
     }
 
-    // Get total count
+    // Build sort object
+    let sortObj = {};
+    if (sort === 'price') {
+      sortObj.regularPrice = order === 'desc' ? -1 : 1;
+    } else if (sort === 'createdAt') {
+      sortObj.createdAt = order === 'desc' ? -1 : 1;
+    } else {
+      sortObj.createdAt = -1; // Default sort
+    }
+
+    console.log('Search query:', {
+      query,
+      sort: sortObj,
+      skip,
+      limit: parseInt(limit)
+    });
+
+    // Execute query
+    const listings = await Listing.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
     const total = await Listing.countDocuments(query);
 
-    // Execute query with pagination and populate company reference
-    const listings = await Listing.find(query)
-      .populate({
-        path: 'companyRef',
-        select: 'companyName email phone address'
-      })
-      .sort({ [sort]: order })
-      .skip(startIndex)
-      .limit(limit);
-
-    // Enhance listings with agent info
-    const enhancedListings = await Promise.all(listings.map(async (listing) => {
-      const listingObj = listing.toObject();
-
-      if (listing.userModel === 'Agent' && !listingObj.agentInfo) {
-        try {
-          const company = await RealEstateCompany.findOne({
-            _id: listing.companyRef,
-            'agents._id': listing.userRef
-          });
-
-          if (company) {
-            const agent = company.agents.find(a => 
-              a._id.toString() === listing.userRef.toString()
-            );
-
-            if (agent) {
-              listingObj.agentInfo = {
-                _id: agent._id,
-                name: agent.name,
-                email: agent.email,
-                phone: agent.phone,
-                avatar: agent.avatar,
-                companyName: company.companyName,
-                companyId: company._id,
-                companyEmail: company.email,
-                companyPhone: company.phone,
-                companyAddress: company.address
-              };
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching agent/company data:', error);
-        }
-      }
-
-      return listingObj;
-    }));
-
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      listings: enhancedListings,
+      listings,
       total,
-      currentPage: Math.floor(startIndex / limit) + 1,
+      currentPage: parseInt(page),
       totalPages: Math.ceil(total / limit)
     });
   } catch (error) {
-    console.error('Error in getListings:', error);
+    console.error('Get listings error:', error);
     next(error);
   }
 };
@@ -425,6 +416,35 @@ export const getUserListings = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error in getUserListings:', error);
+    next(error);
+  }
+};
+
+export const expressInterest = async (req, res, next) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      return next(errorHandler(404, 'Listing not found'));
+    }
+
+    // Check if user is the owner of the listing
+    if (listing.userRef.toString() === req.user.id) {
+      return next(errorHandler(400, 'You cannot express interest in your own listing'));
+    }
+
+    // Update the listing using findByIdAndUpdate
+    const updatedListing = await Listing.findByIdAndUpdate(
+      req.params.id,
+      { $addToSet: { interestedUsers: req.user.id } },
+      { new: true, runValidators: false }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Interest expressed successfully',
+      listing: updatedListing
+    });
+  } catch (error) {
     next(error);
   }
 };

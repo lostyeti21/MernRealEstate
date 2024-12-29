@@ -5,80 +5,51 @@ import RealEstateCompany from '../models/realEstateCompany.model.js';
 
 export const verifyToken = async (req, res, next) => {
   try {
-    // Check for token in both cookie and Authorization header
-    let token = req.cookies.access_token;
-    const authHeader = req.headers.authorization;
+    // Get token from header
+    const token = req.headers.authorization?.split(' ')[1];
     
-    if (!token && authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    }
-
     if (!token) {
-      return next(errorHandler(401, 'No authentication token provided'));
-    }
-
-    // Verify the token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('Decoded token:', decoded);
-
-    if (decoded.isRealEstateCompany) {
-      // Find the real estate company
-      const company = await RealEstateCompany.findById(decoded.companyId);
-      if (!company) {
-        return next(errorHandler(401, 'Company not found'));
-      }
-
-      // Add company info to request
-      req.user = {
-        _id: company._id,
-        isRealEstateCompany: true,
-        companyName: company.companyName,
-        email: company.email
-      };
-      next();
-    } else if (decoded.isAgent) {
-      // Find the company that has this agent
-      const company = await RealEstateCompany.findOne({
-        'agents._id': decoded.id
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. No token provided.'
       });
-
-      if (!company) {
-        return next(errorHandler(401, 'Agent not found'));
-      }
-
-      // Find the agent in the company's agents array
-      const agent = company.agents.find(a => a._id.toString() === decoded.id);
-      if (!agent) {
-        return next(errorHandler(401, 'Agent not found'));
-      }
-
-      // Add agent info to request
-      req.user = {
-        _id: agent._id,
-        isAgent: true,
-        name: agent.name,
-        email: agent.email,
-        companyId: company._id,
-        companyName: company.companyName
-      };
-      next();
-    } else {
-      // Handle regular user authentication
-      const user = await User.findById(decoded.id);
-      if (!user) {
-        return next(errorHandler(401, 'User not found'));
-      }
-
-      req.user = {
-        _id: user._id,
-        username: user.username,
-        email: user.email
-      };
-      next();
     }
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token.'
+      });
+    }
+
+    // Check if user exists
+    const user = decoded.isRealEstateCompany 
+      ? await RealEstateCompany.findById(decoded.id)
+      : await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found.'
+      });
+    }
+
+    // Add user to request
+    req.user = {
+      id: user._id.toString(),
+      isRealEstateCompany: decoded.isRealEstateCompany,
+      isAgent: decoded.isAgent
+    };
+    next();
   } catch (error) {
     console.error('Token verification error:', error);
-    return next(errorHandler(401, 'Invalid token'));
+    res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
   }
 };
 

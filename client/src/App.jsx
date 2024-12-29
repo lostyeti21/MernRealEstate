@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from 'react-hot-toast';
 import Home from "./pages/Home";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
@@ -31,6 +32,7 @@ import AgentProfile from './pages/AgentProfile';
 import RealEstateCompanies from './pages/RealEstateCompanies';
 import AgentCreateListing from './pages/AgentCreateListing';
 import AgentListing from "./pages/AgentListing";
+import Messages from './pages/Messages';
 
 const App = () => {
   return (
@@ -62,6 +64,7 @@ const App = () => {
         <Route path="/agent/:agentId/listings" element={<AgentListings />} />
         <Route path="/add-agent" element={<AddAgent />} />
         <Route path="/real-estate-companies" element={<RealEstateCompanies />} />
+        <Route path="/messages" element={<Messages />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
@@ -72,6 +75,17 @@ const App = () => {
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
         </Route>
       </Routes>
+      <Toaster 
+        position="top-center"
+        reverseOrder={false}
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#333',
+            color: '#fff',
+          },
+        }}
+      />
     </BrowserRouter>
   );
 };
