@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from 'react-hot-toast';
+import { useEffect, useState } from 'react';
 import Home from "./pages/Home";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
@@ -20,7 +21,7 @@ import ChangePassword from "./pages/ChangePassword";
 import RealEstateSignUp from "./pages/RealEstateSignUp";
 import AdminSignIn from "./pages/AdminSignIn";
 import Admin from "./pages/Admin";
-import HeroSection from "./pages/HeroSection";// Import the HeroSection component
+import HeroSection from "./pages/HeroSection";
 import RealEstateLogin from "./pages/RealEstateLogin";
 import RealEstateDashboard from "./pages/RealEstateDashboard";
 import UpdateCompany from './pages/UpdateCompany';
@@ -33,8 +34,44 @@ import RealEstateCompanies from './pages/RealEstateCompanies';
 import AgentCreateListing from './pages/AgentCreateListing';
 import AgentListing from "./pages/AgentListing";
 import Messages from './pages/Messages';
+import LandlordProfile from './pages/LandlordProfile';
+import GeneratedCode from './pages/GeneratedCode';
+import VerifyCode from './pages/VerifyCode';
 
 const App = () => {
+  const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isChatbotLoaded) {
+      const script1 = document.createElement("script");
+      script1.src = "https://cdn.botpress.cloud/webchat/v2.2/inject.js";
+      script1.async = true;
+      document.body.appendChild(script1);
+
+      script1.onload = () => {
+        const script2 = document.createElement("script");
+        script2.src =
+          "https://files.bpcontent.cloud/2024/12/11/21/20241211212011-RZ6GS430.js";
+        script2.async = true;
+        script2.onload = () => {
+          if (window.botpressWebChat) {
+            window.botpressWebChat.init({
+              botId: "your-bot-id-here",
+              hostUrl: "https://cdn.botpress.cloud/webchat/v2.2",
+              showCloseButton: true,
+              enableTranscriptDownload: true,
+            });
+          } else {
+            console.error('Botpress WebChat not loaded properly');
+          }
+        };
+        document.body.appendChild(script2);
+      };
+
+      setIsChatbotLoaded(true);
+    }
+  }, [isChatbotLoaded]);
+
   return (
     <BrowserRouter>
       <Header />
@@ -65,10 +102,13 @@ const App = () => {
         <Route path="/add-agent" element={<AddAgent />} />
         <Route path="/real-estate-companies" element={<RealEstateCompanies />} />
         <Route path="/messages" element={<Messages />} />
+        <Route path="/generated-code" element={<GeneratedCode />} />
+        <Route path="/verify-code/:userId/:code" element={<VerifyCode />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
           <Route path="/profile" element={<Profile />} />
+          <Route path="/landlord-profile" element={<LandlordProfile />} />
           <Route path="/create-listing" element={<CreateListing />} />
           <Route path="/agent-create-listing" element={<AgentCreateListing />} />
           <Route path="/update-listing/:listingId" element={<UpdateListing />} />

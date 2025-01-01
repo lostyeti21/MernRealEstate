@@ -285,7 +285,13 @@ const CreateListing = () => {
       }
 
       setLoading(false);
-      navigate(`/listing/${data.listing._id}`);
+      if (!isAgent && !isRealEstateCompany) {
+        // Mark user as a landlord
+        localStorage.setItem('isLandlord', 'true');
+        navigate('/landlord-profile');
+      } else {
+        navigate(`/listing/${data.listing._id}`);
+      }
     } catch (error) {
       console.error('Listing Creation Error:', error);
       setError(`Unexpected error: ${error.message}`);

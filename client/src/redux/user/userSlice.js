@@ -99,28 +99,13 @@ const userSlice = createSlice({
       state.isAgent = false;
       state.isRealEstateCompany = false;
       state.realEstateCompany = null;
-      // Clear all auth related data
+      // Clear localStorage
       localStorage.removeItem('currentUser');
       localStorage.removeItem('token');
-      localStorage.removeItem('realEstateCompany');
-      localStorage.removeItem('realEstateToken');
-      localStorage.removeItem('agentInfo');
     },
     realEstateSignInSuccess: (state, action) => {
-      state.currentUser = action.payload;
-      state.loading = false;
-      state.error = null;
+      state.realEstateCompany = action.payload;
       state.isRealEstateCompany = true;
-      console.log('Real estate sign in success:', action.payload);
-      // Ensure specific real estate company properties are set
-      state.realEstateCompany = {
-        _id: action.payload._id,
-        companyName: action.payload.companyName,
-        email: action.payload.email,
-        agents: action.payload.agents || []
-      };
-      // Store user data in localStorage
-      localStorage.setItem('currentUser', JSON.stringify(action.payload));
     },
   },
 });
@@ -136,7 +121,7 @@ export const {
   deleteUserSuccess,
   deleteUserFailure,
   signOut,
-  realEstateSignInSuccess
+  realEstateSignInSuccess,
 } = userSlice.actions;
 
 export default userSlice.reducer;

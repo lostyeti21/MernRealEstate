@@ -12,6 +12,7 @@ export default function Header() {
   const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
   const [isAgent, setIsAgent] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [hasListings, setHasListings] = useState(false);
   const socket = useRef();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -45,6 +46,62 @@ export default function Header() {
       }
     };
   }, [currentUser, isMessagesPage]);
+
+  // Check if user has listings
+  useEffect(() => {
+    const checkUserListings = async () => {
+      if (currentUser && !currentUser.isAgent) {
+        try {
+          // Get token from localStorage
+          const token = localStorage.getItem('token');
+          console.log('Checking listings for user:', currentUser._id);
+          console.log('Token available:', !!token);
+          
+          const res = await fetch(`/api/user/listings/${currentUser._id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!res.ok) {
+            console.error('Listings check failed:', res.status, res.statusText);
+            const errorText = await res.text();
+            console.error('Error response:', errorText);
+            return;
+          }
+          
+          const data = await res.json();
+          console.log('Raw listings response:', data);
+          
+          // Check if data.listings is an array and has items
+          const userHasListings = data.success && Array.isArray(data.listings) && data.listings.length > 0;
+          console.log('Listings check result:', {
+            success: data.success,
+            isArray: Array.isArray(data.listings),
+            length: Array.isArray(data.listings) ? data.listings.length : 'not an array',
+            hasListings: userHasListings
+          });
+          
+          setHasListings(userHasListings);
+        } catch (error) {
+          console.error('Error checking listings:', error);
+        }
+      } else {
+        console.log('Skipping listings check:', {
+          hasCurrentUser: !!currentUser,
+          isAgent: currentUser?.isAgent
+        });
+      }
+    };
+
+    checkUserListings();
+  }, [currentUser]);
+
+  // Debug log when hasListings changes
+  useEffect(() => {
+    console.log('hasListings state changed:', hasListings);
+  }, [hasListings]);
 
   // Don't show notifications on Messages page
   const shouldShowNotifications = location.pathname !== '/messages';
@@ -164,6 +221,7 @@ export default function Header() {
       
       // Reset states
       setIsAgent(false);
+      setHasListings(false);
       setIsProfileDropdownOpen(false);
 
       // Dispatch signout action
@@ -339,12 +397,17 @@ export default function Header() {
                       </div>
                       <hr className="border-gray-200" />
                       
+                      {/* Debug info */}
+                      <div className="px-4 py-1 text-xs text-gray-500">
+                        Status: {hasListings ? 'Has Listings' : 'No Listings'}
+                      </div>
+                      
                       <Link
-                        to="/profile"
+                        to={hasListings && !currentUser.isAgent ? '/landlord-profile' : '/profile'}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsProfileDropdownOpen(false)}
                       >
-                        Profile
+                        {hasListings && !currentUser.isAgent ? 'Landlord Profile' : 'Profile'}
                       </Link>
                       
                       <Link

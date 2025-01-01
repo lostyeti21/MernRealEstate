@@ -94,7 +94,7 @@ export const initializeSocket = (server) => {
           ...data
         });
 
-        const { conversationId, receiverId, receiverModel, content } = data;
+        const { conversationId, receiverId, receiverModel, content, attachment } = data;
 
         // Create message
         const message = new Message({
@@ -104,6 +104,7 @@ export const initializeSocket = (server) => {
           receiver: receiverId,
           receiverModel,
           content,
+          attachment,
           read: false
         });
 

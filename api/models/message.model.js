@@ -25,6 +25,10 @@ const messageSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  attachment: {
+    type: String,
+    required: false
+  },
   read: {
     type: Boolean,
     default: false

@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
+import { useRef, useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
+import * as ReactDOMClient from 'react-dom/client';
 
 export default function Messages() {
   const { currentUser } = useSelector((state) => state.user);
@@ -20,6 +22,7 @@ export default function Messages() {
   const socket = useRef();
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const qrRef = useRef(null);
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
@@ -27,14 +30,12 @@ export default function Messages() {
     }
   };
 
-  // Initial scroll when messages are loaded
   useEffect(() => {
     if (messages.length > 0 && messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Initialize socket connection
   useEffect(() => {
     if (!currentUser) {
       navigate('/sign-in');
@@ -82,7 +83,6 @@ export default function Messages() {
 
       socket.current.on('new_message', (data) => {
         console.log('New message received:', data);
-        // Update conversations list to show new message
         setConversations(prev => {
           const updatedConversations = [...prev];
           const conversationIndex = updatedConversations.findIndex(
@@ -100,7 +100,6 @@ export default function Messages() {
           return updatedConversations;
         });
 
-        // If this is the current conversation, add the message
         if (currentConversation?._id === data.conversationId) {
           setMessages(prev => [...prev, data.message]);
           scrollToBottom();
@@ -123,7 +122,6 @@ export default function Messages() {
 
       socket.current.on('message_error', (data) => {
         console.error('Message error:', data);
-        // toast.error(data.error || 'Failed to send message');
       });
 
       return () => {
@@ -137,7 +135,6 @@ export default function Messages() {
     }
   }, [currentUser, navigate, currentConversation]);
 
-  // Fetch participant details
   const fetchParticipantDetails = async (userId, userModel) => {
     try {
       let endpoint;
@@ -168,7 +165,6 @@ export default function Messages() {
     }
   };
 
-  // Fetch conversations
   useEffect(() => {
     const fetchConversations = async () => {
       try {
@@ -197,7 +193,6 @@ export default function Messages() {
         if (data.success) {
           setConversations(data.conversations);
           
-          // Process participants
           const participantsData = {};
           data.conversations.forEach(conv => {
             const otherParticipant = conv.participants?.find(
@@ -231,7 +226,6 @@ export default function Messages() {
     }
   }, [currentUser?._id]);
 
-  // Render conversation list
   const renderConversationList = () => {
     if (loading) {
       return <div className="text-center py-4">Loading conversations...</div>;
@@ -303,7 +297,6 @@ export default function Messages() {
             </div>
           </div>
 
-          {/* Delete button */}
           <button
             onClick={(e) => handleDeleteClick(conversation, e)}
             className="absolute right-2 top-2 p-1 text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -319,7 +312,7 @@ export default function Messages() {
   };
 
   const handleDeleteClick = (conversation, e) => {
-    e.stopPropagation(); // Prevent conversation selection
+    e.stopPropagation(); 
     setConversationToDelete(conversation);
     setShowDeleteConfirm(true);
   };
@@ -336,35 +329,28 @@ export default function Messages() {
 
       const data = await res.json();
       if (data.success) {
-        // Remove conversation from state
         setConversations(prev => prev.filter(conv => conv._id !== conversationToDelete._id));
         
-        // If this was the current conversation, clear it
         if (currentConversation?._id === conversationToDelete._id) {
           setCurrentConversation(null);
           setMessages([]);
         }
-        
-        // toast.success('Conversation deleted successfully');
       } else {
         throw new Error(data.message || 'Failed to delete conversation');
       }
     } catch (error) {
       console.error('Error deleting conversation:', error);
-      // toast.error('Failed to delete conversation');
     } finally {
       setShowDeleteConfirm(false);
       setConversationToDelete(null);
     }
   };
 
-  // When conversation changes, join the conversation room and fetch messages
   useEffect(() => {
     if (currentConversation && socket.current) {
       console.log('Joining conversation:', currentConversation._id);
       socket.current.emit('join_conversation', currentConversation._id);
       
-      // Fetch messages for this conversation
       const fetchMessages = async () => {
         try {
           const res = await fetch(`/api/messages/${currentConversation._id}`, {
@@ -376,13 +362,11 @@ export default function Messages() {
           
           if (data.success) {
             console.log('Fetched messages:', data.messages);
-            // Sort messages by createdAt in ascending order
             const sortedMessages = data.messages.sort((a, b) => 
               new Date(a.createdAt) - new Date(b.createdAt)
             );
             setMessages(sortedMessages);
             
-            // Mark messages as read if there are unread messages
             const unreadMessages = sortedMessages.filter(
               m => !m.read && m.receiver && m.receiver.toString() === currentUser._id.toString()
             );
@@ -402,7 +386,6 @@ export default function Messages() {
 
                 const markReadData = await markReadRes.json();
                 if (markReadData.success) {
-                  // Update messages to mark them as read
                   setMessages(prevMessages => 
                     prevMessages.map(msg => 
                       msg.receiver && msg.receiver.toString() === currentUser._id.toString() 
@@ -411,7 +394,6 @@ export default function Messages() {
                     )
                   );
 
-                  // Update conversation unread count
                   setConversations(prevConversations => 
                     prevConversations.map(conv => 
                       conv._id === currentConversation._id
@@ -442,7 +424,152 @@ export default function Messages() {
     }
   }, [currentConversation, currentUser._id]);
 
-  // Handle incoming messages
+  const handleSendQRCode = async () => {
+    if (!currentConversation) return;
+
+    try {
+      // Get the verification code first
+      const codeRes = await fetch('/api/code/generate', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      const codeData = await codeRes.json();
+      if (!codeRes.ok || !codeData.code) {
+        throw new Error(codeData.message || 'Could not generate code');
+      }
+
+      // Create temporary div for QR code
+      const tempDiv = document.createElement('div');
+      document.body.appendChild(tempDiv);
+
+      // Create root and render QR code
+      const root = ReactDOMClient.createRoot(tempDiv);
+      root.render(
+        <QRCodeSVG
+          value={`${window.location.origin}/verify-code/${currentUser._id}/${codeData.code}`}
+          size={128}
+          level="H"
+          includeMargin={true}
+        />
+      );
+
+      // Wait for render
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Get SVG element
+      const svgElement = tempDiv.querySelector('svg');
+      if (!svgElement) {
+        throw new Error('Failed to generate QR code SVG');
+      }
+
+      // Convert SVG to canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      // Clean up temporary div
+      root.unmount();
+      document.body.removeChild(tempDiv);
+      
+      img.onload = async () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        
+        try {
+          // Convert canvas to blob
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          const file = new File([blob], 'verification-qr-code.png', { type: 'image/png' });
+          
+          // Create FormData and upload
+          const formData = new FormData();
+          formData.append('image', file);
+          
+          const uploadRes = await fetch('/api/upload/image', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: formData
+          });
+          
+          if (!uploadRes.ok) {
+            throw new Error('Failed to upload QR code');
+          }
+          
+          const uploadData = await uploadRes.json();
+          if (!uploadData.success || !uploadData.url) {
+            throw new Error('Failed to get QR code URL');
+          }
+          
+          // Send message with QR code
+          const receiver = currentConversation.participants.find(
+            p => p.userId._id.toString() !== currentUser._id.toString()
+          );
+
+          if (!receiver) {
+            throw new Error('Could not find message receiver');
+          }
+
+          const messageData = {
+            conversationId: currentConversation._id,
+            receiverId: receiver.userId._id,
+            receiverModel: receiver.userModel,
+            content: 'Scan this QR code to verify the sender',
+            sender: currentUser._id,
+            createdAt: new Date().toISOString(),
+            attachment: uploadData.url
+          };
+          
+          // Add message to local state with temporary ID
+          const tempMessage = {
+            ...messageData,
+            _id: `temp-${Date.now()}`,
+            read: true,
+            pending: true
+          };
+          
+          setMessages(prevMessages => {
+            const newMessages = [...prevMessages, tempMessage];
+            return newMessages.sort((a, b) => 
+              new Date(a.createdAt) - new Date(b.createdAt)
+            );
+          });
+          
+          scrollToBottom();
+          
+          // Emit message through socket
+          socket.current.emit('send_message', messageData, (error) => {
+            if (error) {
+              console.error('Error sending QR code:', error);
+              setMessages(prevMessages => 
+                prevMessages.filter(msg => msg._id !== tempMessage._id)
+              );
+              setError('Failed to send QR code');
+            }
+          });
+        } catch (error) {
+          console.error('Error processing QR code:', error);
+          setError('Failed to process QR code');
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      };
+      
+      img.src = url;
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      setError('Failed to generate QR code');
+    }
+  };
+
   useEffect(() => {
     if (!socket.current) return;
 
@@ -450,20 +577,17 @@ export default function Messages() {
       console.log('Received message:', message);
       setMessages(prevMessages => {
         const newMessages = [...prevMessages, { ...message, read: false }];
-        // Sort messages by createdAt
         return newMessages.sort((a, b) => 
           new Date(a.createdAt) - new Date(b.createdAt)
         );
       });
       
-      // Update conversation order
       setConversations(prevConversations => {
         const updatedConversations = prevConversations.map(conv => 
           conv._id === message.conversationId 
             ? { ...conv, lastMessageTime: message.createdAt, lastMessage: message.content }
             : conv
         );
-        // Sort conversations by lastMessageTime
         return updatedConversations.sort((a, b) => {
           const timeA = a.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
           const timeB = b.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
@@ -476,7 +600,6 @@ export default function Messages() {
 
     socket.current.on('receive_message', handleNewMessage);
     
-    // Handle message acknowledgment
     socket.current.on('message_sent', (sentMessage) => {
       console.log('Message sent acknowledgment:', sentMessage);
       setMessages(prevMessages => [...prevMessages, sentMessage]);
@@ -514,7 +637,6 @@ export default function Messages() {
         createdAt: new Date().toISOString()
       };
 
-      // Add message to local state immediately with a temporary ID
       const tempMessage = {
         ...messageData,
         _id: `temp-${Date.now()}`,
@@ -522,7 +644,6 @@ export default function Messages() {
         pending: true
       };
       
-      // Add message and sort
       setMessages(prevMessages => {
         const newMessages = [...prevMessages, tempMessage];
         return newMessages.sort((a, b) => 
@@ -530,7 +651,6 @@ export default function Messages() {
         );
       });
       
-      // Update conversation order
       setConversations(prevConversations => {
         const updatedConversations = prevConversations.map(conv => 
           conv._id === currentConversation._id 
@@ -546,11 +666,9 @@ export default function Messages() {
 
       scrollToBottom();
 
-      // Emit the message
       socket.current.emit('send_message', messageData, (error) => {
         if (error) {
           console.error('Error sending message:', error);
-          // Remove the temporary message if there was an error
           setMessages(prevMessages => 
             prevMessages.filter(msg => msg._id !== tempMessage._id)
           );
@@ -566,7 +684,6 @@ export default function Messages() {
     }
   };
 
-  // Delete confirmation modal
   const DeleteConfirmationModal = () => {
     if (!showDeleteConfirm) return null;
 
@@ -603,24 +720,20 @@ export default function Messages() {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    // Format time as HH:MM
     const timeString = messageDate.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
     });
 
-    // If message is from today, just show time
     if (messageDate.toDateString() === today.toDateString()) {
       return timeString;
     }
     
-    // If message is from yesterday, show 'Yesterday' with time
     if (messageDate.toDateString() === yesterday.toDateString()) {
       return `Yesterday ${timeString}`;
     }
     
-    // For older messages, show date and time
     return `${messageDate.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric'
@@ -629,7 +742,6 @@ export default function Messages() {
 
   return (
     <div className="flex h-[calc(100vh-64px)]">
-      {/* Conversations List */}
       <div className="w-1/3 border-r border-gray-300 overflow-y-auto">
         <div className="p-4 border-b border-gray-300">
           <h2 className="text-xl font-semibold text-gray-800">Messages</h2>
@@ -637,34 +749,33 @@ export default function Messages() {
         {renderConversationList()}
       </div>
 
-      {/* Messages Area */}
       <div className="flex-1 flex flex-col">
         {currentConversation ? (
           <>
-            {/* Chat Header */}
             <div className="p-4 border-b border-gray-300 bg-white">
               {currentConversation && (
-                <div className="flex items-center gap-3">
-                  <img
-                    src={participants[currentConversation._id]?.avatar || 'https://via.placeholder.com/40'}
-                    alt="avatar"
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">
-                      {currentConversation.listingId?.name || 
-                       currentConversation.listingId?.title || 
-                       'Unknown Listing'}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      with {participants[currentConversation._id]?.name || 'Unknown User'}
-                    </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={participants[currentConversation._id]?.avatar || 'https://via.placeholder.com/40'}
+                      alt="avatar"
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900">
+                        {currentConversation.listingId?.name || 
+                         currentConversation.listingId?.title || 
+                         'Unknown Listing'}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        with {participants[currentConversation._id]?.name || 'Unknown User'}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Messages */}
             <div 
               className="flex-1 overflow-y-auto p-4 space-y-4" 
               ref={messagesContainerRef}
@@ -711,12 +822,21 @@ export default function Messages() {
                             } text-gray-800 rounded-r-lg rounded-tl-lg`
                       } px-4 py-2`}
                     >
-                      {/* Message content */}
                       <p className={isUnread ? 'font-medium' : 'font-normal'}>
                         {message.content}
                       </p>
 
-                      {/* Timestamp and read status */}
+                      {message.attachment && (
+                        <div className="mt-2">
+                          <img 
+                            src={message.attachment} 
+                            alt="Attachment"
+                            className="rounded-lg max-w-[200px] w-full h-auto"
+                            style={{ maxHeight: '300px', objectFit: 'contain' }}
+                          />
+                        </div>
+                      )}
+
                       <div
                         className={`flex items-center gap-1 text-xs mt-1 ${
                           isCurrentUser ? 'text-blue-100' : 'text-gray-500'
@@ -726,25 +846,18 @@ export default function Messages() {
                         {isCurrentUser && (
                           <span className="ml-1">
                             {message.read ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-100" viewBox="0 0 20 20" fill="currentColor">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
                                 <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
                               </svg>
                             ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-100" viewBox="0 0 20 20" fill="currentColor">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                               </svg>
                             )}
                           </span>
                         )}
                       </div>
-
-                      {/* Unread indicator dot */}
-                      {isUnread && (
-                        <div className="absolute -left-1 top-1/2 transform -translate-y-1/2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -752,35 +865,47 @@ export default function Messages() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Message Input */}
-            <div className="p-4 border-t border-gray-300 bg-white">
-              <form onSubmit={handleSendMessage} className="flex gap-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => {
-                    setNewMessage(e.target.value);
-                    if (!typing) {
-                      setTyping(true);
-                      socket.current.emit('typing', {
-                        conversationId: currentConversation._id
-                      });
-                    }
-                  }}
-                  onBlur={() => {
-                    if (typing) {
-                      setTyping(false);
-                      socket.current.emit('stop_typing', {
-                        conversationId: currentConversation._id
-                      });
-                    }
-                  }}
-                  placeholder="Type a message..."
-                  className="flex-1 rounded-lg border border-gray-300 p-2 focus:outline-none focus:border-blue-500"
-                />
+            <div className="p-4 border-t border-gray-300 bg-white relative">
+              <form onSubmit={handleSendMessage} className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      if (!typing) {
+                        setTyping(true);
+                        socket.current.emit('typing', {
+                          conversationId: currentConversation._id
+                        });
+                      }
+                    }}
+                    onBlur={() => {
+                      if (typing) {
+                        setTyping(false);
+                        socket.current.emit('stop_typing', {
+                          conversationId: currentConversation._id
+                        });
+                      }
+                    }}
+                    placeholder="Type a message..."
+                    className="flex-1 rounded-lg border border-gray-300 p-2 focus:outline-none focus:border-blue-500 h-[65px] text-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendQRCode}
+                    className="bg-gray-100 text-gray-600 px-4 rounded-lg hover:bg-gray-200 transition-colors z-10 h-[65px] flex items-center justify-center"
+                    title="Send QR Code"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11V9m0 0H4m6 0h4m6 0h4M6 16l6-6m6 0l-6 6" />
+                    </svg>
+                  </button>
+                </div>
                 <button
                   type="submit"
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+                  className="bg-blue-500 text-white px-6 py-2.5 rounded-lg hover:bg-blue-600 transition-colors z-10 font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5 w-full h-[65px] text-lg"
+                  disabled={!newMessage.trim()}
                 >
                   Send
                 </button>
@@ -799,8 +924,7 @@ export default function Messages() {
         )}
       </div>
 
-      {/* Delete confirmation modal */}
-      <DeleteConfirmationModal />
+      {DeleteConfirmationModal()}
     </div>
   );
 }
