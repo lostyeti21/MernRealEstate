@@ -5,81 +5,60 @@ import RealEstateCompany from '../models/realEstateCompany.model.js';
 
 export const verifyToken = async (req, res, next) => {
   try {
-    // Get token from header
-    const token = req.headers.authorization?.split(' ')[1];
+    const token = req.cookies.access_token;
     
     if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Access denied. No token provided.'
-      });
+      return next(errorHandler(401, 'You are not authenticated'));
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    if (!decoded) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token.'
-      });
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return next(errorHandler(401, 'Token has expired'));
+      }
+      return next(errorHandler(401, 'Invalid token'));
     }
 
-    // Check if user exists
     const user = decoded.isRealEstateCompany 
       ? await RealEstateCompany.findById(decoded.id)
       : await User.findById(decoded.id);
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found.'
-      });
+      return next(errorHandler(401, 'User not found'));
     }
 
-    // Add user to request
     req.user = {
-      id: user._id.toString(),
+      id: user._id,
+      username: user.username,
+      email: user.email,
       isRealEstateCompany: decoded.isRealEstateCompany,
-      isAgent: decoded.isAgent
+      isAdmin: user.isAdmin
     };
+
     next();
   } catch (error) {
-    console.error('Token verification error:', error);
-    res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
+    next(error);
   }
 };
 
 export const verifyAgent = (req, res, next) => {
-  verifyToken(req, res, () => {
-    if (req.user.isAgent) {
-      next();
-    } else {
+  verifyToken(req, res, (err) => {
+    if (err) return next(err);
+    if (!req.user.isAgent) {
       return next(errorHandler(403, 'You are not authorized as an agent'));
     }
+    next();
   });
 };
 
-export const verifyUser = async (req, res, next) => {
-  try {
-    await verifyToken(req, res, async (err) => {
-      if (err) return next(err);
-
-      if (!req.user) {
-        return next(errorHandler(401, 'Authentication required'));
-      }
-
-      if (req.user.id !== req.params.id && !req.user.isAdmin) {
-        return next(errorHandler(403, 'Access denied'));
-      }
-
-      next();
-    });
-  } catch (error) {
-    console.error('User Verification Error:', error);
-    next(errorHandler(500, 'Error verifying user'));
-  }
+export const verifyUser = (req, res, next) => {
+  verifyToken(req, res, (err) => {
+    if (err) return next(err);
+    if (req.user.id !== req.params.id) {
+      return next(errorHandler(403, 'You can only access your own resources'));
+    }
+    next();
+  });
 };

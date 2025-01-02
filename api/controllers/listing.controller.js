@@ -6,68 +6,44 @@ import { errorHandler } from "../utils/error.js";
 
 export const createListing = async (req, res, next) => {
   try {
-    console.log('Create Listing Request:', {
-      body: JSON.stringify(req.body, null, 2),
-      user: JSON.stringify(req.user, null, 2)
-    });
+    const { userRef, userModel, ...listingData } = req.body;
 
-    // Check if the user is an agent
-    if (req.user.isAgent) {
-      const company = await RealEstateCompany.findOne({
-        'agents._id': req.user._id
-      });
-
-      if (!company) {
-        return next(errorHandler(404, 'Agent not found in any company'));
-      }
-
-      const agent = company.agents.find(a => 
-        a._id.toString() === req.user._id.toString()
-      );
-
-      if (!agent) {
-        return next(errorHandler(404, 'Agent not found'));
-      }
-
-      const listing = await Listing.create({
-        ...req.body,
-        userRef: req.user._id,
-        userModel: 'Agent',
-        companyRef: company._id,
-        agentInfo: {
-          _id: agent._id,
-          name: agent.name,
-          email: agent.email,
-          phone: agent.phone || '',
-          avatar: agent.avatar || '',
-          companyName: company.companyName,
-          companyId: company._id,
-          companyEmail: company.email || '',
-          companyPhone: company.phone || '',
-          companyAddress: company.address || ''
-        }
-      });
-
-      return res.status(201).json({
-        success: true,
-        listing
-      });
+    // Validate required fields
+    if (!userRef) {
+      return next(errorHandler(400, 'User reference is required'));
     }
 
-    // For regular users
-    const listing = await Listing.create({
-      ...req.body,
-      userRef: req.user._id,
-      userModel: 'User'
+    if (!userModel) {
+      return next(errorHandler(400, 'User model is required'));
+    }
+
+    // Create the listing
+    const listing = new Listing({
+      ...listingData,
+      userRef,
+      userModel
     });
 
-    return res.status(201).json({
-      success: true,
-      listing
-    });
+    // Save the listing
+    const savedListing = await listing.save();
 
+    // Track listing creation in analytics
+    try {
+      await fetch(`http://localhost:3000/api/analytics/${userRef}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ type: 'listing_created' })
+      });
+    } catch (error) {
+      console.error('Error tracking listing creation:', error);
+      // Don't fail the request if analytics fails
+    }
+
+    res.status(201).json(savedListing);
   } catch (error) {
-    console.error('Create listing error:', error);
+    console.error('Create Listing Error:', error);
     next(error);
   }
 };
@@ -79,7 +55,25 @@ export const deleteListing = async (req, res, next) => {
       return next(errorHandler(404, 'Listing not found!'));
     }
 
+    if (req.user._id.toString() !== listing.userRef.toString()) {
+      return next(errorHandler(401, 'You can only delete your own listings!'));
+    }
+
     await Listing.findByIdAndDelete(req.params.id);
+
+    // Track listing deletion in analytics
+    try {
+      await fetch(`http://localhost:3000/api/analytics/${listing.userRef}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ type: 'listing_deleted' })
+      });
+    } catch (error) {
+      console.error('Error tracking listing deletion:', error);
+    }
+
     res.status(200).json('Listing has been deleted!');
   } catch (error) {
     next(error);

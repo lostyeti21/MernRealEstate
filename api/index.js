@@ -15,6 +15,7 @@ import uploadRouter from './routes/upload.route.js';
 import agentRouter from './routes/agent.route.js';
 import companyRouter from './routes/real-estate.route.js';
 import codeRouter from './routes/code.route.js';
+import analyticsRouter from './routes/analytics.route.js';
 
 // Load environment variables at the very start
 dotenv.config();
@@ -58,6 +59,7 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/agent', agentRouter);
 app.use('/api/real-estate', companyRouter);
 app.use('/api/code', codeRouter);
+app.use('/api/analytics', analyticsRouter);
 
 // Only serve static files in production
 if (process.env.NODE_ENV === 'production') {

@@ -16,7 +16,7 @@ import Landlords from "./pages/Landlords";
 import Tenants from "./pages/Tenants";
 import LandlordListings from "./pages/LandlordListings";
 import TenantProfile from "./pages/TenantProfile";
-import Analytics from "./components/Analytics";
+import Analytics from "./pages/Analytics";
 import ChangePassword from "./pages/ChangePassword";
 import RealEstateSignUp from "./pages/RealEstateSignUp";
 import AdminSignIn from "./pages/AdminSignIn";

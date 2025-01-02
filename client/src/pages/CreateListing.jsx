@@ -75,19 +75,30 @@ const CreateListing = () => {
       setImageUploadError(false);
       const promises = [];
 
-      for (let i = 0; i < files.length; i++) {
-        promises.push(storeImage(files[i]));
-      }
-
       try {
+        // Check token before starting upload
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setImageUploadError('Please sign in again');
+          setUploading(false);
+          navigate('/sign-in');
+          return;
+        }
+
+        for (let i = 0; i < files.length; i++) {
+          promises.push(storeImage(files[i]));
+        }
+
         const urls = await Promise.all(promises);
         setFormData({
           ...formData,
           imageUrls: formData.imageUrls.concat(urls),
         });
         setImageUploadError(false);
+        setFiles([]);
       } catch (err) {
-        setImageUploadError('Image upload failed (2 mb max per image)');
+        console.error('Image upload error:', err);
+        setImageUploadError(err.message || 'Image upload failed (2 mb max per image)');
       }
       setUploading(false);
     } else {
@@ -100,9 +111,10 @@ const CreateListing = () => {
     formData.append('image', file);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       if (!token) {
-        throw new Error('No authentication token found');
+        console.error('Token not found in localStorage');
+        throw new Error('Please sign in again');
       }
 
       const res = await fetch('/api/upload/image', {
@@ -117,12 +129,14 @@ const CreateListing = () => {
       const data = await res.json();
 
       if (!res.ok) {
+        console.error('Upload failed:', data);
         throw new Error(data.message || 'Upload failed');
       }
 
       return data.url;
     } catch (error) {
       console.error('Upload error:', error);
+      setError(error.message || 'Failed to upload image');
       throw error;
     }
   };
@@ -150,158 +164,63 @@ const CreateListing = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Validate form data before submission
-      if (formData.imageUrls.length < 1)
-        return setError('You must upload at least one image');
-      if (+formData.regularPrice < +formData.discountPrice)
-        return setError('Discount price must be lower than regular price');
-
-      // Debug log form data
-      console.log('Form Data:', {
-        ...formData,
-        name: formData.title || formData.name // Handle both title and name fields
-      });
-
-      // Validate required fields
-      const requiredFields = [
-        'title', 'description', 'address', 
-        'regularPrice', 'bedrooms', 'bathrooms', 'type'
-      ];
-      
-      const missingFields = requiredFields.filter(field => {
-        const value = formData[field] || formData[field === 'title' ? 'name' : field];
-        return !value && value !== 0;
-      });
-      
-      if (missingFields.length > 0) {
-        console.error('Missing Fields:', missingFields);
-        setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      if (formData.imageUrls.length < 1) {
+        setError('You must upload at least one image');
         return;
       }
-
       setLoading(true);
       setError(false);
 
-      // Determine user type and token source
-      const isAgent = currentUser.isAgent || 
-        (currentUser.role === 'agent') || 
-        (currentUser.agents && currentUser.agents.length > 0);
-      const isRealEstateCompany = currentUser.isRealEstateCompany || 
-        (currentUser.role === 'company') || 
-        (currentUser.companyName);
+      // Get the current user's ID
+      const userId = currentUser?._id;
+      if (!userId) {
+        setError('You must be logged in to create a listing');
+        setLoading(false);
+        return;
+      }
 
-      // Token retrieval with multiple fallback methods
-      const getToken = () => {
-        const tokens = [
-          localStorage.getItem('access_token'),
-          currentUser?.token,
-          isAgent ? localStorage.getItem('agentToken') : null,
-          isRealEstateCompany ? localStorage.getItem('realEstateToken') : null,
-          document.cookie.split('; ')
-            .find(row => row.startsWith('access_token='))
-            ?.split('=')[1]
-        ];
-
-        return tokens.find(token => token && token.trim() !== '');
-      };
-
-      const token = getToken();
-
-      // Determine user model based on user type
-      const userModel = 
-        isAgent ? 'Agent' : 
-        isRealEstateCompany ? 'RealEstateCompany' : 
-        'User';
+      // Get the authentication token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setError('Please sign in again');
+        setLoading(false);
+        navigate('/sign-in');
+        return;
+      }
 
       // Prepare listing data
       const listingData = {
         ...formData,
-        title: formData.title || formData.name, // Handle both title and name fields
-        userRef: currentUser._id,
-        userModel: userModel,
-        // Ensure imageUrls is always an array
+        title: formData.title || formData.name,
+        userRef: userId,
+        userModel: 'User',
         imageUrls: Array.isArray(formData.imageUrls) ? formData.imageUrls : []
       };
 
-      // Debug logging
-      console.log('Listing Creation Debug:', {
-        userType: {
-          isAgent,
-          isRealEstateCompany
-        },
-        userModel,
-        tokenAvailable: !!token,
-        currentUser,
-        listingData,
-        formData
-      });
-
-      // Enhanced fetch with multiple token passing methods
+      // Make the API request
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-          'X-Access-Token': token || '',
-          'X-User-Model': userModel
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(listingData),
         credentials: 'include'
       });
 
-      // Detailed error handling
-      if (!res.ok) {
-        let errorText = '';
-        let errorDetails = {};
-        
-        try {
-          errorDetails = await res.json();
-          errorText = errorDetails.message || 'Failed to create listing';
-          
-          // Log the full error response
-          console.error('Server Error Response:', {
-            status: res.status,
-            statusText: res.statusText,
-            errorDetails
-          });
-        } catch {
-          errorText = await res.text() || 'Unknown error occurred';
-        }
-
-        setError(`Failed to create listing: ${errorText}`);
-        setLoading(false);
-        return;
-      }
-
       const data = await res.json();
 
-      // Validate successful response
-      if (!data.success) {
-        console.error('Unsuccessful Response:', data);
-        setError(`Failed to create listing: ${data.message || 'Unknown error'}`);
-        setLoading(false);
-        return;
-      }
-
-      // Check if we have a valid listing ID before navigating
-      if (!data.listing || !data.listing._id) {
-        console.error('Invalid Listing Response:', data);
-        setError('Failed to create listing: No listing ID returned');
+      if (!res.ok) {
+        setError(data.message || 'Failed to create listing');
         setLoading(false);
         return;
       }
 
       setLoading(false);
-      if (!isAgent && !isRealEstateCompany) {
-        // Mark user as a landlord
-        localStorage.setItem('isLandlord', 'true');
-        navigate('/landlord-profile');
-      } else {
-        navigate(`/listing/${data.listing._id}`);
-      }
+      localStorage.setItem('isLandlord', 'true');
+      navigate(`/listing/${data._id}`);
     } catch (error) {
-      console.error('Listing Creation Error:', error);
-      setError(`Unexpected error: ${error.message}`);
+      setError(error.message || 'Something went wrong!');
       setLoading(false);
     }
   };

@@ -68,16 +68,30 @@ export default function Listing() {
 
         if (data.success === false) {
           setError(data.message);
+          setLoading(false);
           return;
         }
 
-        const listingData = data.listing;
-        console.log('Listing data:', listingData); // Debug log
-        setListing(listingData);
+        setListing(data.listing);
+
+        // Track view for the listing owner
+        if (data.listing.userRef) {
+          try {
+            await fetch(`/api/analytics/${data.listing.userRef}/track`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ type: 'view' })
+            });
+          } catch (err) {
+            console.error('Error tracking view:', err);
+          }
+        }
 
         // Geocode address using the original implementation
         try {
-          const coords = await geocodeAddress(listingData.address);
+          const coords = await geocodeAddress(data.listing.address);
           if (coords) {
             setCoordinates(coords);
             console.log('Geocoded coordinates:', coords);
@@ -91,9 +105,9 @@ export default function Listing() {
         }
 
         // Fetch user or agent data based on userModel
-        if (listingData.userRef) {
-          if (listingData.userModel === 'Agent') {
-            const agentRes = await fetch(`/api/agent/${listingData.userRef}`);
+        if (data.listing.userRef) {
+          if (data.listing.userModel === 'Agent') {
+            const agentRes = await fetch(`/api/agent/${data.listing.userRef}`);
             const agentData = await agentRes.json();
             
             if (agentData.success && agentData.agent) {
@@ -110,7 +124,7 @@ export default function Listing() {
               });
             }
           } else {
-            const userRes = await fetch(`/api/user/${listingData.userRef}`);
+            const userRes = await fetch(`/api/user/${data.listing.userRef}`);
             const userData = await userRes.json();
             
             if (userData) {
@@ -135,6 +149,108 @@ export default function Listing() {
 
     fetchListing();
   }, [params.listingId]);
+
+  // Track page view
+  useEffect(() => {
+    const trackPageView = async () => {
+      if (!listing?._id || !listing.userRef) {
+        console.log('Skipping view tracking - missing listing data:', { id: listing?._id, userRef: listing?.userRef });
+        return;
+      }
+
+      try {
+        console.log('Tracking page view for listing:', listing._id);
+        const res = await fetch(`/api/analytics/${listing.userRef}/track`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            eventType: 'view',
+            listingId: listing._id
+          }),
+        });
+
+        const data = await res.json();
+        console.log('View tracking response:', data);
+
+        if (!data.success) {
+          console.error('Failed to track view:', data.message);
+        }
+      } catch (error) {
+        console.error('Error tracking page view:', error);
+      }
+    };
+
+    if (listing?._id && listing?.userRef) {
+      console.log('Calling trackPageView with listing:', { id: listing._id, userRef: listing.userRef });
+      trackPageView();
+    }
+  }, [listing?._id, listing?.userRef]); // Only re-run when listing ID or userRef changes
+
+  // Track contact button click
+  const handleContactClick = async () => {
+    if (!listing?._id || !listing.userRef) {
+      console.log('Skipping click tracking - missing listing data:', { id: listing?._id, userRef: listing?.userRef });
+      return;
+    }
+
+    try {
+      console.log('Tracking contact click for listing:', listing._id);
+      const res = await fetch(`/api/analytics/${listing.userRef}/track`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventType: 'click',
+          listingId: listing._id
+        }),
+      });
+
+      const data = await res.json();
+      console.log('Click tracking response:', data);
+
+      if (!data.success) {
+        console.error('Failed to track click:', data.message);
+      }
+    } catch (error) {
+      console.error('Error tracking contact click:', error);
+    }
+
+    setContact(true);
+  };
+
+  // Track inquiry submission
+  const handleInquiry = async () => {
+    if (!listing?._id || !listing.userRef) {
+      console.log('Skipping inquiry tracking - missing listing data:', { id: listing?._id, userRef: listing?.userRef });
+      return;
+    }
+
+    try {
+      console.log('Tracking inquiry for listing:', listing._id);
+      const res = await fetch(`/api/analytics/${listing.userRef}/track`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventType: 'inquiry',
+          listingId: listing._id
+        }),
+      });
+
+      const data = await res.json();
+      console.log('Inquiry tracking response:', data);
+
+      if (!data.success) {
+        console.error('Failed to track inquiry:', data.message);
+      }
+    } catch (error) {
+      console.error('Error tracking inquiry:', error);
+    }
+  };
 
   const startChat = async (userId) => {
     if (!currentUser) {
@@ -166,6 +282,36 @@ export default function Listing() {
     }
   };
 
+  const trackClick = async () => {
+    if (listing?.userRef) {
+      try {
+        await fetch(`/api/analytics/${listing.userRef}/track`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ type: 'click' })
+        });
+      } catch (err) {
+        console.error('Error tracking click:', err);
+      }
+    }
+  };
+
+  const handlePhoneClick = async () => {
+    await trackClick();
+    if (listedBy?.data?.phone) {
+      window.location.href = `tel:${listedBy.data.phone}`;
+    }
+  };
+
+  const handleEmailClick = async () => {
+    await trackClick();
+    if (listedBy?.data?.email) {
+      window.location.href = `mailto:${listedBy.data.email}`;
+    }
+  };
+
   const handleContact = async () => {
     if (!currentUser) {
       navigate('/sign-in');
@@ -173,12 +319,6 @@ export default function Listing() {
     }
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/sign-in');
-        return;
-      }
-
       // Get the owner's model type
       let ownerModel = 'User';
       if (listing.userModel) {
@@ -187,42 +327,34 @@ export default function Listing() {
         ownerModel = 'Agent';
       }
 
-      const initialMessage = `Hi, I'm ${currentUser.username} and I'm interested in ${listing.name}`;
-
-      console.log('Creating conversation with:', {
-        receiverId: listing.userRef,
-        receiverModel: ownerModel,
-        listingId: listing._id,
-        initialMessage,
-        senderId: currentUser._id
-      });
-
-      // Create or get conversation
+      // Create the conversation
       const res = await fetch('/api/messages/conversation', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           receiverId: listing.userRef,
           receiverModel: ownerModel,
-          listingId: listing._id,
-          initialMessage,
-          senderId: currentUser._id
+          listingId: listing._id
         })
       });
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.message || 'Failed to start conversation');
+        throw new Error(data.message || 'Failed to create conversation');
       }
 
       const data = await res.json();
       if (data.success) {
-        navigate('/messages');
+        // Track the contact event
+        await handleContactClick();
+        
+        // Navigate to messages with the conversation ID
+        navigate(`/messages?conversation=${data.conversation._id}`);
       } else {
-        throw new Error(data.message || 'Failed to start conversation');
+        throw new Error(data.message || 'Failed to create conversation');
       }
     } catch (error) {
       console.error('Error starting conversation:', error);
@@ -465,7 +597,7 @@ export default function Listing() {
 
         <div className="mt-4">
           <button
-            onClick={handleContact}
+            onClick={handleContactClick}
             className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
           >
             Contact Landlord
@@ -625,7 +757,7 @@ export default function Listing() {
             {currentUser && currentUser._id !== listing.userRef && (
               <div className="mt-4">
                 <button
-                  onClick={handleContact}
+                  onClick={handleContactClick}
                   className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
                 >
                   Contact Landlord
@@ -696,7 +828,12 @@ export default function Listing() {
         </div>
       )}
 
-      {contact && <Contact listing={listing} />}
+      {contact && (
+        <Contact
+          listing={listing}
+          onMessageSent={handleInquiry}
+        />
+      )}
 
       {showRatingModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

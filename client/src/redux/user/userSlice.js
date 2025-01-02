@@ -46,17 +46,12 @@ const userSlice = createSlice({
       state.isAgent = action.payload.isAgent || false;
       state.isRealEstateCompany = action.payload.isRealEstateCompany || false;
       
-      // Ensure token is properly stored
-      const userToStore = {
-        ...action.payload,
-        token: action.payload.token || action.payload.accessToken
-      };
-      
-      // Store in localStorage
-      localStorage.setItem('currentUser', JSON.stringify(userToStore));
-      
-      // Also store token separately for easy access
-      localStorage.setItem('token', userToStore.token);
+      // Store user data and token
+      const token = action.payload.token || action.payload.accessToken;
+      if (token) {
+        localStorage.setItem('access_token', token);
+      }
+      localStorage.setItem('currentUser', JSON.stringify(action.payload));
     },
     signInFailure: (state, action) => {
       state.loading = false;
@@ -101,7 +96,8 @@ const userSlice = createSlice({
       state.realEstateCompany = null;
       // Clear localStorage
       localStorage.removeItem('currentUser');
-      localStorage.removeItem('token');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('isLandlord');
     },
     realEstateSignInSuccess: (state, action) => {
       state.realEstateCompany = action.payload;

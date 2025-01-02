@@ -6,6 +6,7 @@ import {
   getListing,
   getListings,
   getAgentListings,
+  getUserListings,
   expressInterest
 } from "../controllers/listing.controller.js";
 import Listing from '../models/listing.model.js';
@@ -20,6 +21,9 @@ router.get("/get/:id", getListing);
 
 // Protected routes - require authentication
 router.use(verifyToken);
+
+// User routes
+router.get('/user/:id', getUserListings);
 
 // Agent routes
 router.get('/agent/:id', getAgentListings);

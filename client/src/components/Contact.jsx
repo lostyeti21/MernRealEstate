@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 
-const Contact = ({ listing }) => {
+const Contact = ({ listing, onMessageSent }) => {
   const [contactPerson, setContactPerson] = useState(null);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const { currentUser } = useSelector((state) => state.user);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchContactPerson = async () => {
@@ -19,12 +24,14 @@ const Contact = ({ listing }) => {
           const res = await fetch(`/api/user/${listing.userRef}`);
           const data = await res.json();
           if (data.success === false) {
+            setError('Could not fetch contact person details');
             return;
           }
           setContactPerson(data);
         }
       } catch (error) {
-        console.log(error);
+        console.error('Error fetching contact person:', error);
+        setError('Could not fetch contact person details');
       }
     };
 
@@ -33,7 +40,72 @@ const Contact = ({ listing }) => {
 
   const onChange = (e) => {
     setMessage(e.target.value);
+    setError(null); // Clear any previous errors
   };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!message.trim() || !currentUser) return;
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Sending message with user:', currentUser.id);
+      
+      // Start a new conversation with the initial message
+      const res = await fetch('/api/messages/conversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          receiverId: listing.userRef,
+          receiverModel: listing.agent ? 'Agent' : 'User',
+          listingId: listing._id,
+          initialMessage: message.trim()
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success === false) {
+        console.error('Server error:', data.message);
+        setError(data.message || 'Failed to send message');
+        return;
+      }
+
+      console.log('Message sent successfully:', data);
+
+      // Track the inquiry
+      if (onMessageSent) {
+        await onMessageSent();
+      }
+
+      // Clear the message
+      setMessage('');
+      
+      // Navigate to messages page
+      navigate('/messages');
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setError('Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="text-center mt-4">
+        <p className="mb-2">Please sign in to contact the landlord</p>
+        <Link to="/sign-in" className="text-blue-700 hover:underline">
+          Sign in here
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -44,22 +116,29 @@ const Contact = ({ listing }) => {
             for{" "}
             <span className="font-semibold">{listing.name.toLowerCase()}</span>
           </p>
-          <textarea
-            name="message"
-            id="message"
-            rows="2"
-            value={message}
-            onChange={onChange}
-            placeholder="Enter your message here..."
-            className="w-full border p-3 rounded-lg"
-          ></textarea>
-
-          <Link
-            to={`mailto:${contactPerson.email}?subject=Regarding ${listing.name}&body=${message}`}
-            className="bg-slate-700 text-white text-center p-3 uppercase rounded-lg hover:opacity-95"
-          >
-            {listing.agent ? 'Send Email to Real Estate Agent' : 'Send Message'}
-          </Link>
+          {error && (
+            <div className="text-red-500 text-sm mb-2">
+              {error}
+            </div>
+          )}
+          <form onSubmit={handleSubmit}>
+            <textarea
+              name="message"
+              id="message"
+              rows="2"
+              value={message}
+              onChange={onChange}
+              placeholder="Enter your message here..."
+              className="w-full border p-3 rounded-lg"
+            ></textarea>
+            <button
+              type="submit"
+              className="bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 p-3 w-full mt-2"
+              disabled={loading || !message.trim()}
+            >
+              {loading ? 'Sending...' : 'Send Message'}
+            </button>
+          </form>
         </div>
       )}
     </div>

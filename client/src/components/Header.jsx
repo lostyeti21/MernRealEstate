@@ -21,31 +21,70 @@ export default function Header() {
   const isHomePage = location.pathname === '/';
   const isMessagesPage = location.pathname === '/messages';
 
-  // Initialize socket connection and fetch initial unread count
   useEffect(() => {
     if (!currentUser) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
     socket.current = io('http://localhost:3000', {
-      auth: { token },
+      auth: { token: localStorage.getItem('token') },
       transports: ['websocket', 'polling']
     });
 
     // Listen for new messages
     socket.current.on('new_message', (data) => {
+      console.log('New message received in header:', data);
       if (!isMessagesPage) {
         setUnreadCount(prev => prev + 1);
       }
     });
 
+    // Listen for message read events
+    socket.current.on('messages_read', (data) => {
+      if (data.userId === currentUser._id) {
+        setUnreadCount(prev => Math.max(0, prev - data.count));
+      }
+    });
+
+    // Fetch initial unread count
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await fetch('/api/messages/unread-count', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch unread count');
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          setUnreadCount(data.count);
+        }
+      } catch (error) {
+        console.error('Error fetching unread count:', error);
+      }
+    };
+
+    fetchUnreadCount();
+
+    // Set up interval to fetch unread count
+    const interval = setInterval(fetchUnreadCount, 30000); // Every 30 seconds
+
     return () => {
+      clearInterval(interval);
       if (socket.current) {
         socket.current.disconnect();
       }
     };
   }, [currentUser, isMessagesPage]);
+
+  // Reset unread count when entering messages page
+  useEffect(() => {
+    if (isMessagesPage) {
+      setUnreadCount(0);
+    }
+  }, [isMessagesPage]);
 
   // Check if user has listings
   useEffect(() => {
@@ -99,55 +138,6 @@ export default function Header() {
 
   // Don't show notifications on Messages page
   const shouldShowNotifications = location.pathname !== '/messages';
-
-  // Handle unread count updates
-  useEffect(() => {
-    const fetchUnreadCount = async () => {
-      try {
-        if (!currentUser) return;
-
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        console.log('Fetching unread count for user:', currentUser._id);
-        const res = await fetch('/api/messages/unread-count', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to fetch unread count');
-        }
-
-        const data = await res.json();
-        if (data.success) {
-          // Only update unread count if we're not on the Messages page
-          if (shouldShowNotifications) {
-            setUnreadCount(data.count);
-          } else {
-            setUnreadCount(0);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching unread count:', error);
-      }
-    };
-
-    fetchUnreadCount();
-
-    // Set up interval to fetch unread count
-    const interval = setInterval(fetchUnreadCount, 30000); // Every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [currentUser, location.pathname]);
-
-  // Reset unread count when entering messages page
-  useEffect(() => {
-    if (isMessagesPage) {
-      setUnreadCount(0);
-    }
-  }, [isMessagesPage]);
 
   // Close users menu when clicking outside
   useEffect(() => {

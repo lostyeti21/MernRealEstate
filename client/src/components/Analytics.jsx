@@ -9,7 +9,7 @@ const Analytics = () => {
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const res = await fetch(`/api/user/analytics/${currentUser._id}`, {
+        const res = await fetch(`/api/analytics/${currentUser._id}`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
@@ -20,13 +20,19 @@ const Analytics = () => {
         }
 
         const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.message || "Failed to fetch analytics data");
+        }
         setAnalytics(data);
       } catch (err) {
         setError(err.message);
+        console.error('Analytics error:', err);
       }
     };
 
-    fetchAnalytics();
+    if (currentUser?._id) {
+      fetchAnalytics();
+    }
   }, [currentUser]);
 
   if (error) {

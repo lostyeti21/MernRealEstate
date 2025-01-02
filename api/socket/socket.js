@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import Message from '../models/message.model.js';
 import Conversation from '../models/conversation.model.js';
+import cookie from 'cookie';
 
 const connectedUsers = new Map();
 
@@ -17,28 +18,25 @@ export const initializeSocket = (server) => {
   // Middleware for authentication
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth.token;
+      const cookies = socket.handshake.headers.cookie 
+        ? cookie.parse(socket.handshake.headers.cookie)
+        : {};
+      
+      const token = cookies.access_token;
       
       if (!token) {
-        console.error('No token provided in socket handshake');
-        return next(new Error('No token provided'));
+        return next(new Error('Authentication required'));
       }
-
-      console.log('Socket authentication - token received');
 
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log('Socket authentication - token verified for user:', decoded.id);
-        
         socket.userId = decoded.id;
-        socket.userModel = decoded.isAgent ? 'Agent' : 'User';
+        socket.userModel = decoded.isRealEstateCompany ? 'Company' : 'User';
         next();
       } catch (jwtError) {
-        console.error('JWT verification failed:', jwtError);
         return next(new Error('Invalid token'));
       }
     } catch (error) {
-      console.error('Socket authentication error:', error);
       return next(new Error('Authentication failed'));
     }
   });
@@ -51,15 +49,6 @@ export const initializeSocket = (server) => {
     });
     
     connectedUsers.set(socket.userId, socket.id);
-
-    // Join a conversation room
-    socket.on('join_conversation', (conversationId) => {
-      socket.join(conversationId);
-      console.log('User joined conversation:', {
-        userId: socket.userId,
-        conversationId
-      });
-    });
 
     // Handle typing events
     socket.on('typing', (data) => {
@@ -89,30 +78,36 @@ export const initializeSocket = (server) => {
     // Send a message
     socket.on('send_message', async (data) => {
       try {
-        console.log('Received send_message event:', {
-          userId: socket.userId,
-          ...data
-        });
+        console.log('Received send_message event from user:', socket.userId, 'data:', data);
 
-        const { conversationId, receiverId, receiverModel, content, attachment } = data;
+        const { conversationId, content, receiver, receiverModel, attachment } = data;
+
+        // Validate required fields
+        if (!conversationId || !content || !receiver) {
+          throw new Error('Missing required message fields');
+        }
 
         // Create message
         const message = new Message({
           conversationId,
           sender: socket.userId,
           senderModel: socket.userModel,
-          receiver: receiverId,
-          receiverModel,
+          receiver,
+          receiverModel: receiverModel || 'User',
           content,
           attachment,
-          read: false
+          read: false,
+          createdAt: new Date()
         });
 
-        console.log('Created message object:', message);
-
         // Save message
-        await message.save();
-        console.log('Message saved successfully');
+        const savedMessage = await message.save();
+        console.log('Message saved with ID:', savedMessage._id);
+
+        // Populate sender details
+        const populatedMessage = await Message.findById(savedMessage._id)
+          .populate('sender', 'username name avatar')
+          .populate('receiver', 'username name avatar');
 
         // Update conversation's last message
         await Conversation.findByIdAndUpdate(conversationId, {
@@ -121,46 +116,51 @@ export const initializeSocket = (server) => {
         });
 
         // Get receiver's socket ID
-        const receiverSocketId = connectedUsers.get(receiverId);
-        console.log('Receiver socket ID:', receiverSocketId);
+        const receiverSocketId = connectedUsers.get(receiver);
+        console.log('Receiver socket ID for user', receiver, ':', receiverSocketId);
 
-        // Emit to conversation room
-        io.to(conversationId).emit('receive_message', {
-          conversationId,
-          message: {
-            ...message.toObject(),
-            createdAt: new Date()
-          }
-        });
-
-        // Also emit directly to receiver if online
+        // Send to receiver
         if (receiverSocketId) {
+          console.log('Emitting new_message to receiver:', receiverSocketId);
           io.to(receiverSocketId).emit('new_message', {
             conversationId,
-            message: {
-              ...message.toObject(),
-              createdAt: new Date()
-            }
+            message: populatedMessage.toObject()
           });
+        } else {
+          console.log('Receiver not connected:', receiver);
         }
 
-        // Send acknowledgment
+        // Send acknowledgment to sender
+        console.log('Sending message_sent acknowledgment to sender');
         socket.emit('message_sent', {
           success: true,
-          message: message
+          message: populatedMessage.toObject()
         });
 
       } catch (error) {
-        console.error('Error sending message:', error);
+        console.error('Error in send_message handler:', error);
         socket.emit('message_error', {
-          error: error.message
+          error: error.message || 'Failed to send message'
         });
       }
     });
 
+    // Handle socket connection
+    socket.on('join_conversation', (conversationId) => {
+      console.log('User', socket.userId, 'joining conversation:', conversationId);
+      socket.join(conversationId);
+    });
+
+    // Handle socket disconnection
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.userId);
-      connectedUsers.delete(socket.userId);
+      // Remove user from connected users map
+      for (const [key, value] of connectedUsers.entries()) {
+        if (value === socket.id) {
+          connectedUsers.delete(key);
+          break;
+        }
+      }
     });
   });
 

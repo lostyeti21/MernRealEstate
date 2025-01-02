@@ -1,6 +1,6 @@
 import { useSelector } from 'react-redux';
 import { useRef, useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
 import * as ReactDOMClient from 'react-dom/client';
@@ -8,6 +8,7 @@ import * as ReactDOMClient from 'react-dom/client';
 export default function Messages() {
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const [currentConversation, setCurrentConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -42,86 +43,18 @@ export default function Messages() {
       return;
     }
 
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error('No token found in localStorage');
-      navigate('/sign-in');
-      return;
-    }
-
     try {
       socket.current = io('http://localhost:3000', {
-        auth: {
-          token: token
-        },
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        auth: { token: localStorage.getItem('token') },
+        transports: ['websocket', 'polling']
       });
 
       socket.current.on('connect', () => {
-        console.log('Connected to chat server');
-        setError(null);
+        console.log('Socket connected');
       });
 
-      socket.current.on('connect_error', (err) => {
-        console.error('Socket connection error:', err.message);
-        setError(`Failed to connect to chat server: ${err.message}`);
-        
-        if (err.message.includes('Authentication error') || err.message.includes('No token provided')) {
-          localStorage.removeItem('currentUser');
-          localStorage.removeItem('token');
-          navigate('/sign-in');
-        }
-      });
-
-      socket.current.on('disconnect', (reason) => {
-        console.log('Disconnected from chat server:', reason);
-        setError('Disconnected from chat server');
-      });
-
-      socket.current.on('new_message', (data) => {
-        console.log('New message received:', data);
-        setConversations(prev => {
-          const updatedConversations = [...prev];
-          const conversationIndex = updatedConversations.findIndex(
-            conv => conv._id === data.conversationId
-          );
-          
-          if (conversationIndex !== -1) {
-            updatedConversations[conversationIndex] = {
-              ...updatedConversations[conversationIndex],
-              lastMessage: data.message.content,
-              lastMessageTime: data.message.createdAt
-            };
-          }
-          
-          return updatedConversations;
-        });
-
-        if (currentConversation?._id === data.conversationId) {
-          setMessages(prev => [...prev, data.message]);
-          scrollToBottom();
-        }
-      });
-
-      socket.current.on('user_typing', (data) => {
-        console.log('User typing:', data);
-        if (currentConversation?._id === data.conversationId) {
-          setIsTyping(true);
-        }
-      });
-
-      socket.current.on('user_stop_typing', (data) => {
-        console.log('User stopped typing:', data);
-        if (currentConversation?._id === data.conversationId) {
-          setIsTyping(false);
-        }
-      });
-
-      socket.current.on('message_error', (data) => {
-        console.error('Message error:', data);
+      socket.current.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
       });
 
       return () => {
@@ -133,7 +66,153 @@ export default function Messages() {
       console.error('Error initializing socket:', error);
       setError('Failed to initialize chat connection');
     }
-  }, [currentUser, navigate, currentConversation]);
+  }, [currentUser, navigate]);
+
+  useEffect(() => {
+    if (!socket.current || !currentConversation) return;
+
+    console.log('Joining conversation:', currentConversation._id);
+    socket.current.emit('join_conversation', currentConversation._id);
+
+    return () => {
+      if (socket.current) {
+        socket.current.emit('leave_conversation', currentConversation._id);
+      }
+    };
+  }, [currentConversation]);
+
+  useEffect(() => {
+    if (!socket.current) return;
+
+    const handleReceivedMessage = (data) => {
+      console.log('Received message:', data);
+      
+      if (!data?.message || !data.message?.sender || !data.conversationId) {
+        console.error('Invalid message data received:', data);
+        return;
+      }
+
+      // Skip if message is from current user (will be handled by message_sent event)
+      if (data.message.sender._id === currentUser._id) {
+        return;
+      }
+
+      setMessages(prevMessages => {
+        // Check if message already exists
+        const exists = prevMessages.some(msg => 
+          msg && msg._id === data.message._id
+        );
+        if (exists) return prevMessages;
+
+        const newMessages = [...prevMessages, {
+          ...data.message,
+          read: currentConversation?._id === data.conversationId
+        }];
+
+        return newMessages.sort((a, b) => 
+          new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0)
+        );
+      });
+
+      // Update conversation list
+      setConversations(prevConversations => {
+        const updatedConversations = prevConversations.map(conv => 
+          conv._id === data.conversationId 
+            ? { 
+                ...conv, 
+                lastMessage: data.message.content,
+                lastMessageTime: data.message.createdAt,
+                unreadCount: currentConversation?._id !== data.conversationId 
+                  ? (conv.unreadCount || 0) + 1 
+                  : conv.unreadCount
+              }
+            : conv
+        );
+        return updatedConversations.sort((a, b) => {
+          const timeA = a?.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
+          const timeB = b?.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
+          return timeB - timeA;
+        });
+      });
+
+      // Mark as read if we're in the conversation
+      if (currentConversation?._id === data.conversationId) {
+        socket.current.emit('mark_read', {
+          conversationId: data.conversationId,
+          messageIds: [data.message._id]
+        });
+      }
+
+      scrollToBottom();
+    };
+
+    const handleMessageSent = (data) => {
+      console.log('Message sent confirmation:', data);
+      
+      if (!data?.success || !data?.message || !data.message?._id) {
+        console.error('Invalid message sent data:', data);
+        return;
+      }
+
+      setMessages(prevMessages => {
+        // Remove any temporary versions of this message and filter out invalid messages
+        const filteredMessages = prevMessages.filter(msg => 
+          msg && msg._id && !msg._id.startsWith('temp-')
+        );
+
+        // Add the confirmed message if it doesn't exist
+        const exists = filteredMessages.some(msg => 
+          msg && msg._id === data.message._id
+        );
+        if (exists) return filteredMessages;
+
+        const newMessages = [...filteredMessages, {
+          ...data.message,
+          read: true
+        }];
+
+        return newMessages.sort((a, b) => 
+          new Date(a?.createdAt || 0) - new Date(b?.createdAt || 0)
+        );
+      });
+
+      // Update conversation list
+      setConversations(prev => {
+        const updated = prev.map(conv => {
+          if (conv._id === currentConversation?._id) {
+            return {
+              ...conv,
+              lastMessage: data.message.content,
+              lastMessageTime: data.message.createdAt
+            };
+          }
+          return conv;
+        });
+        return updated.sort((a, b) => {
+          const timeA = a?.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
+          const timeB = b?.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
+          return timeB - timeA;
+        });
+      });
+
+      scrollToBottom();
+    };
+
+    const handleMessageError = (error) => {
+      console.error('Message error:', error);
+      setError(error.error || 'Failed to send message');
+    };
+
+    socket.current.on('new_message', handleReceivedMessage);
+    socket.current.on('message_sent', handleMessageSent);
+    socket.current.on('message_error', handleMessageError);
+
+    return () => {
+      socket.current.off('new_message', handleReceivedMessage);
+      socket.current.off('message_sent', handleMessageSent);
+      socket.current.off('message_error', handleMessageError);
+    };
+  }, [currentConversation, currentUser]);
 
   const fetchParticipantDetails = async (userId, userModel) => {
     try {
@@ -147,9 +226,7 @@ export default function Messages() {
       }
 
       const userRes = await fetch(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        credentials: 'include'
       });
 
       if (!userRes.ok) {
@@ -168,19 +245,11 @@ export default function Messages() {
   useEffect(() => {
     const fetchConversations = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token || !currentUser?._id) {
-          setError('Please sign in to view messages');
-          return;
-        }
-
         setLoading(true);
         setError(null);
         
         const res = await fetch('/api/messages/conversations', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          credentials: 'include'
         });
 
         if (!res.ok) {
@@ -191,10 +260,25 @@ export default function Messages() {
         const data = await res.json();
         
         if (data.success) {
-          setConversations(data.conversations);
+          const sortedConversations = data.conversations.sort((a, b) => {
+            const timeA = a.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
+            const timeB = b.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
+            return timeB - timeA;
+          });
+          
+          setConversations(sortedConversations);
+          
+          // Check for conversation ID in URL
+          const conversationId = searchParams.get('conversation');
+          if (conversationId) {
+            const targetConversation = sortedConversations.find(conv => conv._id === conversationId);
+            if (targetConversation) {
+              setCurrentConversation(targetConversation);
+            }
+          }
           
           const participantsData = {};
-          data.conversations.forEach(conv => {
+          sortedConversations.forEach(conv => {
             const otherParticipant = conv.participants?.find(
               p => p.userId && p.userId._id !== currentUser._id
             );
@@ -224,7 +308,146 @@ export default function Messages() {
     if (currentUser?._id) {
       fetchConversations();
     }
-  }, [currentUser?._id]);
+  }, [currentUser?._id, searchParams]);
+
+  useEffect(() => {
+    const markMessagesAsRead = async () => {
+      if (!currentConversation || !currentUser) return;
+
+      try {
+        const unreadMessages = messages.filter(
+          msg => !msg.read && msg.sender !== currentUser._id
+        );
+
+        if (unreadMessages.length === 0) return;
+
+        const res = await fetch('/api/messages/mark-read', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            conversationId: currentConversation._id
+          })
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || 'Failed to mark messages as read');
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          // Update local messages state to mark them as read
+          setMessages(prev => prev.map(msg => ({
+            ...msg,
+            read: msg.sender === currentUser._id ? msg.read : true
+          })));
+
+          // Emit socket event to notify sender
+          socket.current?.emit('messages_read', {
+            conversationId: currentConversation._id,
+            userId: currentUser._id
+          });
+        }
+      } catch (error) {
+        console.error('Error marking messages as read:', error);
+      }
+    };
+
+    markMessagesAsRead();
+  }, [currentConversation, messages, currentUser]);
+
+  useEffect(() => {
+    if (!currentConversation || !socket.current) return;
+
+    // Fetch messages for the current conversation
+    const fetchMessages = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await fetch(`/api/messages/${currentConversation._id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch messages');
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          setMessages(data.messages);
+          scrollToBottom();
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+        setError('Failed to load messages');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMessages();
+
+    return () => {
+      socket.current.emit('leave_conversation', currentConversation._id);
+    };
+  }, [currentConversation]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !currentConversation) return;
+
+    try {
+      const receiver = currentConversation.participants.find(
+        p => p.userId._id.toString() !== currentUser._id.toString()
+      );
+
+      if (!receiver) {
+        console.error('Could not find message receiver');
+        setError('Failed to send message: Could not find receiver');
+        return;
+      }
+
+      const tempMessage = {
+        _id: `temp-${Date.now()}`,
+        conversationId: currentConversation._id,
+        content: newMessage,
+        sender: currentUser._id,
+        receiver: receiver.userId._id,
+        receiverModel: receiver.userModel || 'User',
+        createdAt: new Date().toISOString(),
+        read: true,
+        pending: true
+      };
+
+      // Add temporary message to UI
+      setMessages(prevMessages => [...prevMessages, tempMessage]);
+      setNewMessage('');
+      scrollToBottom();
+
+      // Send through socket
+      socket.current.emit('send_message', {
+        ...tempMessage,
+        _id: undefined // Let server generate the real ID
+      }, (error) => {
+        if (error) {
+          console.error('Error sending message:', error);
+          setMessages(prevMessages => 
+            prevMessages.filter(msg => msg._id !== tempMessage._id)
+          );
+          setError('Failed to send message');
+        }
+      });
+    } catch (error) {
+      console.error('Error in handleSendMessage:', error);
+      setError('Failed to send message');
+    }
+  };
 
   const renderConversationList = () => {
     if (loading) {
@@ -319,12 +542,9 @@ export default function Messages() {
 
   const handleDeleteConfirm = async () => {
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`/api/messages/conversation/${conversationToDelete._id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        credentials: 'include'
       });
 
       const data = await res.json();
@@ -346,93 +566,13 @@ export default function Messages() {
     }
   };
 
-  useEffect(() => {
-    if (currentConversation && socket.current) {
-      console.log('Joining conversation:', currentConversation._id);
-      socket.current.emit('join_conversation', currentConversation._id);
-      
-      const fetchMessages = async () => {
-        try {
-          const res = await fetch(`/api/messages/${currentConversation._id}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-          });
-          const data = await res.json();
-          
-          if (data.success) {
-            console.log('Fetched messages:', data.messages);
-            const sortedMessages = data.messages.sort((a, b) => 
-              new Date(a.createdAt) - new Date(b.createdAt)
-            );
-            setMessages(sortedMessages);
-            
-            const unreadMessages = sortedMessages.filter(
-              m => !m.read && m.receiver && m.receiver.toString() === currentUser._id.toString()
-            );
-
-            if (unreadMessages.length > 0) {
-              try {
-                const markReadRes = await fetch('/api/messages/mark-read', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                  },
-                  body: JSON.stringify({
-                    conversationId: currentConversation._id
-                  })
-                });
-
-                const markReadData = await markReadRes.json();
-                if (markReadData.success) {
-                  setMessages(prevMessages => 
-                    prevMessages.map(msg => 
-                      msg.receiver && msg.receiver.toString() === currentUser._id.toString() 
-                        ? { ...msg, read: true }
-                        : msg
-                    )
-                  );
-
-                  setConversations(prevConversations => 
-                    prevConversations.map(conv => 
-                      conv._id === currentConversation._id
-                        ? { 
-                            ...conv, 
-                            unreadCount: { [currentUser._id]: markReadData.unreadCount }
-                          }
-                        : conv
-                    )
-                  );
-                } else {
-                  console.error('Failed to mark messages as read:', markReadData.message);
-                }
-              } catch (error) {
-                console.error('Error marking messages as read:', error);
-              }
-            }
-          } else {
-            throw new Error(data.message);
-          }
-        } catch (error) {
-          console.error('Error fetching messages:', error);
-          setError('Failed to load messages');
-        }
-      };
-      
-      fetchMessages();
-    }
-  }, [currentConversation, currentUser._id]);
-
   const handleSendQRCode = async () => {
     if (!currentConversation) return;
 
     try {
       // Get the verification code first
       const codeRes = await fetch('/api/code/generate', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        credentials: 'include'
       });
 
       const codeData = await codeRes.json();
@@ -442,6 +582,8 @@ export default function Messages() {
 
       // Create temporary div for QR code
       const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
       document.body.appendChild(tempDiv);
 
       // Create root and render QR code
@@ -449,18 +591,21 @@ export default function Messages() {
       root.render(
         <QRCodeSVG
           value={`${window.location.origin}/verify-code/${currentUser._id}/${codeData.code}`}
-          size={128}
+          size={256}
           level="H"
           includeMargin={true}
+          style={{ background: 'white', padding: '10px' }}
         />
       );
 
       // Wait for render
-      await new Promise(resolve => setTimeout(resolve, 100));
-
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       // Get SVG element
       const svgElement = tempDiv.querySelector('svg');
       if (!svgElement) {
+        root.unmount();
+        document.body.removeChild(tempDiv);
         throw new Error('Failed to generate QR code SVG');
       }
 
@@ -475,213 +620,205 @@ export default function Messages() {
       // Clean up temporary div
       root.unmount();
       document.body.removeChild(tempDiv);
-      
-      img.onload = async () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
+
+      // Return promise for image loading
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = url;
+      });
+
+      // Draw image to canvas
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+
+      try {
+        // Convert canvas to blob
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const file = new File([blob], 'verification-qr-code.png', { type: 'image/png' });
         
-        try {
-          // Convert canvas to blob
-          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-          const file = new File([blob], 'verification-qr-code.png', { type: 'image/png' });
-          
-          // Create FormData and upload
-          const formData = new FormData();
-          formData.append('image', file);
-          
-          const uploadRes = await fetch('/api/upload/image', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: formData
-          });
-          
-          if (!uploadRes.ok) {
-            throw new Error('Failed to upload QR code');
-          }
-          
-          const uploadData = await uploadRes.json();
-          if (!uploadData.success || !uploadData.url) {
-            throw new Error('Failed to get QR code URL');
-          }
-          
-          // Send message with QR code
-          const receiver = currentConversation.participants.find(
-            p => p.userId._id.toString() !== currentUser._id.toString()
-          );
-
-          if (!receiver) {
-            throw new Error('Could not find message receiver');
-          }
-
-          const messageData = {
-            conversationId: currentConversation._id,
-            receiverId: receiver.userId._id,
-            receiverModel: receiver.userModel,
-            content: 'Scan this QR code to verify the sender',
-            sender: currentUser._id,
-            createdAt: new Date().toISOString(),
-            attachment: uploadData.url
-          };
-          
-          // Add message to local state with temporary ID
-          const tempMessage = {
-            ...messageData,
-            _id: `temp-${Date.now()}`,
-            read: true,
-            pending: true
-          };
-          
-          setMessages(prevMessages => {
-            const newMessages = [...prevMessages, tempMessage];
-            return newMessages.sort((a, b) => 
-              new Date(a.createdAt) - new Date(b.createdAt)
-            );
-          });
-          
-          scrollToBottom();
-          
-          // Emit message through socket
-          socket.current.emit('send_message', messageData, (error) => {
-            if (error) {
-              console.error('Error sending QR code:', error);
-              setMessages(prevMessages => 
-                prevMessages.filter(msg => msg._id !== tempMessage._id)
-              );
-              setError('Failed to send QR code');
-            }
-          });
-        } catch (error) {
-          console.error('Error processing QR code:', error);
-          setError('Failed to process QR code');
-        } finally {
-          URL.revokeObjectURL(url);
+        // Create FormData and upload
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const uploadRes = await fetch('/api/upload/image', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+        
+        if (!uploadRes.ok) {
+          throw new Error('Failed to upload QR code');
         }
-      };
-      
-      img.src = url;
+        
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success || !uploadData.url) {
+          throw new Error('Failed to get QR code URL');
+        }
+        
+        // Send message with QR code
+        const receiver = currentConversation.participants.find(
+          p => p.userId._id.toString() !== currentUser._id.toString()
+        );
+
+        if (!receiver) {
+          throw new Error('Could not find message receiver');
+        }
+
+        const messageData = {
+          conversationId: currentConversation._id,
+          content: 'Scan this QR code to verify the sender',
+          receiver: receiver.userId._id,
+          receiverModel: receiver.userModel || 'User',
+          attachment: uploadData.url,
+          type: 'qr-code'
+        };
+        
+        // Add message to local state with temporary ID
+        const tempMessage = {
+          ...messageData,
+          _id: `temp-${Date.now()}`,
+          sender: currentUser._id,
+          createdAt: new Date().toISOString(),
+          read: true,
+          pending: true
+        };
+        
+        setMessages(prevMessages => {
+          const newMessages = [...prevMessages, tempMessage];
+          return newMessages.sort((a, b) => 
+            new Date(a.createdAt) - new Date(b.createdAt)
+          );
+        });
+        
+        scrollToBottom();
+        
+        // Send through socket
+        socket.current.emit('send_message', messageData, (error) => {
+          if (error) {
+            console.error('Error sending QR code:', error);
+            setMessages(prevMessages => 
+              prevMessages.filter(msg => msg._id !== tempMessage._id)
+            );
+            setError('Failed to send QR code');
+          }
+        });
+      } catch (error) {
+        console.error('Error processing QR code:', error);
+        setError('Failed to process QR code');
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     } catch (error) {
       console.error('Error generating QR code:', error);
       setError('Failed to generate QR code');
     }
   };
 
-  useEffect(() => {
-    if (!socket.current) return;
-
-    const handleNewMessage = (message) => {
-      console.log('Received message:', message);
-      setMessages(prevMessages => {
-        const newMessages = [...prevMessages, { ...message, read: false }];
-        return newMessages.sort((a, b) => 
-          new Date(a.createdAt) - new Date(b.createdAt)
-        );
-      });
-      
-      setConversations(prevConversations => {
-        const updatedConversations = prevConversations.map(conv => 
-          conv._id === message.conversationId 
-            ? { ...conv, lastMessageTime: message.createdAt, lastMessage: message.content }
-            : conv
-        );
-        return updatedConversations.sort((a, b) => {
-          const timeA = a.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
-          const timeB = b.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
-          return timeB - timeA;
-        });
-      });
-      
-      scrollToBottom();
-    };
-
-    socket.current.on('receive_message', handleNewMessage);
-    
-    socket.current.on('message_sent', (sentMessage) => {
-      console.log('Message sent acknowledgment:', sentMessage);
-      setMessages(prevMessages => [...prevMessages, sentMessage]);
-      scrollToBottom();
-    });
-
-    return () => {
-      socket.current.off('receive_message', handleNewMessage);
-      socket.current.off('message_sent');
-    };
-  }, []);
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !currentConversation) return;
-
-    try {
-      const receiver = currentConversation.participants.find(
-        p => p.userId && currentUser._id && 
-            p.userId._id.toString() !== currentUser._id.toString()
-      );
-
-      if (!receiver) {
-        console.error('Could not find receiver in conversation');
-        setError('Failed to send message: Could not find receiver');
-        return;
-      }
-
-      const messageData = {
-        conversationId: currentConversation._id,
-        receiverId: receiver.userId._id,
-        receiverModel: receiver.userModel,
-        content: newMessage,
-        sender: currentUser._id,
-        createdAt: new Date().toISOString()
-      };
-
-      const tempMessage = {
-        ...messageData,
-        _id: `temp-${Date.now()}`,
-        read: true,
-        pending: true
-      };
-      
-      setMessages(prevMessages => {
-        const newMessages = [...prevMessages, tempMessage];
-        return newMessages.sort((a, b) => 
-          new Date(a.createdAt) - new Date(b.createdAt)
-        );
-      });
-      
-      setConversations(prevConversations => {
-        const updatedConversations = prevConversations.map(conv => 
-          conv._id === currentConversation._id 
-            ? { ...conv, lastMessageTime: messageData.createdAt, lastMessage: messageData.content }
-            : conv
-        );
-        return updatedConversations.sort((a, b) => {
-          const timeA = a.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
-          const timeB = b.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
-          return timeB - timeA;
-        });
-      });
-
-      scrollToBottom();
-
-      socket.current.emit('send_message', messageData, (error) => {
-        if (error) {
-          console.error('Error sending message:', error);
-          setMessages(prevMessages => 
-            prevMessages.filter(msg => msg._id !== tempMessage._id)
-          );
-          setError('Failed to send message');
-        }
-      });
-
-      setNewMessage('');
-      setTyping(false);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Failed to send message');
+  const renderMessages = () => {
+    if (loading) {
+      return <div className="text-center py-4">Loading messages...</div>;
     }
+
+    if (!messages.length) {
+      return (
+        <div className="text-center py-4 text-gray-500">
+          No messages yet. Start the conversation!
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col space-y-4 p-4">
+        <div style={{ flex: 1 }} />
+        {messages.map((message, idx) => {
+          const isCurrentUser = message.sender?._id === currentUser._id || 
+                              message.sender === currentUser._id;
+          const isUnread = !message.read && message.receiver === currentUser._id;
+          const showAvatar = idx === 0 || 
+            messages[idx - 1].sender !== message.sender;
+
+          // Get the participant info based on sender
+          const senderParticipant = currentConversation?.participants?.find(p => 
+            (p.userId._id === (message.sender?._id || message.sender))
+          );
+          
+          // Get sender's display name
+          const senderName = senderParticipant?.userId?.username || 
+                           senderParticipant?.userId?.name || 
+                           'Unknown User';
+
+          return (
+            <div
+              key={message._id}
+              className="flex items-start w-full"
+              style={{ justifyContent: isCurrentUser ? 'flex-end' : 'flex-start' }}
+            >
+              {!isCurrentUser && showAvatar && (
+                <div className="flex-shrink-0 mr-2">
+                  <img
+                    src={senderParticipant?.userId?.avatar || '/default-avatar.png'}
+                    alt={senderName}
+                    className="w-8 h-8 rounded-full"
+                  />
+                </div>
+              )}
+              <div className="flex flex-col max-w-[50%]" style={{ alignItems: isCurrentUser ? 'flex-end' : 'flex-start' }}>
+                {showAvatar && (
+                  <span className="text-xs text-gray-500 mb-1">
+                    {isCurrentUser ? 'You' : senderName}
+                  </span>
+                )}
+                <div
+                  className={`rounded-lg px-4 py-2 w-fit ${
+                    isCurrentUser
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-800'
+                  } ${message.pending ? 'opacity-70' : ''}`}
+                >
+                  <p className="m-0 whitespace-pre-wrap break-words">{message.content}</p>
+                  {message.attachment && (
+                    <div className="mt-2">
+                      <img
+                        src={message.attachment}
+                        alt="QR Code"
+                        className="max-w-[200px] w-full h-auto rounded-lg"
+                        style={{ maxHeight: '200px', objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center space-x-1 mt-1">
+                  <span className="text-xs text-gray-500">
+                    {formatMessageTime(message.createdAt)}
+                  </span>
+                  {isCurrentUser && (
+                    <span className="text-xs text-gray-500">
+                      {message.read ? '• Read' : '• Sent'}
+                    </span>
+                  )}
+                  {isUnread && !isCurrentUser && (
+                    <span className="text-xs text-blue-500">• New</span>
+                  )}
+                </div>
+              </div>
+              {isCurrentUser && showAvatar && (
+                <div className="flex-shrink-0 ml-2">
+                  <img
+                    src={currentUser.avatar || '/default-avatar.png'}
+                    alt="You"
+                    className="w-8 h-8 rounded-full"
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const DeleteConfirmationModal = () => {
@@ -781,87 +918,7 @@ export default function Messages() {
               ref={messagesContainerRef}
               style={{ display: 'flex', flexDirection: 'column' }}
             >
-              <div style={{ flex: 1 }} />
-              {messages.map((message, idx) => {
-                const isCurrentUser = message.sender && 
-                  message.sender.toString() === currentUser._id.toString();
-                const isUnread = !message.read && 
-                  message.receiver && 
-                  message.receiver.toString() === currentUser._id.toString();
-                const showAvatar = idx === 0 || 
-                  (messages[idx - 1].sender && message.sender &&
-                   messages[idx - 1].sender.toString() !== message.sender.toString());
-
-                return (
-                  <div
-                    key={message._id || `temp-${idx}`}
-                    className={`flex items-end gap-2 ${
-                      isCurrentUser ? 'flex-row-reverse' : ''
-                    }`}
-                  >
-                    {showAvatar && (
-                      <img
-                        src={
-                          isCurrentUser
-                            ? currentUser.avatar || 'https://via.placeholder.com/32'
-                            : participants[currentConversation._id]?.avatar || 'https://via.placeholder.com/32'
-                        }
-                        alt="Profile"
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    )}
-                    {!showAvatar && <div className="w-8" />}
-                    <div
-                      className={`relative max-w-[70%] break-words ${
-                        isCurrentUser
-                          ? 'bg-blue-500 text-white rounded-l-lg rounded-tr-lg'
-                          : `${
-                              isUnread
-                                ? 'bg-blue-50 border-2 border-blue-300 shadow-md' 
-                                : 'bg-gray-100'
-                            } text-gray-800 rounded-r-lg rounded-tl-lg`
-                      } px-4 py-2`}
-                    >
-                      <p className={isUnread ? 'font-medium' : 'font-normal'}>
-                        {message.content}
-                      </p>
-
-                      {message.attachment && (
-                        <div className="mt-2">
-                          <img 
-                            src={message.attachment} 
-                            alt="Attachment"
-                            className="rounded-lg max-w-[200px] w-full h-auto"
-                            style={{ maxHeight: '300px', objectFit: 'contain' }}
-                          />
-                        </div>
-                      )}
-
-                      <div
-                        className={`flex items-center gap-1 text-xs mt-1 ${
-                          isCurrentUser ? 'text-blue-100' : 'text-gray-500'
-                        }`}
-                      >
-                        <span>{formatMessageTime(message.createdAt)}</span>
-                        {isCurrentUser && (
-                          <span className="ml-1">
-                            {message.read ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-                              </svg>
-                            ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                              </svg>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {renderMessages()}
               <div ref={messagesEndRef} />
             </div>
 
@@ -875,7 +932,7 @@ export default function Messages() {
                       setNewMessage(e.target.value);
                       if (!typing) {
                         setTyping(true);
-                        socket.current.emit('typing', {
+                        socket.current.emit('user_typing', {
                           conversationId: currentConversation._id
                         });
                       }
@@ -883,7 +940,7 @@ export default function Messages() {
                     onBlur={() => {
                       if (typing) {
                         setTyping(false);
-                        socket.current.emit('stop_typing', {
+                        socket.current.emit('user_stop_typing', {
                           conversationId: currentConversation._id
                         });
                       }
@@ -898,7 +955,7 @@ export default function Messages() {
                     title="Send QR Code"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11V9m0 0H4m6 0h4m6 0h4M6 16l6-6m6 0l-6 6" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11V9m0 0H4m6 0h4m6 0v1m-6 0h-1m-6 0v1m6-9a9 9 0 012 12m0 9a9 9 0 012 12m9-9v1m-6 0h-1m-6 0v1m6-9a9 9 0 012 12m0 9a9 9 0 012 12" />
                     </svg>
                   </button>
                 </div>
