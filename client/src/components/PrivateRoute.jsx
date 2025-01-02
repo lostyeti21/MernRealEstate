@@ -32,12 +32,20 @@ export default function PrivateRoute() {
           const userHasListings = data.success !== false && Array.isArray(data.listings) && data.listings.length > 0;
           setHasListings(userHasListings);
           
+          // Update localStorage based on current status
           if (userHasListings) {
             localStorage.setItem('isLandlord', 'true');
+          } else {
+            localStorage.removeItem('isLandlord');
           }
         } catch (error) {
           console.error('Error checking listings:', error);
+          setHasListings(false);
+          localStorage.removeItem('isLandlord');
         }
+      } else {
+        setHasListings(false);
+        localStorage.removeItem('isLandlord');
       }
       setLoading(false);
     };
@@ -62,7 +70,7 @@ export default function PrivateRoute() {
   }
 
   // Check if user is a landlord (has listings)
-  const isLandlord = hasListings || localStorage.getItem('isLandlord') === 'true';
+  const isLandlord = hasListings;
 
   // Redirect non-agent users who are landlords from /profile to /landlord-profile
   if (!user.isAgent && location.pathname === '/profile' && isLandlord) {

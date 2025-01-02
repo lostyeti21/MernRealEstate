@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import axios from 'axios';
 
 const CreateListing = () => {
   const [files, setFiles] = useState([]);
@@ -68,33 +68,8 @@ const CreateListing = () => {
     checkAuth();
   }, [currentUser, navigate]);
 
-  const storeImage = async (file) => {
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const token = localStorage.getItem('agentToken');
-      const res = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to upload image');
-      }
-
-      return data.url;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      throw new Error('Image upload failed');
-    }
-  };
-
-  const handleImageSubmit = async () => {
+  const handleImageSubmit = async (e) => {
+    e.preventDefault();
     if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
       setUploading(true);
       setImageUploadError(false);
@@ -117,6 +92,38 @@ const CreateListing = () => {
       setUploading(false);
     } else {
       setImageUploadError('You can only upload 6 images per listing');
+    }
+  };
+
+  const storeImage = async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const res = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData,
+        credentials: 'include'
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Upload failed');
+      }
+
+      return data.url;
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw error;
     }
   };
 

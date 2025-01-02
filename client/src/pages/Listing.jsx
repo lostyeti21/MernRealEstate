@@ -24,6 +24,7 @@ import {
   FaEnvelope,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
+import RateLandlord from "../components/RateLandlord"; // Import RateLandlord component
 import { geocodeAddress } from "../../../api/utils/geocode";
 
 export default function Listing() {
@@ -40,6 +41,10 @@ export default function Listing() {
   const [rating, setRating] = useState(0);
   const [ratingHover, setRatingHover] = useState(0);
   const [hasUserRated, setHasUserRated] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
   const params = useParams();
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
@@ -270,6 +275,69 @@ export default function Listing() {
     }
   };
 
+  const handleVerifyCode = async () => {
+    if (!verificationCode.trim()) {
+      setVerificationError('Please enter the verification code');
+      return;
+    }
+
+    setVerifyingCode(true);
+    setVerificationError('');
+
+    try {
+      const res = await fetch('/api/code/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          code: verificationCode,
+          landlordId: listing.userRef
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (res.ok) {
+        setShowVerificationModal(false);
+        navigate(`/landlord/${listing.userRef}`);
+      } else {
+        setVerificationError(data.message || 'Invalid verification code');
+      }
+    } catch (error) {
+      setVerificationError('Failed to verify code');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  const fetchLandlordData = async (userRef) => {
+    try {
+      const landlordRes = await fetch(`/api/user/${userRef}`);
+      const landlordData = await landlordRes.json();
+      return landlordData;
+    } catch (error) {
+      console.error("Error fetching landlord data:", error);
+      return null;
+    }
+  };
+
+  const checkIfUserHasRated = (agent, userId) => {
+    return agent.ratedBy.includes(userId);
+  };
+
+  const customIcon = new L.Icon({
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+  });
+
+  const handleMarkerClick = () => {
+    const address = encodeURIComponent(listing.address);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
+  };
+
   const renderListedBy = () => {
     if (!listedBy) return null;
 
@@ -322,7 +390,7 @@ export default function Listing() {
                         </span>
                       ) : (
                         <button
-                          onClick={() => setShowRatingModal(true)}
+                          onClick={() => setShowVerificationModal(true)}
                           className="ml-2 bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 transition-colors"
                         >
                           Rate Agent
@@ -387,7 +455,7 @@ export default function Listing() {
           </div>
           {currentUser && currentUser._id !== landlord?._id && (
             <button
-              onClick={() => navigate(`/landlord/${listing.userRef}`)}
+              onClick={() => setShowVerificationModal(true)}
               className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
             >
               Rate Landlord
@@ -414,32 +482,6 @@ export default function Listing() {
 
   const closeFullscreen = () => {
     setShowFullscreen(false);
-  };
-
-  const fetchLandlordData = async (userRef) => {
-    try {
-      const landlordRes = await fetch(`/api/user/${userRef}`);
-      const landlordData = await landlordRes.json();
-      return landlordData;
-    } catch (error) {
-      console.error("Error fetching landlord data:", error);
-      return null;
-    }
-  };
-
-  const checkIfUserHasRated = (agent, userId) => {
-    return agent.ratedBy.includes(userId);
-  };
-
-  const customIcon = new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-  });
-
-  const handleMarkerClick = () => {
-    const address = encodeURIComponent(listing.address);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
   };
 
   if (loading) {
@@ -693,6 +735,49 @@ export default function Listing() {
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
               >
                 Submit Rating
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Code Modal */}
+      {showVerificationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000]">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Enter Verification Code</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Please enter the verification code provided by the landlord to proceed.
+            </p>
+            <input
+              type="text"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              placeholder="Enter code"
+              className="w-full px-3 py-2 border rounded-md mb-4"
+              disabled={verifyingCode}
+            />
+            {verificationError && (
+              <p className="text-red-600 text-sm mb-4">{verificationError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowVerificationModal(false);
+                  setVerificationCode('');
+                  setVerificationError('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+                disabled={verifyingCode}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleVerifyCode}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+                disabled={verifyingCode}
+              >
+                {verifyingCode ? "Verifying..." : "Proceed"}
               </button>
             </div>
           </div>

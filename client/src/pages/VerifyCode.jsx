@@ -25,16 +25,30 @@ export default function VerifyCode() {
         
         setSender(userData);
 
-        // Fetch code details
-        const codeRes = await fetch(`/api/code/verify/${urlCode}`);
+        // Fetch code details using POST
+        const codeRes = await fetch('/api/code/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({
+            code: urlCode,
+            landlordId: userId
+          })
+        });
+
         const codeData = await codeRes.json();
 
         if (!codeRes.ok) {
           throw new Error(codeData.message || 'Could not verify code');
         }
 
-        setCode(codeData.code);
-        setExpiryTime(new Date(codeData.expiryTime).getTime());
+        setCode(urlCode);
+        // Convert expiry time string to timestamp
+        if (codeData.expiryTime) {
+          setExpiryTime(new Date(codeData.expiryTime).getTime());
+        }
       } catch (err) {
         console.error('Error fetching code:', err);
         setError(err.message);
@@ -43,7 +57,9 @@ export default function VerifyCode() {
       }
     };
 
-    fetchCode();
+    if (userId && urlCode) {
+      fetchCode();
+    }
   }, [userId, urlCode]);
 
   // Format time remaining
@@ -58,7 +74,11 @@ export default function VerifyCode() {
     const hours = Math.floor(timeLeft / (1000 * 60 * 60));
     const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
     
-    return `Valid for: ${hours}h ${minutes}m`;
+    // Add leading zeros for better formatting
+    const formattedHours = hours.toString().padStart(2, '0');
+    const formattedMinutes = minutes.toString().padStart(2, '0');
+    
+    return `Valid for: ${formattedHours}h ${formattedMinutes}m`;
   };
 
   if (loading) {
@@ -85,7 +105,7 @@ export default function VerifyCode() {
       {sender && (
         <div className='flex items-center justify-center mb-4'>
           <img
-            src={sender.avatar}
+            src={sender.avatar || "https://via.placeholder.com/150"}
             alt={sender.username}
             className='w-16 h-16 rounded-full object-cover'
           />

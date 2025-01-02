@@ -206,6 +206,7 @@ export default function Home() {
   const [direction, setDirection] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [priceError, setPriceError] = useState('');
   const navigate = useNavigate();
 
   SwiperCore.use([Navigation]);
@@ -265,15 +266,52 @@ export default function Home() {
   };
 
   const handlePriceSubmit = () => {
+    // Reset error state
+    setPriceError('');
+
     if (isRenting === null) {
-      alert("Please select Rent or Buy.");
+      alert("Please select whether you want to rent or buy first.");
       return;
     }
 
+    // Validate price inputs
+    const min = parseFloat(minPrice);
+    const max = parseFloat(maxPrice);
+
+    if (minPrice && maxPrice) {
+      if (min >= max) {
+        setPriceError('Minimum price must be less than maximum price');
+        return;
+      }
+      if (min < 0 || max < 0) {
+        setPriceError('Prices cannot be negative');
+        return;
+      }
+    }
+
     const searchParams = new URLSearchParams();
+    
+    // Set the type (rent or sale)
     searchParams.set("type", isRenting === "rent" ? "rent" : "sale");
-    searchParams.set("minPrice", minPrice || 0);
-    searchParams.set("maxPrice", maxPrice || 10000000);
+    
+    // Add price parameters if they exist
+    if (minPrice) {
+      const minPriceValue = parseFloat(minPrice);
+      if (!isNaN(minPriceValue) && minPriceValue > 0) {
+        searchParams.set("minPrice", minPriceValue.toString());
+      }
+    }
+    
+    if (maxPrice) {
+      const maxPriceValue = parseFloat(maxPrice);
+      if (!isNaN(maxPriceValue) && maxPriceValue > 0) {
+        searchParams.set("maxPrice", maxPriceValue.toString());
+      }
+    }
+
+    // Set default sort to price ascending for search results
+    searchParams.set("sort", "price");
+    searchParams.set("order", "asc");
 
     navigate(`/search?${searchParams.toString()}`);
     setShowPopup(false);
@@ -364,39 +402,71 @@ export default function Home() {
           <div className="max-w-6xl mx-auto px-3">
             {/* Your existing listings sections */}
             {rentListings.length > 0 && (
-              <div className="mb-12">
-                <div className="mb-3">
-                  <h2 className="text-2xl font-semibold">Recently added places for rent</h2>
-                  <Link 
-                    to="/search?type=rent"
-                    className="text-sm text-blue-800 hover:underline"
-                  >
-                    Show more places for rent
-                  </Link>
-                </div>
+              <div className="mb-20">
+                <h2 className="text-2xl font-semibold mb-3">Recently added places for rent</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {rentListings.map((listing) => (
                     <ListingItem key={listing._id} listing={listing} />
                   ))}
                 </div>
+                <div className="mt-4 relative">
+                  <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
+                    <Link 
+                      to="/search?type=rent"
+                      className="bg-[#FF0072] text-white px-6 py-2.5 rounded-lg hover:bg-[#be0054] transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
+                    >
+                      Show more places for rent
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-4 w-4" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M9 5l7 7-7 7" 
+                        />
+                      </svg>
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
 
             {saleListings.length > 0 && (
-              <div>
-                <div className="mb-3">
-                  <h2 className="text-2xl font-semibold">Recently added places for sale</h2>
-                  <Link 
-                    to="/search?type=sale"
-                    className="text-sm text-blue-800 hover:underline"
-                  >
-                    Show more places for sale
-                  </Link>
-                </div>
+              <div className="mb-20">
+                <h2 className="text-2xl font-semibold mb-3">Recently added places for sale</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {saleListings.map((listing) => (
                     <ListingItem key={listing._id} listing={listing} />
                   ))}
+                </div>
+                <div className="mt-4 relative">
+                  <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
+                    <Link 
+                      to="/search?type=sale"
+                      className="bg-[#FF0072] text-white px-6 py-2.5 rounded-lg hover:bg-[#be0054] transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
+                    >
+                      Show more places for sale
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-4 w-4" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M9 5l7 7-7 7" 
+                        />
+                      </svg>
+                    </Link>
+                  </div>
                 </div>
               </div>
             )}
@@ -434,23 +504,34 @@ export default function Home() {
                     ? "Enter your monthly rent budget:"
                     : "Enter your price range for buying:"}
                 </label>
-                <input
-                  type="number"
-                  placeholder="Min Price"
-                  className="border p-3 w-full mb-4"
-                  value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value)}
-                />
-                <input
-                  type="number"
-                  placeholder="Max Price"
-                  className="border p-3 w-full mb-4"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value)}
-                />
+                <div className="space-y-4">
+                  <input
+                    type="number"
+                    placeholder={`Min ${isRenting === "rent" ? "Rent" : "Price"}`}
+                    className="border p-3 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={minPrice}
+                    onChange={(e) => {
+                      setMinPrice(e.target.value);
+                      setPriceError('');
+                    }}
+                  />
+                  <input
+                    type="number"
+                    placeholder={`Max ${isRenting === "rent" ? "Rent" : "Price"}`}
+                    className="border p-3 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={maxPrice}
+                    onChange={(e) => {
+                      setMaxPrice(e.target.value);
+                      setPriceError('');
+                    }}
+                  />
+                </div>
+                {priceError && (
+                  <p className="text-red-500 text-sm mt-2">{priceError}</p>
+                )}
                 <button
                   onClick={handlePriceSubmit}
-                  className="bg-blue-600 text-white py-2 px-4 rounded w-full"
+                  className="mt-6 bg-blue-600 text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
                 >
                   Search Listings
                 </button>

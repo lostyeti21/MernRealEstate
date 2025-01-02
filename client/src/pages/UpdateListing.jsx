@@ -1,11 +1,4 @@
 import { useEffect, useState } from "react";
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from "firebase/storage";
-import { app } from "../firebase.js";
 import { useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -87,13 +80,14 @@ export default function UpdateListing() {
   }, [params.listingId]);
 
   const handleImageSubmit = async (e) => {
+    e.preventDefault();
     if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
       setUploading(true);
       setImageUploadError(false);
       const promises = [];
 
-      for (let i = 0; i <files.length; i++) {
-        promises.push(uploadImage(files[i]));
+      for (let i = 0; i < files.length; i++) {
+        promises.push(storeImage(files[i]));
       }
 
       try {
@@ -105,36 +99,41 @@ export default function UpdateListing() {
         setImageUploadError(false);
       } catch (err) {
         setImageUploadError('Image upload failed (2 mb max per image)');
-      } finally {
-        setUploading(false);
       }
+      setUploading(false);
     } else {
       setImageUploadError('You can only upload 6 images per listing');
     }
   };
 
-  const uploadImage = async (file) => {
+  const storeImage = async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      const response = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${currentUser.token}`
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Upload failed');
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
       }
 
-      const data = await response.json();
+      const res = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData,
+        credentials: 'include'
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Upload failed');
+      }
+
       return data.url;
     } catch (error) {
-      console.error('Image upload error:', error);
+      console.error('Upload error:', error);
       throw error;
     }
   };

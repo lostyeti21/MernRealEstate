@@ -50,48 +50,42 @@ export default function Header() {
   // Check if user has listings
   useEffect(() => {
     const checkUserListings = async () => {
-      if (currentUser && !currentUser.isAgent) {
-        try {
-          // Get token from localStorage
-          const token = localStorage.getItem('token');
-          console.log('Checking listings for user:', currentUser._id);
-          console.log('Token available:', !!token);
-          
-          const res = await fetch(`/api/user/listings/${currentUser._id}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (!res.ok) {
-            console.error('Listings check failed:', res.status, res.statusText);
-            const errorText = await res.text();
-            console.error('Error response:', errorText);
-            return;
+      if (!currentUser) {
+        setHasListings(false);
+        localStorage.removeItem('isLandlord');
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/user/listings/${currentUser._id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-          
-          const data = await res.json();
-          console.log('Raw listings response:', data);
-          
-          // Check if data.listings is an array and has items
-          const userHasListings = data.success && Array.isArray(data.listings) && data.listings.length > 0;
-          console.log('Listings check result:', {
-            success: data.success,
-            isArray: Array.isArray(data.listings),
-            length: Array.isArray(data.listings) ? data.listings.length : 'not an array',
-            hasListings: userHasListings
-          });
-          
-          setHasListings(userHasListings);
-        } catch (error) {
-          console.error('Error checking listings:', error);
-        }
-      } else {
-        console.log('Skipping listings check:', {
-          hasCurrentUser: !!currentUser,
-          isAgent: currentUser?.isAgent
         });
+        
+        if (!res.ok) {
+          console.error('Failed to fetch listings:', res.status);
+          setHasListings(false);
+          localStorage.removeItem('isLandlord');
+          return;
+        }
+        
+        const data = await res.json();
+        const userHasListings = Array.isArray(data.listings) && data.listings.length > 0;
+        setHasListings(userHasListings);
+        
+        if (userHasListings) {
+          localStorage.setItem('isLandlord', 'true');
+        } else {
+          localStorage.removeItem('isLandlord');
+        }
+        
+      } catch (error) {
+        console.error('Error checking listings:', error);
+        setHasListings(false);
+        localStorage.removeItem('isLandlord');
       }
     };
 
@@ -399,15 +393,15 @@ export default function Header() {
                       
                       {/* Debug info */}
                       <div className="px-4 py-1 text-xs text-gray-500">
-                        Status: {hasListings ? 'Has Listings' : 'No Listings'}
+                      Status:{hasListings ? 'Has Listings' : 'No Listings'}
                       </div>
                       
                       <Link
-                        to={hasListings && !currentUser.isAgent ? '/landlord-profile' : '/profile'}
+                        to={currentUser && hasListings ? '/landlord-profile' : '/profile'}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsProfileDropdownOpen(false)}
                       >
-                        {hasListings && !currentUser.isAgent ? 'Landlord Profile' : 'Profile'}
+                        {currentUser && hasListings ? 'Landlord Profile' : 'Profile'}
                       </Link>
                       
                       <Link

@@ -37,6 +37,8 @@ export default function LandlordProfile() {
   const [userListings, setUserListings] = useState([]);
   const [listingsFetched, setListingsFetched] = useState(false);
   const [showShareButton, setShowShareButton] = useState(false);
+  const [showListingsSection, setShowListingsSection] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const dispatch = useDispatch();
 
@@ -124,6 +126,9 @@ export default function LandlordProfile() {
       dispatch(deleteUserStart());
       const res = await fetch(`/api/user/delete/${currentUser._id}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
       const data = await res.json();
       if (data.success === false) {
@@ -151,6 +156,12 @@ export default function LandlordProfile() {
   };
 
   const handleShowListings = async () => {
+    if (showListingsSection && userListings.length > 0) {
+      // If listings are currently shown, just hide them
+      setShowListingsSection(false);
+      return;
+    }
+
     try {
       setShowListingsError(false);
       setListingsFetched(false);
@@ -174,6 +185,7 @@ export default function LandlordProfile() {
       if (data.success) {
         setUserListings(data.listings);
         setListingsFetched(true);
+        setShowListingsSection(true);
         console.log('Found listings:', data.listings.length);
       } else {
         console.error('Failed to fetch listings:', data.message);
@@ -287,6 +299,19 @@ export default function LandlordProfile() {
     }
   };
 
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    handleDeleteUser();
+    setShowDeleteConfirm(false);
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+  };
+
   return (
     <div className='p-3 max-w-lg mx-auto'>
       <h1 className='text-3xl font-semibold text-center my-7'>Landlord Profile</h1>
@@ -390,21 +415,54 @@ export default function LandlordProfile() {
 
         {/* Phone Number Inputs */}
         <div className='flex flex-col gap-3'>
-          <h3 className='font-semibold'>Phone Numbers:</h3>
-          {phoneNumbers.map((number, index) => (
-            <div key={index} className='flex justify-between items-center'>
-              <span>{number}</span>
-              <button
-                type='button'
-                className='text-red-500'
-                onClick={() => handleRemovePhoneNumber(number)}
+          <h3 className='font-semibold text-slate-700'>Phone Numbers:</h3>
+          <div className='space-y-2 bg-slate-50 rounded-xl shadow-sm border border-slate-200 divide-y divide-slate-200/70'>
+            {phoneNumbers.map((number, index) => (
+              <div 
+                key={index} 
+                className='flex justify-between items-center px-4 py-3 hover:bg-white/80 transition-colors first:rounded-t-xl last:rounded-b-xl'
               >
-                Remove
-              </button>
-            </div>
-          ))}
+                <div className='flex items-center gap-3'>
+                  <div className='bg-white p-2 rounded-full shadow-sm'>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      className="h-5 w-5 text-green-600" 
+                      viewBox="0 0 20 20" 
+                      fill="currentColor"
+                    >
+                      <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                    </svg>
+                  </div>
+                  <span className='text-slate-700 font-medium'>{number}</span>
+                </div>
+                <button
+                  type='button'
+                  onClick={() => handleRemovePhoneNumber(number)}
+                  className='text-slate-400 hover:text-red-500 p-2 hover:bg-white rounded-full transition-all duration-200'
+                >
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className="h-5 w-5" 
+                    viewBox="0 0 20 20" 
+                    fill="currentColor"
+                  >
+                    <path 
+                      fillRule="evenodd" 
+                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" 
+                      clipRule="evenodd" 
+                    />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            {phoneNumbers.length === 0 && (
+              <div className='px-4 py-3 text-slate-500 text-sm italic text-center'>
+                No phone numbers added yet
+              </div>
+            )}
+          </div>
           <div className='flex flex-col gap-2'>
-            <label htmlFor='newPhoneNumber' className='font-semibold'>
+            <label htmlFor='newPhoneNumber' className='font-medium text-slate-700'>
               Add New Phone Number
             </label>
             <div className='flex items-center gap-2'>
@@ -414,13 +472,16 @@ export default function LandlordProfile() {
                 placeholder='Enter phone number'
                 value={newPhoneNumber}
                 onChange={handlePhoneNumberChange}
-                className='border p-3 rounded-lg w-full'
+                className='border p-3 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent'
               />
               <button
                 type='button'
                 onClick={handleAddPhoneNumber}
-                className='bg-blue-500 text-white p-3 rounded-lg whitespace-nowrap'
+                className='bg-green-600 text-white h-[50px] px-6 rounded-lg uppercase text-sm font-medium hover:bg-green-700 transition duration-200 whitespace-nowrap flex items-center justify-center gap-2'
               >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
                 Add Number
               </button>
             </div>
@@ -429,43 +490,76 @@ export default function LandlordProfile() {
 
         <Link
           to='/change-password'
-          className='bg-blue-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95 mt-3'
+          className='bg-blue-600 text-white px-6 py-3 rounded-lg uppercase text-sm font-medium hover:bg-blue-700 transition duration-200 flex items-center justify-center gap-2 mt-3'
         >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+          </svg>
           Change Password
         </Link>
         
         <button
           disabled={loading}
-          className='bg-slate-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95'
+          className='bg-slate-700 text-white px-6 py-3 rounded-lg uppercase text-sm font-medium hover:bg-slate-800 transition duration-200 flex items-center justify-center gap-2 disabled:opacity-80'
         >
-          {loading ? 'Loading...' : 'Update'}
+          {loading ? (
+            <>
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Loading...
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+              </svg>
+              Update Profile
+            </>
+          )}
         </button>
         
         <Link
-          className='bg-green-700 text-white p-3 rounded-lg uppercase text-center hover:opacity-95'
+          className='bg-green-600 text-white px-6 py-3 rounded-lg uppercase text-sm font-medium hover:bg-green-700 transition duration-200 flex items-center justify-center gap-2'
           to='/create-listing'
         >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 01-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+          </svg>
           Create A Listing
         </Link>
         
         <Link
-          className='bg-blue-500 text-white p-3 rounded-lg uppercase text-center hover:opacity-95 mt-5'
+          className='bg-blue-600 text-white px-6 py-3 rounded-lg uppercase text-sm font-medium hover:bg-blue-700 transition duration-200 flex items-center justify-center gap-2 mt-5'
           to='/analytics'
         >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" />
+          </svg>
           View Analytics
         </Link>
       </form>
 
       <div className='flex justify-between mt-5'>
-        <span
-          onClick={handleDeleteUser}
-          className='text-red-700 cursor-pointer'
+        <button
+          onClick={handleDeleteClick}
+          className='bg-red-600 text-white px-6 py-2 rounded-lg uppercase text-sm font-medium hover:bg-red-700 transition duration-200 flex items-center gap-2'
         >
-          Delete account
-        </span>
-        <span onClick={handleSignOut} className='text-red-700 cursor-pointer'>
-          Sign out
-        </span>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          Delete Account
+        </button>
+        <button
+          onClick={handleSignOut}
+          className='bg-slate-700 text-white px-6 py-2 rounded-lg uppercase text-sm font-medium hover:bg-slate-800 transition duration-200 flex items-center gap-2'
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+          </svg>
+          Sign Out
+        </button>
       </div>
 
       <p className='text-red-700 mt-5'>{error ? error : ''}</p>
@@ -474,15 +568,25 @@ export default function LandlordProfile() {
       </p>
 
       <div className='flex gap-2 mt-5'>
-        <button onClick={handleShowListings} className='text-green-700 w-full'>
-          Show Listings
+        <button
+          onClick={handleShowListings}
+          className='w-full bg-purple-600 text-white px-6 py-3 rounded-lg uppercase text-sm font-medium hover:bg-purple-700 transition duration-200 flex items-center justify-center gap-2'
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            {showListingsSection ? (
+              // Eye-off icon for hide
+              <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+            ) : (
+              // List icon for show
+              <path d="M7 3a1 1 0 000 2h6a1 1 0 100 2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+            )}
+          </svg>
+          {showListingsSection ? 'Hide Listings' : 'Show Listings'}
         </button>
       </div>
 
       {showListingsError && (
-        <p className='text-red-700 mt-5'>
-          Error showing listings
-        </p>
+        <p className='text-red-700 mt-5'>Error showing listings</p>
       )}
 
       {listingsFetched && userListings.length === 0 && (
@@ -491,11 +595,9 @@ export default function LandlordProfile() {
         </p>
       )}
 
-      {userListings && userListings.length > 0 && (
+      {showListingsSection && userListings && userListings.length > 0 && (
         <div className='flex flex-col gap-4'>
-          <h1 className='text-center mt-7 text-2xl font-semibold'>
-            Your Listings
-          </h1>
+          <h1 className='text-center mt-7 text-2xl font-semibold'>Your Listings</h1>
           {userListings.map((listing) => (
             <div
               key={listing._id}
@@ -515,22 +617,47 @@ export default function LandlordProfile() {
                 <p>{listing.name}</p>
               </Link>
 
-              <div className='flex flex-col item-center'>
+              <div className='flex flex-col item-center gap-2'>
                 <button
                   onClick={() => handleListingDelete(listing._id)}
-                  className='text-red-700 uppercase'
+                  className='bg-red-600 text-white px-4 py-1 rounded text-sm font-medium hover:bg-red-700 transition duration-200'
                 >
                   Delete
                 </button>
                 <Link
-                  className='text-green-700 uppercase'
                   to={`/update-listing/${listing._id}`}
+                  className='bg-green-600 text-white px-4 py-1 rounded text-sm font-medium hover:bg-green-700 transition duration-200 text-center'
                 >
                   Edit
                 </Link>
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Delete Account</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete your account? This action will permanently delete all your data and listings from the site.
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={handleCancelDelete}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Yes, Delete Account
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

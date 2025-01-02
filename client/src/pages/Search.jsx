@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ListingItem from '../components/ListingItem';
 import { MapContainer, TileLayer, Circle, Tooltip } from 'react-leaflet';
 import "leaflet/dist/leaflet.css";
@@ -20,7 +20,10 @@ import LoadingAnimation from '../components/LoadingAnimation';
 
 export default function Search() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPopup, setShowPopup] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   const initialState = {
     searchTerm: '',
     type: 'all',
@@ -60,6 +63,33 @@ export default function Search() {
     sale: <FaDollarSign />,
   };
 
+  // Handle URL parameters only once on initial mount
+  useEffect(() => {
+    if (!isInitialized) {
+      const params = new URLSearchParams(location.search);
+      const urlState = { ...initialState };
+      
+      // Convert URL parameters to appropriate types
+      params.forEach((value, key) => {
+        if (key === 'type' || key === 'userModel' || key === 'sort' || key === 'order') {
+          urlState[key] = value;
+        } else if (key === 'parking' || key === 'furnished' || key === 'backupPower' || 
+                   key === 'backupWaterSupply' || key === 'boreholeWater' || key === 'offer') {
+          urlState[key] = value === 'true';
+        } else if (key === 'minPrice' || key === 'maxPrice') {
+          urlState[key] = value;
+        } else if (key === 'searchTerm') {
+          urlState[key] = value;
+        }
+      });
+
+      // Update state with URL parameters
+      setSidebardata(urlState);
+      setIsInitialized(true);
+    }
+  }, [location.search, isInitialized]);
+
+  // Fetch listings whenever sidebardata changes
   useEffect(() => {
     const fetchListings = async () => {
       try {
@@ -68,12 +98,19 @@ export default function Search() {
         
         const urlParams = new URLSearchParams();
 
+        // Only add parameters that have values
         Object.entries(sidebardata).forEach(([key, value]) => {
-          if (value !== '' && value !== false && value !== 'all') {
+          if (
+            value !== '' && 
+            value !== false && 
+            value !== 'all' &&
+            value !== initialState[key]
+          ) {
             urlParams.set(key, value);
           }
         });
 
+        // Always include pagination parameters
         urlParams.set('page', currentPage);
         urlParams.set('limit', listingsPerPage);
 
@@ -105,8 +142,11 @@ export default function Search() {
       }
     };
 
-    fetchListings();
-  }, [sidebardata, currentPage, listingsPerPage]);
+    // Only fetch if component is initialized
+    if (isInitialized) {
+      fetchListings();
+    }
+  }, [sidebardata, currentPage, listingsPerPage, isInitialized]);
 
   const handleChange = (e) => {
     const { id, value, checked, type } = e.target;
@@ -120,11 +160,19 @@ export default function Search() {
     e.preventDefault();
     setCurrentPage(1);
     const urlParams = new URLSearchParams();
+    
+    // Only add parameters that have values and differ from initial state
     Object.entries(sidebardata).forEach(([key, value]) => {
-      if (value !== '' && value !== false && value !== 'all') {
+      if (
+        value !== '' && 
+        value !== false && 
+        value !== 'all' &&
+        value !== initialState[key]
+      ) {
         urlParams.set(key, value);
       }
     });
+    
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
   };

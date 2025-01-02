@@ -18,6 +18,10 @@ const LandlordListings = () => {
     experience: 0,
   });
   const [rated, setRated] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationError, setVerificationError] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,6 +48,39 @@ const LandlordListings = () => {
 
     fetchLandlordData();
   }, [userId]);
+
+  const handleVerifyCode = async () => {
+    if (!verificationCode.trim()) {
+      setVerificationError('Please enter the verification code');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/code/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          code: verificationCode,
+          landlordId: userId
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (res.ok) {
+        setIsVerified(true);
+        setShowVerificationModal(false);
+        setVerificationError("");
+      } else {
+        setVerificationError(data.message || 'Invalid verification code');
+      }
+    } catch (error) {
+      setVerificationError('Failed to verify code');
+    }
+  };
 
   const fetchUpdatedLandlord = async () => {
     try {
@@ -151,25 +188,25 @@ const LandlordListings = () => {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <img
-            src={landlord.avatar || "https://via.placeholder.com/150"}
-            alt={landlord.username}
+            src={landlord?.avatar || "https://via.placeholder.com/150"}
+            alt={landlord?.username}
             className="rounded-full w-32 h-32 object-cover"
           />
-          <h1 className="text-3xl font-bold">{landlord.username}</h1>
+          <h1 className="text-3xl font-bold">{landlord?.username}</h1>
         </div>
         <div>
           <span className="mr-2 text-xl font-semibold">Rating:</span>
           <div className="flex text-xl">
-            {landlord.averageRating
+            {landlord?.averageRating
               ? renderLandlordRating(landlord.averageRating)
               : "No ratings yet"}
           </div>
         </div>
       </div>
 
-      <div className="mb-6 text-center">
+      <div className="mb-6 text-center relative">
         <h3 className="text-2xl font-semibold mb-4">Rate this Landlord</h3>
-        <div className="p-6 border-2 border-gray-300 rounded-lg bg-gray-100 inline-block">
+        <div className={`p-6 border-2 border-gray-300 rounded-lg bg-gray-100 inline-block relative ${!isVerified ? 'filter blur-sm pointer-events-none' : ''}`}>
           <div className="flex items-center justify-center gap-8">
             <div className="text-center">
               <h4>Response Time</h4>
@@ -203,6 +240,29 @@ const LandlordListings = () => {
             </button>
           </div>
         </div>
+        {!isVerified && (
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 text-center bg-white/70 backdrop-blur-sm p-8 rounded-lg shadow-xl border border-gray-200">
+            <p className="text-lg font-semibold mb-4">Please enter the authentication code to rate this landlord</p>
+            <div className="flex flex-col items-center gap-4">
+              <input
+                type="text"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                placeholder="Enter verification code"
+                className="px-4 py-2 border rounded-md w-full"
+              />
+              {verificationError && (
+                <p className="text-red-500 text-sm">{verificationError}</p>
+              )}
+              <button
+                onClick={handleVerifyCode}
+                className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 w-full"
+              >
+                Verify Code
+              </button>
+            </div>
+          </div>
+        )}
         {rated && <p className="text-lg mt-4">Thank you for your rating!</p>}
       </div>
 
