@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Listing from "../models/listing.model.js";
 import RealEstateCompany from "../models/realestatecompany.model.js";
 import User from "../models/user.model.js";
+import TimeAnalytics from '../models/timeAnalytics.model.js';
 import { errorHandler } from "../utils/error.js";
 
 export const createListing = async (req, res, next) => {
@@ -154,16 +155,33 @@ export const updateListing = async (req, res, next) => {
 
 export const getListing = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return next(errorHandler(400, 'Invalid listing ID'));
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      return next(errorHandler(404, 'Listing not found!'));
     }
 
-    const listing = await Listing.findById(id);
-    
-    if (!listing) {
-      return next(errorHandler(404, 'Listing not found'));
+    // Record the view in time analytics
+    try {
+      const currentHour = new Date().getHours();
+      let timeAnalytics = await TimeAnalytics.findOne({
+        listingId: listing._id,
+        userId: listing.userRef
+      });
+
+      if (!timeAnalytics) {
+        timeAnalytics = new TimeAnalytics({
+          listingId: listing._id,
+          userId: listing.userRef,
+          hourlyViews: Array(24).fill(0)
+        });
+      }
+
+      timeAnalytics.hourlyViews[currentHour]++;
+      timeAnalytics.lastUpdated = new Date();
+      await timeAnalytics.save();
+    } catch (error) {
+      console.error('Error recording time analytics:', error);
+      // Don't fail the request if time analytics fails
     }
 
     // Create a mutable copy of the listing

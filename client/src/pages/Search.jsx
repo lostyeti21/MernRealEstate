@@ -63,90 +63,110 @@ export default function Search() {
     sale: <FaDollarSign />,
   };
 
-  // Handle URL parameters only once on initial mount
-  useEffect(() => {
-    if (!isInitialized) {
-      const params = new URLSearchParams(location.search);
-      const urlState = { ...initialState };
-      
-      // Convert URL parameters to appropriate types
-      params.forEach((value, key) => {
-        if (key === 'type' || key === 'userModel' || key === 'sort' || key === 'order') {
-          urlState[key] = value;
-        } else if (key === 'parking' || key === 'furnished' || key === 'backupPower' || 
-                   key === 'backupWaterSupply' || key === 'boreholeWater' || key === 'offer') {
-          urlState[key] = value === 'true';
-        } else if (key === 'minPrice' || key === 'maxPrice') {
-          urlState[key] = value;
-        } else if (key === 'searchTerm') {
-          urlState[key] = value;
-        }
-      });
-
-      // Update state with URL parameters
-      setSidebardata(urlState);
-      setIsInitialized(true);
+  // Add batch processing for impressions
+  const recordImpressions = debounce(async (listings) => {
+    const batchSize = 5; // Process 5 listings at a time
+    for (let i = 0; i < listings.length; i += batchSize) {
+      const batch = listings.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(listing =>
+          fetch(`http://localhost:3000/api/analytics/ctr/impression/${listing._id}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ source: 'search' })
+          }).catch(error => console.error('Error recording impression:', error))
+        )
+      );
+      // Add a small delay between batches
+      if (i + batchSize < listings.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
-  }, [location.search, isInitialized]);
+  }, 1000);
 
-  // Fetch listings whenever sidebardata changes
   useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const searchTermFromUrl = urlParams.get('searchTerm');
+    const typeFromUrl = urlParams.get('type');
+    const parkingFromUrl = urlParams.get('parking');
+    const furnishedFromUrl = urlParams.get('furnished');
+    const offerFromUrl = urlParams.get('offer');
+    const sortFromUrl = urlParams.get('sort');
+    const orderFromUrl = urlParams.get('order');
+
+    if (
+      searchTermFromUrl ||
+      typeFromUrl ||
+      parkingFromUrl ||
+      furnishedFromUrl ||
+      offerFromUrl ||
+      sortFromUrl ||
+      orderFromUrl
+    ) {
+      setSidebardata({
+        searchTerm: searchTermFromUrl || '',
+        type: typeFromUrl || 'all',
+        parking: parkingFromUrl === 'true' ? true : false,
+        furnished: furnishedFromUrl === 'true' ? true : false,
+        offer: offerFromUrl === 'true' ? true : false,
+        sort: sortFromUrl || 'createdAt',
+        order: orderFromUrl || 'desc',
+      });
+    }
+
     const fetchListings = async () => {
+      setLoading(true);
+      const searchQuery = urlParams.toString();
+
       try {
-        setLoading(true);
-        setError(null);
-        
-        const urlParams = new URLSearchParams();
-
-        // Only add parameters that have values
-        Object.entries(sidebardata).forEach(([key, value]) => {
-          if (
-            value !== '' && 
-            value !== false && 
-            value !== 'all' &&
-            value !== initialState[key]
-          ) {
-            urlParams.set(key, value);
-          }
-        });
-
-        // Always include pagination parameters
-        urlParams.set('page', currentPage);
-        urlParams.set('limit', listingsPerPage);
-
-        const searchQuery = urlParams.toString();
-        console.log('Search query:', searchQuery);
-
         const res = await fetch(`/api/listing/get?${searchQuery}`);
-        if (!res.ok) {
-          throw new Error(`Server error: ${res.status}`);
-        }
-
         const data = await res.json();
-        console.log('Search response:', data);
-        
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch listings');
-        }
 
-        setListings(data.listings || []);
-        setTotalPages(data.totalPages || 1);
-        
+        if (data.success) {
+          // Record impressions in batches
+          recordImpressions(data.listings);
+          
+          // Record search terms for each listing found
+          const searchTerm = urlParams.get('searchTerm');
+          if (searchTerm) {
+            data.listings.forEach(async (listing) => {
+              try {
+                await fetch(`http://localhost:3000/api/analytics/search/record/${listing._id}`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ 
+                    searchTerm,
+                    // Include additional search criteria
+                    filters: {
+                      type: typeFromUrl || 'all',
+                      parking: parkingFromUrl === 'true',
+                      furnished: furnishedFromUrl === 'true',
+                      offer: offerFromUrl === 'true'
+                    }
+                  })
+                });
+              } catch (error) {
+                console.error('Error recording search term:', error);
+              }
+            });
+          }
+
+          setListings(data.listings);
+          setTotalPages(data.totalPages || 1);
+          setLoading(false);
+        }
       } catch (error) {
-        console.error('Search error:', error);
-        setError(error.message);
-        setListings([]);
-        setTotalPages(1);
-      } finally {
+        console.log(error);
         setLoading(false);
       }
     };
 
-    // Only fetch if component is initialized
-    if (isInitialized) {
-      fetchListings();
-    }
-  }, [sidebardata, currentPage, listingsPerPage, isInitialized]);
+    fetchListings();
+  }, [location.search]);
 
   const handleChange = (e) => {
     const { id, value, checked, type } = e.target;
@@ -205,6 +225,20 @@ export default function Search() {
     if (inputPage) {
       handlePageChange(+inputPage);
       setInputPage('');
+    }
+  };
+
+  const handleListingClick = async (listingId) => {
+    try {
+      await fetch(`http://localhost:3000/api/analytics/ctr/click/${listingId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ source: 'search' })
+      });
+    } catch (error) {
+      console.error('Error recording click:', error);
     }
   };
 
@@ -425,22 +459,25 @@ export default function Search() {
           Listing results:
         </h1>
 
-        <div className="p-7 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6">
-          {loading ? (
-            <div className="flex justify-center items-center h-full">
-              <LoadingAnimation />
-            </div>
-          ) : (
-            <>
-              {listings.length === 0 ? (
-                <p className="text-xl text-slate-700">No listing found!</p>
-              ) : (
-                listings.map((listing) => (
-                  <ListingItem key={listing._id} listing={listing} />
-                ))
-              )}
-            </>
+        <div className="p-7 flex flex-wrap gap-4">
+          {loading && (
+            <p className="text-xl text-slate-700 text-center w-full">
+              Loading...
+            </p>
           )}
+          {!loading && listings.length === 0 && (
+            <p className="text-xl text-slate-700">No listing found!</p>
+          )}
+          {!loading &&
+            listings.map((listing) => (
+              <div 
+                key={listing._id}
+                onClick={() => handleListingClick(listing._id)}
+                className="cursor-pointer"
+              >
+                <ListingItem listing={listing} />
+              </div>
+            ))}
         </div>
 
         {!loading && listings.length > 0 && (

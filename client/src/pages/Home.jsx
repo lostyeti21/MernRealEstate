@@ -8,6 +8,7 @@ import ListingItem from "../components/ListingItem";
 import { FaInfoCircle } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
+import { debounce } from 'lodash';
 
 import backImage1 from "../assets/back1.jpg";
 import backImage2 from "../assets/back2.jpg";
@@ -317,6 +318,84 @@ export default function Home() {
     setShowPopup(false);
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const urlParams = new URLSearchParams();
+    urlParams.set('searchTerm', searchTerm);
+    urlParams.set('type', sidebardata.type);
+    urlParams.set('parking', sidebardata.parking);
+    urlParams.set('furnished', sidebardata.furnished);
+    urlParams.set('offer', sidebardata.offer);
+    urlParams.set('sort', sidebardata.sort);
+    urlParams.set('order', sidebardata.order);
+    const searchQuery = urlParams.toString();
+    navigate(`/search?${searchQuery}`);
+  };
+
+  const recordImpressions = debounce(async (listings) => {
+    const batchSize = 5; // Process 5 listings at a time
+    for (let i = 0; i < listings.length; i += batchSize) {
+      const batch = listings.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(listing =>
+          fetch(`http://localhost:3000/api/analytics/ctr/impression/${listing._id}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ source: 'home' })
+          }).catch(error => console.error('Error recording impression:', error))
+        )
+      );
+      // Add a small delay between batches
+      if (i + batchSize < listings.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }, 1000);
+
+  useEffect(() => {
+    const fetchListings = async () => {
+      setLoading(true);
+      setShowMore(false);
+      const searchQuery = urlParams.toString();
+      
+      try {
+        const res = await fetch(`/api/listing/get?${searchQuery}`);
+        const data = await res.json();
+        
+        if (data.success) {
+          if (data.listings.length > 8) {
+            setShowMore(true);
+          }
+          setListings(data.listings);
+          
+          // Record impressions in batches
+          recordImpressions(data.listings);
+        }
+      } catch (error) {
+        console.log(error);
+      }
+      setLoading(false);
+    };
+
+    fetchListings();
+  }, [location.search]);
+
+  const handleListingClick = async (listingId) => {
+    try {
+      await fetch(`http://localhost:3000/api/analytics/ctr/click/${listingId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ source: 'search' })
+      });
+    } catch (error) {
+      console.error('Error recording click:', error);
+    }
+  };
+
   return (
     <div className="relative">
       {loading && (
@@ -406,7 +485,12 @@ export default function Home() {
                 <h2 className="text-2xl font-semibold mb-3">Recently added places for rent</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {rentListings.map((listing) => (
-                    <ListingItem key={listing._id} listing={listing} />
+                    <div 
+                      key={listing._id}
+                      onClick={() => handleListingClick(listing._id)}
+                    >
+                      <ListingItem listing={listing} />
+                    </div>
                   ))}
                 </div>
                 <div className="mt-4 relative">
@@ -441,7 +525,12 @@ export default function Home() {
                 <h2 className="text-2xl font-semibold mb-3">Recently added places for sale</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {saleListings.map((listing) => (
-                    <ListingItem key={listing._id} listing={listing} />
+                    <div 
+                      key={listing._id}
+                      onClick={() => handleListingClick(listing._id)}
+                    >
+                      <ListingItem listing={listing} />
+                    </div>
                   ))}
                 </div>
                 <div className="mt-4 relative">
