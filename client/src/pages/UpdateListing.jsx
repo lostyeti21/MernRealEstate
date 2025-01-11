@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
+import Loader from '../components/Loader';
 
 export default function UpdateListing() {
   const { currentUser } = useSelector((state) => state.user);
@@ -244,10 +245,10 @@ export default function UpdateListing() {
   return (
     <main className='p-3 max-w-4xl mx-auto'>
       <h1 className='text-3xl font-semibold text-center my-7'>
-        Update Listing
+        {loading ? <Loader /> : "Update Listing"}
       </h1>
       {loading ? (
-        <p className="text-center">Loading...</p>
+        <Loader />
       ) : error ? (
         <p className="text-red-700 text-center">{error}</p>
       ) : (

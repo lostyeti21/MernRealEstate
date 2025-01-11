@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to conversations where the user is a participant
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth != null && 
+        resource.data.participants.hasAny([request.auth.uid]);
+    }
+    
+    // Allow read/write access to messages in conversations where the user is a participant
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/conversations/$(resource.data.conversationId)).data.participants.hasAny([request.auth.uid]);
+    }
+  }
+}

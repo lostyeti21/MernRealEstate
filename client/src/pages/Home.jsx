@@ -5,6 +5,7 @@ import { Navigation } from "swiper/modules";
 import SwiperCore from "swiper";
 import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
+import Loader from '../components/Loader';
 import { FaInfoCircle } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
@@ -18,7 +19,7 @@ import backImage5 from "../assets/back5.jpg";
 
 const StyledButton = styled.div`
   .cssbuttons-io-button {
-    background: #FF0072;
+    background: #F20505;
     color: white;
     font-family: inherit;
     padding: 0.35em;
@@ -60,7 +61,7 @@ const StyledButton = styled.div`
   .cssbuttons-io-button .icon svg {
     width: 1.1em;
     transition: transform 0.3s;
-    color: #FF0072;
+    color: #F20505;
   }
 
   .cssbuttons-io-button:hover .icon svg {
@@ -81,117 +82,8 @@ const StyledLoader = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  animation: reduceDimAndBlur 2s ease-out forwards;
+  background: black;
   z-index: 100;
-
-  @keyframes reduceDimAndBlur {
-    0% {
-      background: rgba(0, 0, 0, 0.9);
-      backdrop-filter: blur(20px);
-    }
-    100% {
-      background: rgba(0, 0, 0, 0);
-      backdrop-filter: blur(0px);
-    }
-  }
-
-  .spinner {
-    font-size: 28px;
-    position: relative;
-    display: inline-block;
-    width: 1em;
-    height: 1em;
-  }
-
-  .spinner.center {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    margin: auto;
-  }
-
-  .spinner .spinner-blade {
-    position: absolute;
-    left: 0.4629em;
-    bottom: 0;
-    width: 0.074em;
-    height: 0.2777em;
-    border-radius: 0.0555em;
-    background-color: transparent;
-    transform-origin: center -0.2222em;
-    animation: spinner-fade9234 1s infinite linear;
-  }
-
-  .spinner .spinner-blade:nth-child(1) {
-    animation-delay: 0s;
-    transform: rotate(0deg);
-  }
-
-  .spinner .spinner-blade:nth-child(2) {
-    animation-delay: 0.083s;
-    transform: rotate(30deg);
-  }
-
-  .spinner .spinner-blade:nth-child(3) {
-    animation-delay: 0.166s;
-    transform: rotate(60deg);
-  }
-
-  .spinner .spinner-blade:nth-child(4) {
-    animation-delay: 0.249s;
-    transform: rotate(90deg);
-  }
-
-  .spinner .spinner-blade:nth-child(5) {
-    animation-delay: 0.332s;
-    transform: rotate(120deg);
-  }
-
-  .spinner .spinner-blade:nth-child(6) {
-    animation-delay: 0.415s;
-    transform: rotate(150deg);
-  }
-
-  .spinner .spinner-blade:nth-child(7) {
-    animation-delay: 0.498s;
-    transform: rotate(180deg);
-  }
-
-  .spinner .spinner-blade:nth-child(8) {
-    animation-delay: 0.581s;
-    transform: rotate(210deg);
-  }
-
-  .spinner .spinner-blade:nth-child(9) {
-    animation-delay: 0.664s;
-    transform: rotate(240deg);
-  }
-
-  .spinner .spinner-blade:nth-child(10) {
-    animation-delay: 0.747s;
-    transform: rotate(270deg);
-  }
-
-  .spinner .spinner-blade:nth-child(11) {
-    animation-delay: 0.83s;
-    transform: rotate(300deg);
-  }
-
-  .spinner .spinner-blade:nth-child(12) {
-    animation-delay: 0.913s;
-    transform: rotate(330deg);
-  }
-
-  @keyframes spinner-fade9234 {
-    0% {
-      background-color: #ffffff;
-    }
-    100% {
-      background-color: transparent;
-    }
-  }
 `;
 
 export default function Home() {
@@ -397,23 +289,10 @@ export default function Home() {
   };
 
   return (
-    <div className="relative">
+    <>
       {loading && (
         <StyledLoader>
-          <div className="spinner center">
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-            <div className="spinner-blade"></div>
-          </div>
+          <Loader />
         </StyledLoader>
       )}
       
@@ -424,7 +303,7 @@ export default function Home() {
             index === currentImageIndex && (
               <motion.div
                 key={`hero-${index}`}
-                className="absolute inset-0 w-[1920px] h-[960px] mx-auto"
+                className="absolute inset-0 w-[1920px] h-[960px] mx-auto rounded-lg overflow-hidden"
                 initial={{ opacity: 0, scale: 1 }}
                 animate={{ opacity: 1, scale: 1.1 }}
                 exit={{ opacity: 0 }}
@@ -437,7 +316,7 @@ export default function Home() {
                   <img
                     src={image}
                     alt={`Hero ${index}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover rounded-lg"
                     style={{
                       objectPosition: 'center'
                     }}
@@ -453,29 +332,52 @@ export default function Home() {
       {/* Content Section - Adjusted padding */}
       <div className="relative min-h-screen">
         {/* Hero Content - Increased padding top and bottom */}
-        <div className="flex flex-col gap-6 pt-40 pb-32 px-3 max-w-6xl mx-auto text-white relative z-10">
-          <h1 className="text-4xl lg:text-6xl font-bold">
-            Find your next <span className="text-[#FF0072]">perfect</span>
-            <br />place with ease
-          </h1>
-          <div className="text-lg sm:text-xl">
-            DzimbaEstate will help you find your home fast, easy and comfortable.
-            <br />
-            Our expert support is always available.
-          </div>
-          <StyledButton>
-            <button className="cssbuttons-io-button" onClick={() => setShowPopup(true)}>
-              Get started
-              <div className="icon">
-                <svg height={24} width={24} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M0 0h24v24H0z" fill="none" />
-                  <path d="M16.172 11l-5.364-5.364 1.414-1.414L20 12l-7.778 7.778-1.414-1.414L16.172 13H4v-2z" fill="currentColor" />
-                </svg>
-              </div>
-            </button>
-          </StyledButton>
-        </div>
-
+        {!loading && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="flex flex-col gap-6 pt-40 pb-32 px-3 max-w-6xl mx-auto text-white relative z-10"
+          >
+            <motion.h1 
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
+              className="text-4xl lg:text-6xl font-bold"
+            >
+              Find your next <span className="text-[#C62300]">perfect</span>
+              <br />place with ease
+            </motion.h1>
+            <motion.div 
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
+              className="text-lg sm:text-xl"
+            >
+              DzimbaEstate will help you find your home fast, easy and comfortable.
+              <br />
+              Our expert support is always available.
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.6, ease: "backOut" }}
+            >
+              <StyledButton>
+                <button className="cssbuttons-io-button" onClick={() => setShowPopup(true)}>
+                  Get started
+                  <div className="icon">
+                    <svg height={24} width={24} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M0 0h24v24H0z" fill="none" />
+                      <path d="M16.172 11l-5.364-5.364 1.414-1.414L20 12l-7.778 7.778-1.414-1.414L16.172 13H4v-2z" fill="currentColor" />
+                    </svg>
+                  </div>
+                </button>
+              </StyledButton>
+            </motion.div>
+          </motion.div>
+        )}
+        
         {/* Rest of the content with white background */}
         <div className="bg-white py-16">
           <div className="max-w-6xl mx-auto px-3">
@@ -497,7 +399,7 @@ export default function Home() {
                   <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
                     <Link 
                       to="/search?type=rent"
-                      className="bg-[#FF0072] text-white px-6 py-2.5 rounded-lg hover:bg-[#be0054] transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
+                      className="bg-[#F20505] hover:bg-[#c41212] text-white px-6 py-2.5 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
                     >
                       Show more places for rent
                       <svg 
@@ -537,7 +439,7 @@ export default function Home() {
                   <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
                     <Link 
                       to="/search?type=sale"
-                      className="bg-[#FF0072] text-white px-6 py-2.5 rounded-lg hover:bg-[#be0054] transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
+                      className="bg-[#F20505] hover:bg-[#c41212] text-white px-6 py-2.5 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
                     >
                       Show more places for sale
                       <svg 
@@ -572,13 +474,13 @@ export default function Home() {
               <div className="flex justify-around mb-4">
                 <button
                   onClick={() => handleRentOrBuy("rent")}
-                  className="bg-blue-600 text-white py-2 px-4 rounded"
+                  className="bg-[#F20505] hover:bg-[#c41212] text-white py-2 px-4 rounded"
                 >
                   Rent
                 </button>
                 <button
                   onClick={() => handleRentOrBuy("sale")}
-                  className="bg-green-600 text-white py-2 px-4 rounded"
+                  className="bg-[#F20505] hover:bg-[#c41212] text-white py-2 px-4 rounded"
                 >
                   Buy
                 </button>
@@ -620,7 +522,7 @@ export default function Home() {
                 )}
                 <button
                   onClick={handlePriceSubmit}
-                  className="mt-6 bg-blue-600 text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
+                  className="mt-6 bg-[#F20505] hover:bg-[#c41212] text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
                 >
                   Search Listings
                 </button>
@@ -643,6 +545,6 @@ export default function Home() {
       >
         <FaInfoCircle size={20} />
       </Link>
-    </div>
+    </>
   );
 }

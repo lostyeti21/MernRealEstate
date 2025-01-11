@@ -14,9 +14,13 @@ import {
   FaGlobe,
   FaMapMarkerAlt,
   FaQuestionCircle,
-  FaTimes
+  FaTimes,
+  FaMoneyBillWave
 } from 'react-icons/fa';
+import { debounce } from 'lodash';
 import LoadingAnimation from '../components/LoadingAnimation';
+import Loader from '../components/Loader';
+import { motion } from 'framer-motion';
 
 export default function Search() {
   const navigate = useNavigate();
@@ -45,7 +49,7 @@ export default function Search() {
   const [listings, setListings] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const listingsPerPage = 8;
+  const listingsPerPage = 12;
   const [inputPage, setInputPage] = useState('');
   const [error, setError] = useState('');
 
@@ -88,6 +92,7 @@ export default function Search() {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
+    
     const searchTermFromUrl = urlParams.get('searchTerm');
     const typeFromUrl = urlParams.get('type');
     const parkingFromUrl = urlParams.get('parking');
@@ -95,6 +100,18 @@ export default function Search() {
     const offerFromUrl = urlParams.get('offer');
     const sortFromUrl = urlParams.get('sort');
     const orderFromUrl = urlParams.get('order');
+    const pageFromUrl = urlParams.get('page') || 1;
+
+    console.log('URL Parameters:', {
+      searchTerm: searchTermFromUrl,
+      type: typeFromUrl,
+      parking: parkingFromUrl,
+      furnished: furnishedFromUrl,
+      offer: offerFromUrl,
+      sort: sortFromUrl,
+      order: orderFromUrl,
+      page: pageFromUrl
+    });
 
     if (
       searchTermFromUrl ||
@@ -118,11 +135,26 @@ export default function Search() {
 
     const fetchListings = async () => {
       setLoading(true);
+      const urlParams = new URLSearchParams(location.search);
+      
+      // Ensure required pagination parameters are set
+      if (!urlParams.get('listingsPerPage')) {
+        urlParams.set('listingsPerPage', listingsPerPage);
+      }
+      if (!urlParams.get('page')) {
+        urlParams.set('page', 1);
+      }
+
       const searchQuery = urlParams.toString();
+      const paginatedSearchQuery = searchQuery;
+
+      console.log('Fetching listings with query:', paginatedSearchQuery);
 
       try {
-        const res = await fetch(`/api/listing/get?${searchQuery}`);
+        const res = await fetch(`/api/listing/get?${paginatedSearchQuery}`);
         const data = await res.json();
+
+        console.log('Fetched data:', data);
 
         if (data.success) {
           // Record impressions in batches
@@ -142,10 +174,10 @@ export default function Search() {
                     searchTerm,
                     // Include additional search criteria
                     filters: {
-                      type: typeFromUrl || 'all',
-                      parking: parkingFromUrl === 'true',
-                      furnished: furnishedFromUrl === 'true',
-                      offer: offerFromUrl === 'true'
+                      type: urlParams.get('type') || 'all',
+                      parking: urlParams.get('parking') === 'true',
+                      furnished: urlParams.get('furnished') === 'true',
+                      offer: urlParams.get('offer') === 'true'
                     }
                   })
                 });
@@ -155,18 +187,36 @@ export default function Search() {
             });
           }
 
+          console.log('Setting listings:', data.listings);
+          console.log('Total pages:', data.totalPages);
+          console.log('Current page:', urlParams.get('page') || 1);
+
+          // Ensure new listings are fetched for each page
           setListings(data.listings);
           setTotalPages(data.totalPages || 1);
+          setCurrentPage(+urlParams.get('page') || 1);
+          setLoading(false);
+        } else {
+          // Handle case where no listings are found
+          console.log('No listings found');
+          setListings([]);
+          setTotalPages(1);
+          setCurrentPage(1);
           setLoading(false);
         }
       } catch (error) {
-        console.log(error);
+        console.error('Error fetching listings:', error);
+        setListings([]);
         setLoading(false);
       }
     };
 
     fetchListings();
   }, [location.search]);
+
+  useEffect(() => {
+    // No-op
+  }, [currentPage]);
 
   const handleChange = (e) => {
     const { id, value, checked, type } = e.target;
@@ -204,13 +254,22 @@ export default function Search() {
     navigate('/search');
   };
 
-  const handlePageChange = (newPage) => {
+  const handlePageChange = async (newPage) => {
     if (newPage > 0 && newPage <= totalPages && !loading) {
+      const urlParams = new URLSearchParams(location.search);
+      urlParams.set('page', newPage);
+      
+      // Reset listings and set loading state
+      setLoading(true);
+      setListings([]);
       setCurrentPage(newPage);
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
+      
+      // Force scroll to top immediately
+      document.body.scrollTop = 0; // For Safari
+      document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+      
+      // Force a re-render by updating the URL
+      navigate(`/search?${urlParams.toString()}`, { replace: true });
     }
   };
 
@@ -242,6 +301,46 @@ export default function Search() {
     }
   };
 
+  // Add ScrollToTop button component
+  const ScrollToTop = () => {
+    const [isVisible, setIsVisible] = useState(false);
+
+    // Show button when page is scrolled up to given distance
+    const toggleVisibility = () => {
+      if (window.pageYOffset > 300) {
+        setIsVisible(true);
+      } else {
+        setIsVisible(false);
+      }
+    };
+
+    const scrollToTop = () => {
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    };
+
+    // Add scroll event listener
+    useEffect(() => {
+      window.addEventListener('scroll', toggleVisibility);
+      return () => window.removeEventListener('scroll', toggleVisibility);
+    }, []);
+
+    // Only render if scrolled down enough
+    if (!isVisible) return null;
+
+    return (
+      <button
+        onClick={scrollToTop}
+        className="absolute bottom-4 left-4 bg-[#F20505] text-white p-2 rounded-full shadow-lg hover:bg-[#c41212] transition-all duration-300 opacity-50 hover:opacity-100 z-50"
+        aria-label="Scroll to top"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 101.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+        </svg>
+      </button>
+    );
+  };
+
   return (
     <div className="flex flex-col md:flex-row">
       {showPopup && (
@@ -262,105 +361,140 @@ export default function Search() {
           </div>
         </div>
       )}
-
-      <div className="p-7 border-b-2 md:border-r-2 md:min-h-screen md:w-1/3 lg:w-1/4">
+      
+      <div className="p-7 border-b-2 md:border-r-2 md:min-h-screen md:w-[34%] lg:w-[26%] gap-8">
         <form onSubmit={handleSubmit} className="flex flex-col gap-8">
-          <div className="flex items-center gap-2">
-            <label className="whitespace-nowrap font-semibold">Search Term:</label>
+          <div className="input-container w-[320.76px] relative">
             <input
               type="text"
               id="searchTerm"
-              placeholder="Search..."
-              className="border rounded-lg p-3 w-full"
+              placeholder="SEARCH..."
+              className="
+                w-full h-10 p-2.5 
+                transition-all duration-200 linear 
+                border-2.5 border-black 
+                text-sm uppercase 
+                tracking-[2px]
+                focus:outline-none 
+                focus:border-0.5 
+                focus:shadow-[-5px_-5px_0px_black]
+              "
               value={sidebardata.searchTerm}
               onChange={handleChange}
             />
+            <span className="
+              absolute 
+              right-2.5 
+              top-1/2 
+              -translate-y-1/2
+              hover:animate-pulse
+            ">
+              <svg 
+                width="19px" 
+                height="19px" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <g id="SVGRepo_bgCarrier" strokeWidth={0} />
+                <g id="SVGRepo_tracerCarrier" strokeLinecap="round" strokeLinejoin="round" />
+                <g id="SVGRepo_iconCarrier">
+                  <path opacity={1} d="M14 5H20" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path opacity={1} d="M14 8H17" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M21 11.5C21 16.75 16.75 21 11.5 21C6.25 21 2 16.75 2 11.5C2 6.25 6.25 2 11.5 2" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path opacity={1} d="M22 22L20 20" stroke="#000" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                </g>
+              </svg>
+            </span>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="font-semibold">Listed By:</label>
-            {['all', 'Agent', 'User'].map((model) => (
-              <div className="flex items-center gap-2" key={model}>
-                <input
-                  type="radio"
-                  id="userModel"
-                  value={model}
-                  name="userModel"
-                  className="w-5"
-                  onChange={handleChange}
-                  checked={sidebardata.userModel === model}
-                />
-                <span>{model === 'all' ? 'All' : `${model}s`}</span>
-              </div>
-            ))}
-          </div>
+          {/* Listed By Section Removed */}
 
           <div className="flex flex-col gap-2">
             <label className="font-semibold">Type:</label>
-            {['all', 'rent', 'sale'].map((type) => (
-              <div className="flex items-center gap-2" key={type}>
-                <span className="text-lg">{typeIcons[type]}</span>
-                <input
-                  type="radio"
-                  id="type"
-                  value={type}
-                  name="type"
-                  className="w-5"
-                  onChange={handleChange}
-                  checked={sidebardata.type === type}
-                />
-                <span>{type.charAt(0).toUpperCase() + type.slice(1)}</span>
-              </div>
-            ))}
-            <div className="flex gap-2">
-              <input
-                type="checkbox"
-                id="offer"
-                className="w-5"
-                onChange={handleChange}
-                checked={sidebardata.offer}
-              />
-              <span>Offer</span>
+            <div className="flex flex-wrap gap-2">
+              {['all', 'rent', 'sale'].map((type) => (
+                <div 
+                  key={type}
+                  className={`
+                    flex items-center gap-2 px-3 py-1 rounded-full cursor-pointer transition-all duration-300 ease-in-out
+                    ${sidebardata.type === type 
+                      ? 'bg-[#F20505] text-white hover:bg-[#c41212]' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }
+                  `}
+                  onClick={() => handleChange({
+                    target: { 
+                      id: 'type', 
+                      value: type 
+                    }
+                  })}
+                >
+                  <span className="text-sm">
+                    {type === 'all' ? 'All' : type === 'rent' ? 'For Rent' : 'For Sale'}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
             <label className="font-semibold">Amenities:</label>
-            {['parking', 'furnished', 'backupPower', 'backupWaterSupply', 'boreholeWater'].map((amenity) => (
-              <div className="flex items-center gap-2" key={amenity}>
-                {amenityIcons[amenity]}
-                <input
-                  type="checkbox"
-                  id={amenity}
-                  className="w-5"
-                  onChange={handleChange}
-                  checked={sidebardata[amenity]}
-                />
-                <span>{amenity.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}</span>
-              </div>
-            ))}
+            <div className="grid grid-cols-2 gap-2">
+              {['parking', 'furnished', 'backupPower', 'backupWaterSupply', 'boreholeWater'].map((amenity) => (
+                <div 
+                  key={amenity}
+                  className={`
+                    inline-flex items-center gap-2 px-3 py-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out
+                    h-10 max-w-full
+                    ${sidebardata[amenity] 
+                      ? 'bg-[#F20505] text-white hover:bg-[#c41212]' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }
+                  `}
+                  onClick={() => handleChange({
+                    target: { 
+                      id: amenity, 
+                      type: 'checkbox', 
+                      checked: !sidebardata[amenity] 
+                    }
+                  })}
+                >
+                  <span className="mr-2">{amenityIcons[amenity]}</span>
+                  <span className="text-sm whitespace-nowrap overflow-hidden">
+                    {amenity === 'backupWaterSupply' ? 'Backup Water' : 
+                     amenity.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold">Price Range:</label>
             <div className="flex items-center gap-2">
-              <label className="font-semibold">Min Price:</label>
-              <input
-                type="number"
-                id="minPrice"
-                className="border rounded-lg p-3 w-24"
-                value={sidebardata.minPrice}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="font-semibold">Max Price:</label>
-              <input
-                type="number"
-                id="maxPrice"
-                className="border rounded-lg p-3 w-24"
-                value={sidebardata.maxPrice}
-                onChange={handleChange}
-              />
+              <div className="flex items-center gap-2 bg-gray-200 rounded-full px-3 py-2">
+                <FaMoneyBillWave className="text-gray-600" />
+                <input
+                  type="number"
+                  id="minPrice"
+                  placeholder="Min"
+                  className="bg-transparent w-[106px] outline-none"
+                  onChange={handleChange}
+                  value={sidebardata.minPrice}
+                />
+              </div>
+              <div className="flex items-center gap-2 bg-gray-200 rounded-full px-3 py-2">
+                <FaMoneyBillWave className="text-gray-600" />
+                <input
+                  type="number"
+                  id="maxPrice"
+                  placeholder="Max"
+                  className="bg-transparent w-[106px] outline-none"
+                  onChange={handleChange}
+                  value={sidebardata.maxPrice}
+                />
+              </div>
             </div>
           </div>
 
@@ -454,32 +588,37 @@ export default function Search() {
         </div>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 relative">
+        {loading && (
+          <div className="fixed inset-0 flex justify-center items-center bg-white bg-opacity-90 z-[9999]">
+            <Loader />
+          </div>
+        )}
+        
         <h1 className="text-3xl font-semibold border-b p-3 text-slate-700 mt-5">
           Listing results:
         </h1>
 
-        <div className="p-7 flex flex-wrap gap-4">
-          {loading && (
-            <p className="text-xl text-slate-700 text-center w-full">
-              Loading...
-            </p>
-          )}
+        <div className="p-3 flex flex-wrap gap-4 relative min-h-[calc(100vh-200px)]">
           {!loading && listings.length === 0 && (
-            <p className="text-xl text-slate-700">No listing found!</p>
+            <div className="w-full flex justify-center items-center">
+              <p className="text-xl text-gray-500">No listings found</p>
+            </div>
           )}
-          {!loading &&
-            listings.map((listing) => (
-              <div 
-                key={listing._id}
-                onClick={() => handleListingClick(listing._id)}
-                className="cursor-pointer"
-              >
-                <ListingItem listing={listing} />
-              </div>
-            ))}
-        </div>
 
+          {!loading && listings.length > 0 && listings.map((listing) => (
+            <motion.div 
+              key={listing._id}
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              onClick={() => handleListingClick(listing._id)}
+            >
+              <ListingItem listing={listing} />
+            </motion.div>
+          ))}
+        </div>
+        
         {!loading && listings.length > 0 && (
           <div className="flex flex-col items-center mt-6">
             <div className="flex justify-center items-center gap-4">
@@ -524,6 +663,7 @@ export default function Search() {
             </div>
           </div>
         )}
+        <ScrollToTop />
       </div>
     </div>
   );

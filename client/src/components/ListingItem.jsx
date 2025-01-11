@@ -49,7 +49,7 @@ export default function ListingItem({ listing }) {
     <div className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px]'>
       <div
         className={`absolute top-3 right-3 px-3 py-1 text-white text-xs font-semibold ${
-          type === 'sale' ? 'bg-purple-600' : 'bg-blue-600'
+          type === 'sale' ? 'bg-[#BF0404]' : 'bg-[#730202]'
         }`}
         style={{ zIndex: 10 }}
       >
@@ -80,34 +80,34 @@ export default function ListingItem({ listing }) {
             {type === 'rent' && ' / month'}
           </p>
           <div className='flex flex-wrap gap-2 mt-3 text-xs text-white font-medium'>
-            <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+            <div className='bg-[#0D0D0D] px-3 py-1 rounded-full flex items-center gap-1'>
               <FaBed /> {bedrooms} {bedrooms > 1 ? 'Beds' : 'Bed'}
             </div>
-            <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+            <div className='bg-[#0D0D0D] px-3 py-1 rounded-full flex items-center gap-1'>
               <FaBath /> {bathrooms} {bathrooms > 1 ? 'Baths' : 'Bath'}
             </div>
             {parking && (
-              <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+              <div className='bg-[#0D0D0D] px-3 py-1 rounded-full flex items-center gap-1'>
                 <FaParking /> Parking
               </div>
             )}
             {furnished && (
-              <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+              <div className='bg-[#0D0D0D] px-3 py-1 rounded-full flex items-center gap-1'>
                 <FaChair /> Furnished
               </div>
             )}
             {backupPower && (
-              <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+              <div className='bg-[#0D0D0D] px-3 py-1 rounded-full flex items-center gap-1'>
                 <FaBolt /> Backup Power
               </div>
             )}
             {backupWaterSupply && (
-              <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+              <div className='bg-[#0D0D0D] px-3 py-1 rounded-full flex items-center gap-1'>
                 <FaWater /> Backup Water
               </div>
             )}
             {boreholeWater && (
-              <div className='bg-green-900 px-3 py-1 rounded-full flex items-center gap-1'>
+              <div className='bg-[#0D0D0D] px-3 py-1 rounded-full flex items-center gap-1'>
                 <FaTint /> Borehole
               </div>
             )}

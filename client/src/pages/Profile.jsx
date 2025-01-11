@@ -393,51 +393,59 @@ const Profile = () => {
           />
         </div>
         
-        {/* Phone Numbers Section - Only show for users with listings */}
-        {currentUser && currentUser.listings && currentUser.listings.length > 0 && (
-          <>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="newPhoneNumber" className="text-slate-700 font-semibold">Add Phone Number</label>
-              <div className="flex gap-2">
-                <input
-                  type="tel"
-                  id="newPhoneNumber"
-                  placeholder="Add a phone number"
-                  className="border p-3 rounded-lg flex-grow"
-                  value={newPhoneNumber}
-                  onChange={(e) => setNewPhoneNumber(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPhoneNumber}
-                  className="bg-green-700 text-white rounded-lg p-3 uppercase hover:opacity-95"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
+        {/* Phone Numbers Section */}
+        <div className="flex flex-col gap-2">
+          <label htmlFor="newPhoneNumber" className="font-medium text-slate-700">
+            Add New Phone Number
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              id="newPhoneNumber"
+              placeholder="Enter phone number"
+              value={newPhoneNumber}
+              onChange={handlePhoneNumberChange}
+              className="border p-3 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            />
+            <button
+              type="button"
+              onClick={handleAddPhoneNumber}
+              className="bg-green-600 text-white p-3 rounded-lg uppercase text-sm font-medium hover:bg-green-700 transition duration-200 flex items-center justify-center"
+            >
+              Add
+            </button>
+          </div>
+        </div>
 
-            {/* Current Phone Numbers Display */}
-            {phoneNumbers.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <label className="text-slate-700 font-semibold">Current Phone Numbers</label>
-                <div className="flex flex-col gap-2">
-                  {phoneNumbers.map((phone, index) => (
-                    <div key={index} className="flex justify-between items-center border p-3 rounded-lg">
-                      <span>{phone}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePhoneNumber(phone)}
-                        className="text-red-700 hover:opacity-75"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+        <Link
+          to='/change-password'
+          className='bg-blue-600 text-white px-6 py-3 rounded-lg uppercase text-sm font-medium hover:bg-blue-700 transition duration-200 flex items-center justify-center gap-2 mt-3'
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2V6a1 1 0 100-2h3a1 1 0 012 0v2a1 1 0 110 2h3a1 1 0 012 0v2a2 2 0 012 2v5a1 1 0 01-1 1H9a1 1 0 01-1-1v-5a2 2 0 00-2-2H5zM8 7a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          Change Password
+        </Link>
+
+        {/* Current Phone Numbers Display */}
+        {phoneNumbers.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <label className="text-slate-700 font-semibold">Current Phone Numbers</label>
+            <div className="flex flex-col gap-2">
+              {phoneNumbers.map((phone, index) => (
+                <div key={index} className="flex justify-between items-center border p-3 rounded-lg">
+                  <span>{phone}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoneNumber(phone)}
+                    className="text-red-700 hover:opacity-75"
+                  >
+                    Remove
+                  </button>
                 </div>
-              </div>
-            )}
-          </>
+              ))}
+            </div>
+          </div>
         )}
 
         <button
@@ -467,7 +475,7 @@ const Profile = () => {
           to={"/create-listing"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 01-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
           </svg>
           Create A Listing
         </Link>
@@ -477,7 +485,7 @@ const Profile = () => {
             <Link to="/analytics" className="mt-5">
               <button className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg uppercase text-sm font-medium hover:bg-blue-700 transition duration-200 flex items-center justify-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 012 0v6a1 1 0 11-2 0V7zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" />
+                  <path d="M2 11a1 1 0 000 2h2a1 1 0 100-2H7v-3a1 1 0 00-1-1H2v3a2 2 0 012-2 4 4 0 012 4v7h14a2 2 0 012 2v-3a1 1 0 100-2h-3v-4a1 1 0 00-1-1h-2V7a1 1 0 100 2h3v4a1 1 0 001 1h3v3a2 2 0 01-2 2H7v-3a1 1 0 00-1-1H2v3z" />
                 </svg>
                 View Analytics
               </button>
@@ -500,7 +508,7 @@ const Profile = () => {
           className='bg-red-600 text-white px-6 py-2 rounded-lg uppercase text-sm font-medium hover:bg-red-700 transition duration-200 flex items-center gap-2'
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+            <path fillRule="evenodd" d="M9 2a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 01-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
           </svg>
           Delete Account
         </button>

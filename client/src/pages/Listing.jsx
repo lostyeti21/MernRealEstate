@@ -37,6 +37,7 @@ export default function Listing() {
   const [coordinates, setCoordinates] = useState(null);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [fullscreenIndex, setFullscreenIndex] = useState(0);
+  const [showMap, setShowMap] = useState(true); // New state variable
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [rating, setRating] = useState(0);
   const [ratingHover, setRatingHover] = useState(0);
@@ -610,10 +611,12 @@ export default function Listing() {
   const handleImageClick = (index) => {
     setFullscreenIndex(index);
     setShowFullscreen(true);
+    setShowMap(false); // Hide map when entering fullscreen
   };
 
   const closeFullscreen = () => {
     setShowFullscreen(false);
+    setShowMap(true); // Show map when exiting fullscreen
   };
 
   if (loading) {
@@ -767,7 +770,7 @@ export default function Listing() {
           </div>
         </div>
 
-        <div className="flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md">
+        <div className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${showMap ? '' : 'hidden'}`}>
           {coordinates ? (
             <MapContainer
               center={[coordinates.lat, coordinates.lng]}

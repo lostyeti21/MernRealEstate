@@ -2,14 +2,15 @@ import express from "express";
 import { signin, signup, google, signout } from "../controllers/auth.controller.js";
 import { sendConfirmationCode } from "../controllers/email.controller.js"; // Import the controller for sending confirmation codes
 import User from "../models/user.model.js"; // Import the User model for email checking
+import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
-// Route to handle user signup
-router.post("/signup", signup);
-
 // Route to handle user signin
 router.post("/signin", signin);
+
+// Route to handle user signup
+router.post("/signup", signup);
 
 // Route to handle Google authentication
 router.post("/google", google);
@@ -35,6 +36,12 @@ router.post("/check-email", async (req, res) => {
     console.error("Error checking email:", err);
     res.status(500).json({ success: false, message: "Server error." });
   }
+});
+
+// Authentication Routes
+router.get("/check-auth", verifyToken, (req, res) => {
+  // If the request reaches here, the user is authenticated
+  res.status(200).json({ authenticated: true, user: req.user });
 });
 
 export default router;

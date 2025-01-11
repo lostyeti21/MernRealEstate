@@ -252,7 +252,7 @@ export default function Header() {
     <header className={`${
       isHomePage 
         ? 'bg-transparent absolute top-0 left-0 right-0 z-50' 
-        : 'bg-slate-200'
+        : 'bg-white shadow-md'
     }`}>
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3">
         <div className="flex items-center gap-4">
@@ -273,7 +273,7 @@ export default function Header() {
             onSubmit={handleSubmit}
             className="relative"
           >
-            <div className="w-[40px] h-[40px] hover:w-[200px] bg-[#FF0072] shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full flex group items-center transition-all duration-300 overflow-hidden">
+            <div className="w-[40px] h-[40px] hover:w-[200px] bg-[#F20505] shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full flex group items-center transition-all duration-300 overflow-hidden">
               <button className="flex items-center justify-center min-w-[40px]">
                 <FaSearch className="w-4 h-4 text-white" />
               </button>
@@ -293,8 +293,8 @@ export default function Header() {
             <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
               isHomePage 
                 ? 'text-white border-white' 
-                : 'text-[#FF0072] border-[#FF0072]'
-            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+                : 'text-[#C62300] border-[#C62300]'
+            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
             <div className="flex items-center gap-1">
               <FaHome className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
               <span>Home</span>
@@ -306,8 +306,8 @@ export default function Header() {
             <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
               isHomePage 
                 ? 'text-white border-white' 
-                : 'text-[#FF0072] border-[#FF0072]'
-            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+                : 'text-[#C62300] border-[#C62300]'
+            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
             <div className="flex items-center gap-1">
               <FaList className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
               <span>Listings</span>
@@ -321,8 +321,8 @@ export default function Header() {
               className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
                 isHomePage 
                   ? 'text-white border-white' 
-                  : 'text-[#FF0072] border-[#FF0072]'
-              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}
+                  : 'text-[#C62300] border-[#C62300]'
+              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}
             >
               <div className="flex items-center gap-1">
                 <FaUsers className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
@@ -445,8 +445,8 @@ export default function Header() {
               <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
                 isHomePage 
                   ? 'text-white border-white' 
-                  : 'text-[#FF0072] border-[#FF0072]'
-              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#FF0072] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+                  : 'text-[#C62300] border-[#C62300]'
+              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
                 Sign in
               </button>
             </Link>

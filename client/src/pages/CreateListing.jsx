@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from 'axios';
+import Loader from '../components/Loader';
 
 const CreateListing = () => {
   const [files, setFiles] = useState([]);
@@ -44,29 +45,25 @@ const CreateListing = () => {
       if (storedAgentInfo && agentToken) {
         try {
           const parsedAgentInfo = JSON.parse(storedAgentInfo);
-          console.log('Parsed agent info:', parsedAgentInfo);
-          
           if (!parsedAgentInfo._id) {
-            throw new Error('Invalid agent data: missing ID');
+            setIsAuthenticated(false);
+            return;
           }
-
           setAgentInfo(parsedAgentInfo);
           setIsAuthenticated(true);
         } catch (error) {
           console.error('Agent auth error:', error);
-          localStorage.removeItem('agentToken');
-          localStorage.removeItem('agentInfo');
-          navigate('/sign-in');
+          setIsAuthenticated(false);
         }
       } else if (currentUser) {
         setIsAuthenticated(true);
       } else {
-        navigate('/sign-in');
+        setIsAuthenticated(false);
       }
     };
 
     checkAuth();
-  }, [currentUser, navigate]);
+  }, [currentUser]);
 
   const handleImageSubmit = async (e) => {
     e.preventDefault();
@@ -76,12 +73,31 @@ const CreateListing = () => {
       const promises = [];
 
       try {
-        // Check token before starting upload
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-          setImageUploadError('Please sign in again');
+        console.log('Current User:', currentUser);
+
+        if (!currentUser) {
+          setImageUploadError('Please sign in to upload images');
           setUploading(false);
-          navigate('/sign-in');
+          return;
+        }
+
+        // Attempt to get token from cookie
+        const res = await fetch('/api/auth/check-auth', {
+          method: 'GET',
+          credentials: 'include'
+        });
+
+        console.log('Check Auth Response:', {
+          status: res.status,
+          statusText: res.statusText,
+          headers: Object.fromEntries(res.headers.entries())
+        });
+
+        if (!res.ok) {
+          const errorBody = await res.text();
+          console.error('Authentication Error Body:', errorBody);
+          setImageUploadError('Authentication failed. Please sign in again.');
+          setUploading(false);
           return;
         }
 
@@ -89,13 +105,16 @@ const CreateListing = () => {
           promises.push(storeImage(files[i]));
         }
 
-        const urls = await Promise.all(promises);
-        setFormData({
-          ...formData,
-          imageUrls: formData.imageUrls.concat(urls),
-        });
-        setImageUploadError(false);
-        setFiles([]);
+        const urls = (await Promise.all(promises)).filter(url => url !== null);
+        
+        if (urls.length > 0) {
+          setFormData({
+            ...formData,
+            imageUrls: formData.imageUrls.concat(urls),
+          });
+          setImageUploadError(false);
+          setFiles([]);
+        }
       } catch (err) {
         console.error('Image upload error:', err);
         setImageUploadError(err.message || 'Image upload failed (2 mb max per image)');
@@ -111,32 +130,22 @@ const CreateListing = () => {
     formData.append('image', file);
 
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        console.error('Token not found in localStorage');
-        throw new Error('Please sign in again');
-      }
-
       const res = await fetch('/api/upload/image', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData,
-        credentials: 'include'
+        credentials: 'include',
+        body: formData
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        console.error('Upload failed:', data);
         throw new Error(data.message || 'Upload failed');
       }
 
       return data.url;
     } catch (error) {
       console.error('Upload error:', error);
-      setError(error.message || 'Failed to upload image');
+      setImageUploadError(error.message || 'Failed to upload image');
       throw error;
     }
   };
@@ -171,20 +180,31 @@ const CreateListing = () => {
       setLoading(true);
       setError(false);
 
-      // Get the current user's ID
-      const userId = currentUser?._id;
-      if (!userId) {
-        setError('You must be logged in to create a listing');
+      // Check authentication first
+      const authRes = await fetch('/api/auth/check-auth', {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      console.log('Check Auth Response:', {
+        status: authRes.status,
+        statusText: authRes.statusText,
+        headers: Object.fromEntries(authRes.headers.entries())
+      });
+
+      if (!authRes.ok) {
+        const errorBody = await authRes.text();
+        console.error('Authentication Error Body:', errorBody);
+        setError('Authentication failed. Please sign in again.');
         setLoading(false);
         return;
       }
 
-      // Get the authentication token
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        setError('Please sign in again');
+      // Get the current user's ID
+      const userId = currentUser?._id || (currentUser?.rest && currentUser.rest._id);
+      if (!userId) {
+        setError('You must be logged in to create a listing');
         setLoading(false);
-        navigate('/sign-in');
         return;
       }
 
@@ -201,8 +221,7 @@ const CreateListing = () => {
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(listingData),
         credentials: 'include'
@@ -500,7 +519,7 @@ const CreateListing = () => {
             disabled={loading || uploading}
             className="p-3 bg-slate-700 text-white rounded-lg uppercase"
           >
-            {loading ? "Creating..." : "Create Listing"}
+            {loading ? <Loader /> : "Create Listing"}
           </button>
           {error && <p className="text-red-700 text-sm">{error}</p>}
         </div>

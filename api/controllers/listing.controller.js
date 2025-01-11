@@ -251,7 +251,7 @@ export const getListings = async (req, res, next) => {
       minPrice,
       maxPrice,
       page = 1,
-      limit = 8
+      limit = 12
     } = req.query;
 
     // Calculate skip for pagination
