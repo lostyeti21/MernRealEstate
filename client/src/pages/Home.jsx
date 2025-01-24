@@ -6,10 +6,20 @@ import SwiperCore from "swiper";
 import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
 import Loader from '../components/Loader';
-import { FaInfoCircle } from 'react-icons/fa';
+import { FaInfoCircle, FaMapMarkerAlt } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
 import { debounce } from 'lodash';
+import { MdLocationOn } from 'react-icons/md';
+import {
+  FaBed,
+  FaBath,
+  FaParking,
+  FaChair,
+  FaBolt,
+  FaWater,
+  FaTint
+} from 'react-icons/fa';
 
 import backImage1 from "../assets/back1.jpg";
 import backImage2 from "../assets/back2.jpg";
@@ -19,7 +29,7 @@ import backImage5 from "../assets/back5.jpg";
 
 const StyledButton = styled.div`
   .cssbuttons-io-button {
-    background: #F20505;
+    background: #d95734;
     color: white;
     font-family: inherit;
     padding: 0.35em;
@@ -61,7 +71,7 @@ const StyledButton = styled.div`
   .cssbuttons-io-button .icon svg {
     width: 1.1em;
     transition: transform 0.3s;
-    color: #F20505;
+    color: #d95734;
   }
 
   .cssbuttons-io-button:hover .icon svg {
@@ -90,6 +100,8 @@ export default function Home() {
   const [offerListings, setOfferListings] = useState([]);
   const [saleListings, setSaleListings] = useState([]);
   const [rentListings, setRentListings] = useState([]);
+  const [randomListings, setRandomListings] = useState([]);
+  const [randomListingsError, setRandomListingsError] = useState(null);
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
@@ -100,6 +112,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [priceError, setPriceError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
   SwiperCore.use([Navigation]);
@@ -149,6 +162,91 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchRandomListings = async () => {
+      setIsLoading(true);
+      try {
+        // Use a more complex randomization approach
+        const randomSeed = Math.random().toString(36).substring(7);
+        
+        const res = await fetch(`/api/listing/get?limit=10&random=true&mixedTypes=true&seed=${randomSeed}`);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        
+        // Validate data structure
+        const validListings = Array.isArray(data) 
+          ? data 
+          : (data.listings && Array.isArray(data.listings) 
+            ? data.listings 
+            : []);
+        
+        // Validate each listing has required properties
+        const processedListings = validListings.filter(listing => 
+          listing._id && 
+          listing.imageUrls && 
+          listing.imageUrls.length > 0 &&
+          listing.name &&
+          listing.address
+        );
+        
+        // Separate sale and rent listings
+        const saleListing = processedListings
+          .filter(listing => listing.type === 'sale')
+          .sort(() => 0.5 - Math.random());
+        
+        const rentListing = processedListings
+          .filter(listing => listing.type === 'rent')
+          .sort(() => 0.5 - Math.random());
+        
+        // Ensure we have at least 2 of each type
+        const selectedListings = [
+          ...saleListing.slice(0, 2),
+          ...rentListing.slice(0, 2)
+        ]
+        // Shuffle the final selection
+        .sort(() => 0.5 - Math.random());
+        
+        if (isMounted) {
+          if (selectedListings.length === 0) {
+            setRandomListingsError('No valid listings found');
+          } else {
+            setRandomListings(selectedListings);
+            setRandomListingsError(null);
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error('Error fetching random listings:', error);
+          setRandomListingsError(error.message || 'Failed to fetch random listings');
+          setRandomListings([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    fetchRandomListings();
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const reRandomizeListings = () => {
+    setRandomListings([]);
+    setRandomListingsError(null);
+    setIsLoading(true);
+  };
 
   const handleStart = () => {
     setShowPopup(true);
@@ -288,6 +386,18 @@ export default function Home() {
     }
   };
 
+  if (randomListingsError) {
+    return (
+      <div className='max-w-6xl mx-auto p-3 flex flex-col gap-8 my-10'>
+        <h2 className='text-3xl font-semibold text-slate-600 mb-4'>Just for You</h2>
+        <div className='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative' role='alert'>
+          <strong className='font-bold'>Error: </strong>
+          <span className='block sm:inline'>{randomListingsError}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {loading && (
@@ -321,7 +431,7 @@ export default function Home() {
                       objectPosition: 'center'
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/40" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/70 to-black/60" />
                 </div>
               </motion.div>
             )
@@ -345,7 +455,7 @@ export default function Home() {
               transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
               className="text-4xl lg:text-6xl font-bold"
             >
-              Find your next <span className="text-[#C62300]">perfect</span>
+              Find your next <span className="text-white">perfect</span>
               <br />place with ease
             </motion.h1>
             <motion.div 
@@ -381,41 +491,134 @@ export default function Home() {
         {/* Rest of the content with white background */}
         <div className="bg-white py-16">
           <div className="max-w-6xl mx-auto px-3">
+            {/* Just for You Section */}
+            <div className='max-w-6xl mx-auto p-3 flex flex-col gap-8 my-10'>
+              <div className="relative h-[60px]">
+                <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                  SOME LISTINGS
+                </h1>
+                <h2 className='text-3xl font-semibold text-slate-600 absolute bottom-[-76%] left-0 relative z-10'>
+                  Just for You
+                </h2>
+              </div>
+              {isLoading ? (
+                <div className="flex justify-center">
+                  <Loader />
+                </div>
+              ) : (
+                <div className='grid grid-cols-4 gap-6'>
+                  {Array.isArray(randomListings) && randomListings.length > 0 ? (
+                    randomListings.map((listing) => (
+                      // Format price with proper checks
+                      <div 
+                        key={listing._id} 
+                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg'
+                      >
+                        <div
+                          className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
+                            listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
+                          }`}
+                          style={{ zIndex: 10 }}
+                        >
+                          {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
+                        </div>
+
+                        <Link to={`/listing/${listing._id}`}>
+                          <img
+                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                            alt='listing cover'
+                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                          />
+                          <div className='p-3 flex flex-col gap-2 w-full'>
+                            <p className='truncate text-lg font-semibold text-slate-700'>
+                              {listing.name}
+                            </p>
+                            <div className='flex items-center gap-1'>
+                              <MdLocationOn className='h-4 w-4 text-green-700' />
+                              <p className='text-sm text-gray-600 truncate w-full'>
+                                {listing.address}
+                              </p>
+                            </div>
+                            <p className='text-sm text-gray-600 line-clamp-2'>
+                              {listing.description}
+                            </p>
+                            <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+                              ${listing.offer ? listing.discountPrice : listing.regularPrice}
+                              {listing.type === 'rent' && ' / month'}
+                            </p>
+                            <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
+                              </div>
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
+                              </div>
+                              {listing.parking && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaParking /> Parking
+                                </div>
+                              )}
+                              {listing.furnished && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaChair /> Furnished
+                                </div>
+                              )}
+                              {listing.backupPower && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaBolt /> Backup Power
+                                </div>
+                              )}
+                              {listing.backupWaterSupply && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaWater /> Backup Water
+                                </div>
+                              )}
+                              {listing.boreholeWater && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaTint /> Borehole Water
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      </div>
+                    ))
+                  ) : (
+                    <p className='text-center text-gray-500 col-span-4'>No listings available</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Your existing listings sections */}
             {rentListings.length > 0 && (
-              <div className="mb-20">
-                <h2 className="text-2xl font-semibold mb-3">Recently added places for rent</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {rentListings.map((listing) => (
-                    <div 
-                      key={listing._id}
-                      onClick={() => handleListingClick(listing._id)}
-                    >
-                      <ListingItem listing={listing} />
-                    </div>
-                  ))}
+              <div className="mb-20 mt-20">
+                <div className="relative h-[100px]">
+                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                    FOR RENT
+                  </h1>
+                  <h2 className='text-3xl font-semibold text-slate-600 absolute bottom-[-49%] left-0 relative z-10'>
+                    Recently added places 
+                  </h2>
                 </div>
-                <div className="mt-4 relative">
+                {loading ? (
+                  <div className="flex justify-center">
+                    <Loader />
+                  </div>
+                ) : (
+                  <div className='flex flex-wrap gap-4'>
+                    {rentListings.map((listing) => (
+                      <ListingItem key={listing._id} listing={listing} />
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4 relative pb-10">
                   <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
                     <Link 
                       to="/search?type=rent"
-                      className="bg-[#F20505] hover:bg-[#c41212] text-white px-6 py-2.5 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
+                      className="bg-[#d95734] hover:bg-[#c41212] text-white px-4 py-2 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold"
                     >
                       Show more places for rent
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        className="h-4 w-4" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
-                        stroke="currentColor"
-                      >
-                        <path 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
-                          strokeWidth={2} 
-                          d="M9 5l7 7-7 7" 
-                        />
-                      </svg>
                     </Link>
                   </div>
                 </div>
@@ -423,39 +626,38 @@ export default function Home() {
             )}
 
             {saleListings.length > 0 && (
-              <div className="mb-20">
-                <h2 className="text-2xl font-semibold mb-3">Recently added places for sale</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {saleListings.map((listing) => (
-                    <div 
-                      key={listing._id}
-                      onClick={() => handleListingClick(listing._id)}
-                    >
-                      <ListingItem listing={listing} />
-                    </div>
-                  ))}
+              <div className="mb-20 mt-20">
+                <div className="relative h-[100px]">
+                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                    FOR SALE
+                  </h1>
+                  <h2 className='text-3xl font-semibold text-slate-600 absolute bottom-[-49%] left-0 relative z-10'>
+                    Recently added places 
+                  </h2>
                 </div>
+                {loading ? (
+                  <div className="flex justify-center">
+                    <Loader />
+                  </div>
+                ) : (
+                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+                    {saleListings.map((listing) => (
+                      <div 
+                        key={listing._id}
+                        onClick={() => handleListingClick(listing._id)}
+                      >
+                        <ListingItem listing={listing} />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-4 relative">
                   <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
                     <Link 
                       to="/search?type=sale"
-                      className="bg-[#F20505] hover:bg-[#c41212] text-white px-6 py-2.5 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px]"
+                      className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-2.5 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px] text-center"
                     >
                       Show more places for sale
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        className="h-4 w-4" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
-                        stroke="currentColor"
-                      >
-                        <path 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
-                          strokeWidth={2} 
-                          d="M9 5l7 7-7 7" 
-                        />
-                      </svg>
                     </Link>
                   </div>
                 </div>
@@ -474,13 +676,13 @@ export default function Home() {
               <div className="flex justify-around mb-4">
                 <button
                   onClick={() => handleRentOrBuy("rent")}
-                  className="bg-[#F20505] hover:bg-[#c41212] text-white py-2 px-4 rounded"
+                  className="bg-[#d95734] hover:bg-[#c41212] text-white py-2 px-4 rounded"
                 >
                   Rent
                 </button>
                 <button
                   onClick={() => handleRentOrBuy("sale")}
-                  className="bg-[#F20505] hover:bg-[#c41212] text-white py-2 px-4 rounded"
+                  className="bg-[#d95734] hover:bg-[#c41212] text-white py-2 px-4 rounded"
                 >
                   Buy
                 </button>
@@ -522,7 +724,7 @@ export default function Home() {
                 )}
                 <button
                   onClick={handlePriceSubmit}
-                  className="mt-6 bg-[#F20505] hover:bg-[#c41212] text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
+                  className="mt-6 bg-[#d95734] hover:bg-[#c41212] text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
                 >
                   Search Listings
                 </button>

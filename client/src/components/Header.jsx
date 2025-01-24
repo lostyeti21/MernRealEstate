@@ -4,6 +4,7 @@ import { FaSearch, FaUsers, FaChevronDown, FaHome, FaList, FaBell } from 'react-
 import { useState, useEffect, useRef } from 'react';
 import { signOut, realEstateSignInSuccess } from '../redux/user/userSlice';
 import { io } from 'socket.io-client';
+import logo from '../assets/logo.svg';
 
 export default function Header() {
   const { currentUser, isRealEstateCompany } = useSelector((state) => state.user);
@@ -257,25 +258,20 @@ export default function Header() {
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3">
         <div className="flex items-center gap-4">
           <Link to="/">
-            <h1 className={`font-bold text-sm sm:text-xl flex flex-wrap ${
-              isHomePage ? 'text-white' : ''
-            }`}>
-              <span className={isHomePage ? 'text-white' : 'text-slate-500'}>
-                Dzimba
-              </span>
-              <span className={isHomePage ? 'text-white' : 'text-slate-700'}>
-                Estate
-              </span>
-            </h1>
+            <img 
+              src={logo} 
+              alt="Just List+It Logo" 
+              className={`h-10 ${isHomePage ? 'filter brightness-0 invert' : ''}`} 
+            />
           </Link>
 
           <form
             onSubmit={handleSubmit}
             className="relative"
           >
-            <div className="w-[40px] h-[40px] hover:w-[200px] bg-[#F20505] shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full flex group items-center transition-all duration-300 overflow-hidden">
+            <div className="w-[40px] h-[40px] hover:w-[200px] bg-[#373386] shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full flex group items-center transition-all duration-300 overflow-hidden">
               <button className="flex items-center justify-center min-w-[40px]">
-                <FaSearch className="w-4 h-4 text-white" />
+                <FaSearch className="w-4 h-4 text-white hover:text-[#373386] transition-all duration-300 ease-in-out" />
               </button>
               <input
                 type="text"
@@ -288,46 +284,49 @@ export default function Header() {
           </form>
         </div>
 
-        <ul className="flex gap-4 items-center">
+        <ul className="flex gap-6 items-center">
           <Link to="/">
-            <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
+            <button className={`flex items-center gap-2 text-base uppercase font-bold transition-colors duration-300 ${
               isHomePage 
-                ? 'text-white border-white' 
-                : 'text-[#C62300] border-[#C62300]'
-            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
-            <div className="flex items-center gap-1">
-              <FaHome className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
-              <span>Home</span>
-            </div>
-          </button>
+                ? 'text-white hover:text-gray-200' 
+                : 'text-[#373386] hover:text-[#4a47b3]'
+            }`}>
+              <FaHome className={`text-lg ${isHomePage ? 'text-white' : 'text-[#373386]'}`} />
+              <span className="relative group">
+                <span className="block">Home</span>
+                <span className="absolute left-0 bottom-0 w-full h-0.5 bg-[#373386] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
+              </span>
+            </button>
           </Link>
-          
+
           <Link to="/search">
-            <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
+            <button className={`flex items-center gap-2 text-base uppercase font-bold transition-colors duration-300 ${
               isHomePage 
-                ? 'text-white border-white' 
-                : 'text-[#C62300] border-[#C62300]'
-            } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
-            <div className="flex items-center gap-1">
-              <FaList className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
-              <span>Listings</span>
-            </div>
-          </button>
+                ? 'text-white hover:text-gray-200' 
+                : 'text-[#373386] hover:text-[#4a47b3]'
+            }`}>
+              <FaList className={`text-lg ${isHomePage ? 'text-white' : 'text-[#373386]'}`} />
+              <span className="relative group">
+                <span className="block">Listings</span>
+                <span className="absolute left-0 bottom-0 w-full h-0.5 bg-[#373386] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
+              </span>
+            </button>
           </Link>
 
           <div className="relative" ref={usersMenuRef}>
             <button 
               onClick={() => setIsUsersMenuOpen(!isUsersMenuOpen)}
-              className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
+              className={`flex items-center gap-2 text-base uppercase font-bold transition-colors duration-300 ${
                 isHomePage 
-                  ? 'text-white border-white' 
-                  : 'text-[#C62300] border-[#C62300]'
-              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}
+                  ? 'text-white hover:text-gray-200' 
+                  : 'text-[#373386] hover:text-[#4a47b3]'
+              }`}
             >
-              <div className="flex items-center gap-1">
-                <FaUsers className={`text-sm ${isHomePage ? 'text-white' : ''}`} />
-                <span className="hidden sm:inline">Users</span>
-              </div>
+              <FaUsers className={`text-lg ${isHomePage ? 'text-white' : 'text-[#373386]'}`} />
+              <span className="relative group hidden sm:inline">
+                <span className="block">Users</span>
+                <span className="absolute left-0 bottom-0 w-full h-0.5 bg-[#373386] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
+              </span>
             </button>
 
             {isUsersMenuOpen && (
@@ -355,7 +354,7 @@ export default function Header() {
               <img
                 src={getAvatar()}
                 alt="profile"
-                className="h-10 w-10 object-cover cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
+                className="h-10 w-10 object-cover cursor-pointer shadow-md hover:shadow-lg transition-all duration-300 rounded-lg"
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                 onError={(e) => {
                   e.target.onerror = null;
@@ -446,7 +445,7 @@ export default function Header() {
                 isHomePage 
                   ? 'text-white border-white' 
                   : 'text-[#C62300] border-[#C62300]'
-              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#F20505] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#373386] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
                 Sign in
               </button>
             </Link>
