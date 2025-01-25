@@ -5,21 +5,13 @@ import { Navigation } from "swiper/modules";
 import SwiperCore from "swiper";
 import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
+import ListingCollage from "../components/ListingCollage";
 import Loader from '../components/Loader';
-import { FaInfoCircle, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaInfoCircle, FaBed, FaBath, FaParking, FaChair, FaBolt, FaWater, FaTint } from 'react-icons/fa';
+import { MdLocationOn } from 'react-icons/md';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
 import { debounce } from 'lodash';
-import { MdLocationOn } from 'react-icons/md';
-import {
-  FaBed,
-  FaBath,
-  FaParking,
-  FaChair,
-  FaBolt,
-  FaWater,
-  FaTint
-} from 'react-icons/fa';
 
 import backImage1 from "../assets/back1.jpg";
 import backImage2 from "../assets/back2.jpg";
@@ -101,6 +93,7 @@ export default function Home() {
   const [saleListings, setSaleListings] = useState([]);
   const [rentListings, setRentListings] = useState([]);
   const [randomListings, setRandomListings] = useState([]);
+  const [collageListing, setCollageListing] = useState(null);
   const [randomListingsError, setRandomListingsError] = useState(null);
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -148,7 +141,7 @@ export default function Home() {
     Promise.all([
       fetchListings("offer=true&limit=3", setOfferListings),
       fetchListings("type=rent&limit=3", setRentListings),
-      fetchListings("type=sale&limit=6", setSaleListings)
+      fetchListings("type=sale&limit=3", setSaleListings)
     ]).catch(error => {
       console.error("Error fetching listings:", error);
     });
@@ -169,9 +162,7 @@ export default function Home() {
     const fetchRandomListings = async () => {
       setIsLoading(true);
       try {
-        // Use a more complex randomization approach
         const randomSeed = Math.random().toString(36).substring(7);
-        
         const res = await fetch(`/api/listing/get?limit=10&random=true&mixedTypes=true&seed=${randomSeed}`);
         
         if (!res.ok) {
@@ -180,14 +171,12 @@ export default function Home() {
         
         const data = await res.json();
         
-        // Validate data structure
         const validListings = Array.isArray(data) 
           ? data 
           : (data.listings && Array.isArray(data.listings) 
             ? data.listings 
             : []);
         
-        // Validate each listing has required properties
         const processedListings = validListings.filter(listing => 
           listing._id && 
           listing.imageUrls && 
@@ -205,18 +194,45 @@ export default function Home() {
           .filter(listing => listing.type === 'rent')
           .sort(() => 0.5 - Math.random());
         
-        // Ensure we have at least 2 of each type
+        // Get one listing for the collage (alternating between sale and rent)
+        const collageIndex = Math.random() < 0.5 ? 0 : 1;
+        const selectedCollageListing = collageIndex === 0 
+          ? saleListing[0] 
+          : rentListing[0];
+        
+        // Remove the collage listing from its array
+        if (collageIndex === 0) {
+          saleListing.shift();
+        } else {
+          rentListing.shift();
+        }
+        
+        // Get remaining listings for the grid
         const selectedListings = [
           ...saleListing.slice(0, 2),
-          ...rentListing.slice(0, 2)
-        ]
-        // Shuffle the final selection
-        .sort(() => 0.5 - Math.random());
+          ...rentListing.slice(0, 1)
+        ].sort(() => 0.5 - Math.random());
+        
+        // Ensure we always have exactly 3 listings
+        while (selectedListings.length < 3) {
+          selectedListings.push({
+            _id: `placeholder-${selectedListings.length}`,
+            imageUrls: ['https://via.placeholder.com/330x200?text=Coming+Soon'],
+            name: 'Coming Soon',
+            address: 'Location to be announced',
+            description: 'New property listing coming soon',
+            type: Math.random() < 0.5 ? 'sale' : 'rent',
+            regularPrice: 0,
+            bedrooms: 0,
+            bathrooms: 0
+          });
+        }
         
         if (isMounted) {
           if (selectedListings.length === 0) {
             setRandomListingsError('No valid listings found');
           } else {
+            setCollageListing(selectedCollageListing);
             setRandomListings(selectedListings);
             setRandomListingsError(null);
           }
@@ -226,6 +242,7 @@ export default function Home() {
           console.error('Error fetching random listings:', error);
           setRandomListingsError(error.message || 'Failed to fetch random listings');
           setRandomListings([]);
+          setCollageListing(null);
         }
       } finally {
         if (isMounted) {
@@ -236,7 +253,6 @@ export default function Home() {
     
     fetchRandomListings();
     
-    // Cleanup function
     return () => {
       isMounted = false;
     };
@@ -244,6 +260,7 @@ export default function Home() {
 
   const reRandomizeListings = () => {
     setRandomListings([]);
+    setCollageListing(null);
     setRandomListingsError(null);
     setIsLoading(true);
   };
@@ -426,7 +443,7 @@ export default function Home() {
                   <img
                     src={image}
                     alt={`Hero ${index}`}
-                    className="w-full h-full object-cover rounded-lg"
+                    className="w-full h-full object-cover"
                     style={{
                       objectPosition: 'center'
                     }}
@@ -491,14 +508,29 @@ export default function Home() {
         {/* Rest of the content with white background */}
         <div className="bg-white py-16">
           <div className="max-w-6xl mx-auto px-3">
+            {/* Featured Property Section */}
+            {collageListing && (
+              <div className="max-w-6xl mx-auto p-3">
+                <div className="relative h-[100px] mb-8">
+                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                    FEATURED
+                  </h1>
+                  <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+                    Property
+                  </h2>
+                </div>
+                <ListingCollage listing={collageListing} />
+              </div>
+            )}
+
             {/* Just for You Section */}
-            <div className='max-w-6xl mx-auto p-3 flex flex-col gap-8 my-10'>
-              <div className="relative h-[60px]">
+            <div className="mb-16">
+              <div className="relative h-[100px] mb-8">
                 <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
                   SOME LISTINGS
                 </h1>
-                <h2 className='text-3xl font-semibold text-slate-600 absolute bottom-[-76%] left-0 relative z-10'>
-                  Just for You
+                <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+                  Just For You
                 </h2>
               </div>
               {isLoading ? (
@@ -506,13 +538,104 @@ export default function Home() {
                   <Loader />
                 </div>
               ) : (
-                <div className='grid grid-cols-4 gap-6'>
-                  {Array.isArray(randomListings) && randomListings.length > 0 ? (
-                    randomListings.map((listing) => (
-                      // Format price with proper checks
+                <div className='pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
+                  {Array.isArray(randomListings) && randomListings.map((listing) => (
+                    // Format price with proper checks
+                    <div 
+                      key={listing._id} 
+                      className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full'
+                    >
+                      <div
+                        className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
+                          listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
+                        }`}
+                        style={{ zIndex: 10 }}
+                      >
+                        {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
+                      </div>
+
+                      <Link to={`/listing/${listing._id}`}>
+                        <img
+                          src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                          alt='listing cover'
+                          className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                        />
+                        <div className='p-3 flex flex-col gap-2 w-full'>
+                          <p className='truncate text-lg font-semibold text-slate-700'>
+                            {listing.name}
+                          </p>
+                          <div className='flex items-center gap-1'>
+                            <MdLocationOn className='h-4 w-4 text-green-700' />
+                            <p className='text-sm text-gray-600 truncate w-full'>
+                              {listing.address}
+                            </p>
+                          </div>
+                          <p className='text-sm text-gray-600 line-clamp-2'>
+                            {listing.description}
+                          </p>
+                          <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+                            ${listing.offer ? listing.discountPrice : listing.regularPrice}
+                            {listing.type === 'rent' && ' / month'}
+                          </p>
+                          <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
+                            </div>
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
+                            </div>
+                            {listing.parking && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaParking /> Parking
+                              </div>
+                            )}
+                            {listing.furnished && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaChair /> Furnished
+                              </div>
+                            )}
+                            {listing.backupPower && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaBolt /> Backup Power
+                              </div>
+                            )}
+                            {listing.backupWaterSupply && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaWater /> Backup Water
+                              </div>
+                            )}
+                            {listing.boreholeWater && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaTint /> Borehole Water
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Your existing listings sections */}
+            {rentListings.length > 0 && (
+              <div className='my-3'>
+                <div className="relative h-[100px] mb-8">
+                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                    FOR RENT
+                  </h1>
+                  <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+                    Recently Added Places
+                  </h2>
+                </div>
+                <div className='pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
+                  {rentListings &&
+                    rentListings.length > 0 &&
+                    rentListings.map((listing) => (
                       <div 
                         key={listing._id} 
-                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg'
+                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full'
                       >
                         <div
                           className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
@@ -582,84 +705,114 @@ export default function Home() {
                           </div>
                         </Link>
                       </div>
-                    ))
-                  ) : (
-                    <p className='text-center text-gray-500 col-span-4'>No listings available</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Your existing listings sections */}
-            {rentListings.length > 0 && (
-              <div className="mb-20 mt-20">
-                <div className="relative h-[100px]">
-                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-                    FOR RENT
-                  </h1>
-                  <h2 className='text-3xl font-semibold text-slate-600 absolute bottom-[-49%] left-0 relative z-10'>
-                    Recently added places 
-                  </h2>
-                </div>
-                {loading ? (
-                  <div className="flex justify-center">
-                    <Loader />
-                  </div>
-                ) : (
-                  <div className='flex flex-wrap gap-4'>
-                    {rentListings.map((listing) => (
-                      <ListingItem key={listing._id} listing={listing} />
                     ))}
-                  </div>
-                )}
-                <div className="mt-4 relative pb-10">
-                  <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
-                    <Link 
-                      to="/search?type=rent"
-                      className="bg-[#d95734] hover:bg-[#c41212] text-white px-4 py-2 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold"
-                    >
-                      Show more places for rent
-                    </Link>
-                  </div>
+                </div>
+                <div className="mt-8 pb-16 flex justify-center">
+                  <Link 
+                    to="/search?type=rent"
+                    className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
+                  >
+                    Show more places for rent
+                  </Link>
                 </div>
               </div>
             )}
 
             {saleListings.length > 0 && (
-              <div className="mb-20 mt-20">
-                <div className="relative h-[100px]">
+              <div className='my-3'>
+                <div className="relative h-[100px] mb-8">
                   <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
                     FOR SALE
                   </h1>
-                  <h2 className='text-3xl font-semibold text-slate-600 absolute bottom-[-49%] left-0 relative z-10'>
-                    Recently added places 
+                  <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+                    Recently Added Places
                   </h2>
                 </div>
-                {loading ? (
-                  <div className="flex justify-center">
-                    <Loader />
-                  </div>
-                ) : (
-                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
-                    {saleListings.map((listing) => (
+                <div className='pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
+                  {saleListings &&
+                    saleListings.length > 0 &&
+                    saleListings.map((listing) => (
                       <div 
-                        key={listing._id}
-                        onClick={() => handleListingClick(listing._id)}
+                        key={listing._id} 
+                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full'
                       >
-                        <ListingItem listing={listing} />
+                        <div
+                          className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
+                            listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
+                          }`}
+                          style={{ zIndex: 10 }}
+                        >
+                          {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
+                        </div>
+
+                        <Link to={`/listing/${listing._id}`}>
+                          <img
+                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                            alt='listing cover'
+                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                          />
+                          <div className='p-3 flex flex-col gap-2 w-full'>
+                            <p className='truncate text-lg font-semibold text-slate-700'>
+                              {listing.name}
+                            </p>
+                            <div className='flex items-center gap-1'>
+                              <MdLocationOn className='h-4 w-4 text-green-700' />
+                              <p className='text-sm text-gray-600 truncate w-full'>
+                                {listing.address}
+                              </p>
+                            </div>
+                            <p className='text-sm text-gray-600 line-clamp-2'>
+                              {listing.description}
+                            </p>
+                            <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+                              ${listing.offer ? listing.discountPrice : listing.regularPrice}
+                              {listing.type === 'rent' && ' / month'}
+                            </p>
+                            <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
+                              </div>
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
+                              </div>
+                              {listing.parking && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaParking /> Parking
+                                </div>
+                              )}
+                              {listing.furnished && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaChair /> Furnished
+                                </div>
+                              )}
+                              {listing.backupPower && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaBolt /> Backup Power
+                                </div>
+                              )}
+                              {listing.backupWaterSupply && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaWater /> Backup Water
+                                </div>
+                              )}
+                              {listing.boreholeWater && (
+                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                  <FaTint /> Borehole Water
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
                       </div>
                     ))}
-                  </div>
-                )}
-                <div className="mt-4 relative">
-                  <div className="absolute left-1/2 transform -translate-x-1/2 lg:left-[calc(50%_-_1rem)]">
-                    <Link 
-                      to="/search?type=sale"
-                      className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-2.5 rounded-lg transition duration-200 ease-in-out flex items-center justify-center gap-2 text-sm font-semibold w-[276px] text-center"
-                    >
-                      Show more places for sale
-                    </Link>
-                  </div>
+                </div>
+                <div className="mt-8 pb-16 flex justify-center">
+                  <Link 
+                    to="/search?type=sale"
+                    className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
+                  >
+                    Show more places for sale
+                  </Link>
                 </div>
               </div>
             )}
