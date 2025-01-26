@@ -7,17 +7,18 @@ import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
 import ListingCollage from "../components/ListingCollage";
 import Loader from '../components/Loader';
-import { FaInfoCircle, FaBed, FaBath, FaParking, FaChair, FaBolt, FaWater, FaTint } from 'react-icons/fa';
+import { FaInfoCircle, FaBed, FaBath, FaParking, FaChair, FaBolt, FaWater, FaTint, FaHome, FaKey } from 'react-icons/fa';
 import { MdLocationOn } from 'react-icons/md';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
 import { debounce } from 'lodash';
+import ImageCollage from '../components/ImageCollage';
 
-import backImage1 from "../assets/back1.jpg";
-import backImage2 from "../assets/back2.jpg";
-import backImage3 from "../assets/back3.jpg";
-import backImage4 from "../assets/back4.jpg";
-import backImage5 from "../assets/back5.jpg";
+import backImage1 from "/src/assets/back1.jpg";
+import backImage2 from "/src/assets/back2.jpg";
+import backImage3 from "/src/assets/back3.jpg";
+import backImage4 from "/src/assets/back4.jpg";
+import backImage5 from "/src/assets/back5.jpg";
 
 const StyledButton = styled.div`
   .cssbuttons-io-button {
@@ -106,6 +107,8 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [priceError, setPriceError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isAnimatingFeatured, setIsAnimatingFeatured] = useState(false);
+  const [isAnimatingRealEstate, setIsAnimatingRealEstate] = useState(false);
   const navigate = useNavigate();
 
   SwiperCore.use([Navigation]);
@@ -113,10 +116,32 @@ export default function Home() {
   const heroImages = [backImage1, backImage2, backImage3, backImage4, backImage5];
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % heroImages.length);
     }, 7000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const animationInterval = setInterval(() => {
+      setIsAnimatingFeatured(true);
+      setIsAnimatingRealEstate(true);
+      
+      const animationTimeout = setTimeout(() => {
+        setIsAnimatingFeatured(false);
+        setIsAnimatingRealEstate(false);
+      }, 900); // Duration of the animation
+      
+      return () => clearTimeout(animationTimeout);
+    }, 5000); // Interval between animations
+
+    return () => {
+      clearInterval(animationInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -256,6 +281,10 @@ export default function Home() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
   }, []);
 
   const reRandomizeListings = () => {
@@ -424,13 +453,13 @@ export default function Home() {
       )}
       
       {/* Hero Section with Fade Transition and Zoom Effect */}
-      <div className="absolute top-0 left-0 w-full h-[960px] z-0 overflow-hidden bg-black">
+      <div className="absolute top-0 left-0 w-full h-[973px] z-0 overflow-hidden bg-black">
         <AnimatePresence initial={false}>
           {heroImages.map((image, index) => (
             index === currentImageIndex && (
               <motion.div
                 key={`hero-${index}`}
-                className="absolute inset-0 w-[1920px] h-[960px] mx-auto rounded-lg overflow-hidden"
+                className="absolute inset-0 w-[1920px] h-[973px] mx-auto rounded-lg overflow-hidden"
                 initial={{ opacity: 0, scale: 1 }}
                 animate={{ opacity: 1, scale: 1.1 }}
                 exit={{ opacity: 0 }}
@@ -448,7 +477,7 @@ export default function Home() {
                       objectPosition: 'center'
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/70 to-black/60" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black/40" />
                 </div>
               </motion.div>
             )
@@ -464,70 +493,132 @@ export default function Home() {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="flex flex-col gap-6 pt-40 pb-32 px-3 max-w-6xl mx-auto text-white relative z-10"
+            className="flex flex-col gap-6 pt-12 pb-10 px-3 max-w-6xl mx-auto text-white relative z-10"
           >
-            <motion.h1 
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-              className="text-4xl lg:text-6xl font-bold"
-            >
-              Find your next <span className="text-white">perfect</span>
-              <br />place with ease
-            </motion.h1>
-            <motion.div 
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
-              className="text-lg sm:text-xl"
-            >
-              DzimbaEstate will help you find your home fast, easy and comfortable.
-              <br />
-              Our expert support is always available.
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.6, ease: "backOut" }}
-            >
-              <StyledButton>
-                <button className="cssbuttons-io-button" onClick={() => setShowPopup(true)}>
-                  Get started
-                  <div className="icon">
-                    <svg height={24} width={24} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M0 0h24v24H0z" fill="none" />
-                      <path d="M16.172 11l-5.364-5.364 1.414-1.414L20 12l-7.778 7.778-1.414-1.414L16.172 13H4v-2z" fill="currentColor" />
-                    </svg>
+            <div className="col-span-1 md:col-span-2 grid grid-cols-3 gap-8 items-center">
+              <div className="col-span-2">
+                <motion.h1 
+                  initial={{ opacity: 0, x: -50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
+                  className="text-5xl lg:text-6xl font-bold text-white leading-tight mb-4"
+                >
+                  Find your next <span className="text-[#FFFFFF]">perfect</span>
+                  <br />place with ease
+                </motion.h1>
+                <motion.div 
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
+                  className="text-lg lg:text-xl text-gray-200 leading-relaxed mb-4"
+                >
+                  Just list it will help you find your home fast, easy and comfortable.
+                  <br />
+                  Our expert support is always available.
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.6, delay: 0.6, ease: "backOut" }}
+                >
+                  <StyledButton>
+                    <button className="cssbuttons-io-button" onClick={() => setShowPopup(true)}>
+                      Get started
+                      <div className="icon">
+                        <svg height={24} width={24} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M0 0h24v24H0z" fill="none" />
+                          <path d="M16.172 11l-5.364-5.364 1.414-1.414L20 12l-7.778 7.778-1.414-1.414L16.172 13H4v-2z" fill="currentColor" />
+                        </svg>
+                      </div>
+                    </button>
+                  </StyledButton>
+                </motion.div>
+              </div>
+              <div className="col-span-1 flex flex-col space-y-4 justify-end items-end">
+                <Link 
+                  to="/search?type=sale"
+                  className="w-[87.5%] cursor-pointer"
+                >
+                  <div className="bg-white/20 backdrop-blur-lg shadow-lg rounded-lg p-4 transform transition-transform hover:scale-105">
+                    <div className="flex items-center mb-2">
+                      <div className="bg-[#009688] text-white rounded-full p-2 mr-2">
+                        <FaHome className="text-lg" />
+                      </div>
+                      <h3 className="text-base font-semibold text-white">Buy a Home</h3>
+                    </div>
+                    <p className="text-sm text-gray-200 mb-2">
+                      Explore our extensive listings and find your dream home with ease.
+                    </p>
                   </div>
-                </button>
-              </StyledButton>
-            </motion.div>
+                </Link>
+                <Link 
+                  to="/search?type=rent"
+                  className="w-[87.5%] cursor-pointer"
+                >
+                  <div className="bg-white/20 backdrop-blur-lg shadow-lg rounded-lg p-4 transform transition-transform hover:scale-105">
+                    <div className="flex items-center mb-2">
+                      <div className="bg-[#C9F2AC] text-[#333333] rounded-full p-2 mr-2">
+                        <FaKey className="text-lg" />
+                      </div>
+                      <h3 className="text-base font-semibold text-white">Rent a Place</h3>
+                    </div>
+                    <p className="text-sm text-gray-200 mb-2">
+                      Find the perfect rental property that suits your lifestyle.
+                    </p>
+                  </div>
+                </Link>
+              </div>
+            </div>
           </motion.div>
         )}
         
         {/* Rest of the content with white background */}
-        <div className="bg-white py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+          className="bg-white py-16"
+        >
           <div className="max-w-6xl mx-auto px-3">
             {/* Featured Property Section */}
             {collageListing && (
-              <div className="max-w-6xl mx-auto p-3">
+              <motion.div 
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                viewport={{ once: true }}
+                className="max-w-6xl mx-auto p-3"
+              >
                 <div className="relative h-[100px] mb-8">
                   <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-                    FEATURED
+                    <span style={{ color: '#d2d1e6', opacity: 0.6 }}>FEATURED</span>
                   </h1>
                   <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
                     Property
                   </h2>
+                  <div 
+                    className={`absolute top-0 right-0 bg-[#1E90FF] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingFeatured ? 'animate-jello-once' : ''}`}
+                  >
+                    Recommended by Us
+                  </div>
                 </div>
-                <ListingCollage listing={collageListing} />
-              </div>
+                <div className="mb-16">
+                  <ListingCollage listing={collageListing} />
+                </div>
+              </motion.div>
             )}
 
             {/* Just for You Section */}
-            <div className="mb-16">
+            <motion.div 
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="mb-16"
+            >
               <div className="relative h-[100px] mb-8">
                 <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-                  SOME LISTINGS
+                  <span style={{ color: '#009688', opacity: 0.2 }}>SOME</span> <span style={{ color: '#c9f2ac', opacity: 0.5 }}>LISTINGS</span>
                 </h1>
                 <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
                   Just For You
@@ -539,11 +630,15 @@ export default function Home() {
                 </div>
               ) : (
                 <div className='pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
-                  {Array.isArray(randomListings) && randomListings.map((listing) => (
-                    // Format price with proper checks
-                    <div 
-                      key={listing._id} 
-                      className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full'
+                  {Array.isArray(randomListings) && randomListings.map((listing, index) => (
+                    <motion.div 
+                      key={listing._id}
+                      initial={{ opacity: 0, y: 50 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.1 * index }}
+                      viewport={{ once: true }}
+                      className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full cursor-pointer'
+                      onClick={() => navigate(`/listing/${listing._id}`)}
                     >
                       <div
                         className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
@@ -554,7 +649,107 @@ export default function Home() {
                         {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
                       </div>
 
-                      <Link to={`/listing/${listing._id}`}>
+                      <img
+                        src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                        alt='listing cover'
+                        className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                      />
+                      <div className='p-3 flex flex-col gap-2 w-full'>
+                        <p className='truncate text-lg font-semibold text-slate-700'>
+                          {listing.name}
+                        </p>
+                        <div className='flex items-center gap-1'>
+                          <MdLocationOn className='h-4 w-4 text-green-700' />
+                          <p className='text-sm text-gray-600 truncate w-full'>
+                            {listing.address}
+                          </p>
+                        </div>
+                        <p className='text-sm text-gray-600 line-clamp-2'>
+                          {listing.description}
+                        </p>
+                        <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+                          ${listing.offer ? listing.discountPrice : listing.regularPrice}
+                          {listing.type === 'rent' && ' / month'}
+                        </p>
+                        <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
+                          <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                            <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
+                          </div>
+                          <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                            <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
+                          </div>
+                          {listing.parking && (
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaParking /> Parking
+                            </div>
+                          )}
+                          {listing.furnished && (
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaChair /> Furnished
+                            </div>
+                          )}
+                          {listing.backupPower && (
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaBolt /> Backup Power
+                            </div>
+                          )}
+                          {listing.backupWaterSupply && (
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaWater /> Backup Water
+                            </div>
+                          )}
+                          {listing.boreholeWater && (
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaTint /> Borehole Water
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+
+            {/* Your existing listings sections */}
+            {rentListings.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                viewport={{ once: true }}
+                className='my-3'
+              >
+                <div className="relative h-[100px] mb-8">
+                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                    <span style={{ color: '#c9f2ac', opacity: 0.5 }}>FOR RENT</span>
+                  </h1>
+                  <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+                    Recently Added Places
+                  </h2>
+                </div>
+                <div className='pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
+                  {rentListings &&
+                    rentListings.length > 0 &&
+                    rentListings.map((listing, index) => (
+                      <motion.div 
+                        key={listing._id}
+                        initial={{ opacity: 0, y: 50 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.1 * index }}
+                        viewport={{ once: true }}
+                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full cursor-pointer'
+                        onClick={() => navigate(`/listing/${listing._id}`)}
+                      >
+                        <div
+                          className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
+                            listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
+                          }`}
+                          style={{ zIndex: 10 }}
+                        >
+                          {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
+                        </div>
+
                         <img
                           src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
                           alt='listing cover'
@@ -611,118 +806,37 @@ export default function Home() {
                             )}
                           </div>
                         </div>
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Your existing listings sections */}
-            {rentListings.length > 0 && (
-              <div className='my-3'>
-                <div className="relative h-[100px] mb-8">
-                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-                    FOR RENT
-                  </h1>
-                  <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
-                    Recently Added Places
-                  </h2>
-                </div>
-                <div className='pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
-                  {rentListings &&
-                    rentListings.length > 0 &&
-                    rentListings.map((listing) => (
-                      <div 
-                        key={listing._id} 
-                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full'
-                      >
-                        <div
-                          className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
-                            listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
-                          }`}
-                          style={{ zIndex: 10 }}
-                        >
-                          {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
-                        </div>
-
-                        <Link to={`/listing/${listing._id}`}>
-                          <img
-                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                            alt='listing cover'
-                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                          />
-                          <div className='p-3 flex flex-col gap-2 w-full'>
-                            <p className='truncate text-lg font-semibold text-slate-700'>
-                              {listing.name}
-                            </p>
-                            <div className='flex items-center gap-1'>
-                              <MdLocationOn className='h-4 w-4 text-green-700' />
-                              <p className='text-sm text-gray-600 truncate w-full'>
-                                {listing.address}
-                              </p>
-                            </div>
-                            <p className='text-sm text-gray-600 line-clamp-2'>
-                              {listing.description}
-                            </p>
-                            <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
-                              ${listing.offer ? listing.discountPrice : listing.regularPrice}
-                              {listing.type === 'rent' && ' / month'}
-                            </p>
-                            <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
-                              </div>
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
-                              </div>
-                              {listing.parking && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaParking /> Parking
-                                </div>
-                              )}
-                              {listing.furnished && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaChair /> Furnished
-                                </div>
-                              )}
-                              {listing.backupPower && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaBolt /> Backup Power
-                                </div>
-                              )}
-                              {listing.backupWaterSupply && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaWater /> Backup Water
-                                </div>
-                              )}
-                              {listing.boreholeWater && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaTint /> Borehole Water
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
+                      </motion.div>
                     ))}
                 </div>
-                <div className="mt-8 pb-16 flex justify-center">
+                <motion.div 
+                  initial={{ opacity: 0, y: 50 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.5 }}
+                  viewport={{ once: true }}
+                  className="mt-8 pb-16 flex justify-center"
+                >
                   <Link 
                     to="/search?type=rent"
                     className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
                   >
                     Show more places for rent
                   </Link>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             )}
 
             {saleListings.length > 0 && (
-              <div className='my-3'>
+              <motion.div 
+                initial={{ opacity: 0, y: 50 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                viewport={{ once: true }}
+                className='my-3'
+              >
                 <div className="relative h-[100px] mb-8">
                   <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-                    FOR SALE
+                    <span style={{ color: '#009688', opacity: 0.2 }}>FOR SALE</span>
                   </h1>
                   <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
                     Recently Added Places
@@ -731,10 +845,15 @@ export default function Home() {
                 <div className='pt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
                   {saleListings &&
                     saleListings.length > 0 &&
-                    saleListings.map((listing) => (
-                      <div 
-                        key={listing._id} 
-                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full'
+                    saleListings.map((listing, index) => (
+                      <motion.div 
+                        key={listing._id}
+                        initial={{ opacity: 0, y: 50 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.1 * index }}
+                        viewport={{ once: true }}
+                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full cursor-pointer'
+                        onClick={() => navigate(`/listing/${listing._id}`)}
                       >
                         <div
                           className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
@@ -745,79 +864,134 @@ export default function Home() {
                           {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
                         </div>
 
-                        <Link to={`/listing/${listing._id}`}>
-                          <img
-                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                            alt='listing cover'
-                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                          />
-                          <div className='p-3 flex flex-col gap-2 w-full'>
-                            <p className='truncate text-lg font-semibold text-slate-700'>
-                              {listing.name}
+                        <img
+                          src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                          alt='listing cover'
+                          className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                        />
+                        <div className='p-3 flex flex-col gap-2 w-full'>
+                          <p className='truncate text-lg font-semibold text-slate-700'>
+                            {listing.name}
+                          </p>
+                          <div className='flex items-center gap-1'>
+                            <MdLocationOn className='h-4 w-4 text-green-700' />
+                            <p className='text-sm text-gray-600 truncate w-full'>
+                              {listing.address}
                             </p>
-                            <div className='flex items-center gap-1'>
-                              <MdLocationOn className='h-4 w-4 text-green-700' />
-                              <p className='text-sm text-gray-600 truncate w-full'>
-                                {listing.address}
-                              </p>
-                            </div>
-                            <p className='text-sm text-gray-600 line-clamp-2'>
-                              {listing.description}
-                            </p>
-                            <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
-                              ${listing.offer ? listing.discountPrice : listing.regularPrice}
-                              {listing.type === 'rent' && ' / month'}
-                            </p>
-                            <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
-                              </div>
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
-                              </div>
-                              {listing.parking && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaParking /> Parking
-                                </div>
-                              )}
-                              {listing.furnished && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaChair /> Furnished
-                                </div>
-                              )}
-                              {listing.backupPower && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaBolt /> Backup Power
-                                </div>
-                              )}
-                              {listing.backupWaterSupply && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaWater /> Backup Water
-                                </div>
-                              )}
-                              {listing.boreholeWater && (
-                                <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                  <FaTint /> Borehole Water
-                                </div>
-                              )}
-                            </div>
                           </div>
-                        </Link>
-                      </div>
+                          <p className='text-sm text-gray-600 line-clamp-2'>
+                            {listing.description}
+                          </p>
+                          <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+                            ${listing.offer ? listing.discountPrice : listing.regularPrice}
+                            {listing.type === 'rent' && ' / month'}
+                          </p>
+                          <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
+                            </div>
+                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                              <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
+                            </div>
+                            {listing.parking && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaParking /> Parking
+                              </div>
+                            )}
+                            {listing.furnished && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaChair /> Furnished
+                              </div>
+                            )}
+                            {listing.backupPower && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaBolt /> Backup Power
+                              </div>
+                            )}
+                            {listing.backupWaterSupply && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaWater /> Backup Water
+                              </div>
+                            )}
+                            {listing.boreholeWater && (
+                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
+                                <FaTint /> Borehole Water
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
                     ))}
                 </div>
-                <div className="mt-8 pb-16 flex justify-center">
+                <motion.div 
+                  initial={{ opacity: 0, y: 50 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.5 }}
+                  viewport={{ once: true }}
+                  className="mt-8 pb-16 flex justify-center"
+                >
                   <Link 
                     to="/search?type=sale"
                     className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
                   >
                     Show more places for sale
                   </Link>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             )}
+            
+            {/* Agents Backdrop Section */}
+            <div className="relative h-[100px] mb-8">
+              <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                <span style={{ color: '#d2d1e6', opacity: 0.5 }}> REAL ESTATE</span>
+              </h1>
+              <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+                Agents in Zimbabwe
+              </h2>
+              <div 
+                className={`absolute top-0 right-0 bg-[#16a349] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingRealEstate ? 'animate-jello-once' : ''} flex items-center gap-2`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 font-bold" viewBox="0 0 24 24" fill="white">
+                  <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.208Z" clipRule="evenodd" />
+                </svg>
+                Verified by Us
+              </div>
+            </div>
+
+            <div>
+              <ImageCollage 
+                images={[
+                  { 
+                    src: "/src/assets/image1.png", 
+                    alt: "First Image" 
+                  },
+                  { 
+                    src: "/src/assets/image2.png", 
+                    alt: "Second Image" 
+                  },
+                  { 
+                    src: "/src/assets/image3.png", 
+                    alt: "Third Image" 
+                  },
+                  { 
+                    src: "/src/assets/image4.png", 
+                    alt: "Fourth Image" 
+                  },
+                  { 
+                    src: "/src/assets/image5.jpg", 
+                    alt: "Fifth Image" 
+                  },
+                  { 
+                    src: "/src/assets/image6.png", 
+                    alt: "Sixth Image" 
+                  }
+                ]} 
+              />
+              <div className="h-[12.8rem] bg-[#363386] w-screen -ml-[50vw] left-1/2 absolute"></div>
+            </div>
+
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Your existing popup and other components */}
@@ -898,7 +1072,7 @@ export default function Home() {
         className="fixed bottom-4 left-4 bg-slate-700 text-white p-3 rounded-full hover:bg-slate-800 transition-colors shadow-lg z-50"
         title="About"
       >
-        <FaInfoCircle size={20} />
+        <FaInfoCircle className="text-3xl" />
       </Link>
     </>
   );

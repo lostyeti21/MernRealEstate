@@ -1,14 +1,13 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FaSearch, FaUsers, FaChevronDown, FaHome, FaList, FaBell } from 'react-icons/fa';
+import { FaSearch, FaUsers, FaHome, FaList, FaBell } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
 import { signOut, realEstateSignInSuccess } from '../redux/user/userSlice';
 import { io } from 'socket.io-client';
-import logo from '../assets/logo.svg';
+import logo from '../assets/logo.png';
 
 export default function Header() {
   const { currentUser, isRealEstateCompany } = useSelector((state) => state.user);
-  const [searchTerm, setSearchTerm] = useState("");
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
   const [isAgent, setIsAgent] = useState(false);
@@ -219,14 +218,6 @@ export default function Header() {
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const urlParams = new URLSearchParams(window.location.search);
-    urlParams.set('searchTerm', searchTerm);
-    const searchQuery = urlParams.toString();
-    navigate(`/search?${searchQuery}`);
-  };
-
   // Close dropdown when clicking outside
   const dropdownRef = useRef(null);
   useEffect(() => {
@@ -250,87 +241,38 @@ export default function Header() {
   };
 
   return (
-    <header className={`${
-      isHomePage 
-        ? 'bg-transparent absolute top-0 left-0 right-0 z-50' 
-        : 'bg-white shadow-md'
-    }`}>
-      <div className="flex justify-between items-center max-w-6xl mx-auto p-3">
-        <div className="flex items-center gap-4">
-          <Link to="/">
-            <img 
-              src={logo} 
-              alt="Just List+It Logo" 
-              className={`h-10 ${isHomePage ? 'filter brightness-0 invert' : ''}`} 
-            />
-          </Link>
-
-          <form
-            onSubmit={handleSubmit}
-            className="relative"
+    <header 
+      className="bg-white shadow-sm sticky top-0 z-50"
+    >
+      <div className="flex justify-between items-center max-w-6xl mx-auto p-3 relative">
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
+          <Link 
+            to="/search?type=sale" 
+            className="text-black hover:text-[#d54d39] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
           >
-            <div className="w-[40px] h-[40px] hover:w-[200px] bg-[#373386] shadow-[2px_2px_20px_rgba(0,0,0,0.08)] rounded-full flex group items-center transition-all duration-300 overflow-hidden">
-              <button className="flex items-center justify-center min-w-[40px]">
-                <FaSearch className="w-4 h-4 text-white hover:text-[#373386] transition-all duration-300 ease-in-out" />
-              </button>
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="outline-none text-[16px] bg-transparent w-full text-white font-normal px-2 placeholder-white/70"
-              />
-            </div>
-          </form>
-        </div>
-
-        <ul className="flex gap-6 items-center">
-          <Link to="/">
-            <button className={`flex items-center gap-2 text-base uppercase font-bold transition-colors duration-300 ${
-              isHomePage 
-                ? 'text-white hover:text-gray-200' 
-                : 'text-[#373386] hover:text-[#4a47b3]'
-            }`}>
-              <FaHome className={`text-lg ${isHomePage ? 'text-white' : 'text-[#373386]'}`} />
-              <span className="relative group">
-                <span className="block">Home</span>
-                <span className="absolute left-0 bottom-0 w-full h-0.5 bg-[#373386] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-              </span>
-            </button>
+            For Sale
           </Link>
-
-          <Link to="/search">
-            <button className={`flex items-center gap-2 text-base uppercase font-bold transition-colors duration-300 ${
-              isHomePage 
-                ? 'text-white hover:text-gray-200' 
-                : 'text-[#373386] hover:text-[#4a47b3]'
-            }`}>
-              <FaList className={`text-lg ${isHomePage ? 'text-white' : 'text-[#373386]'}`} />
-              <span className="relative group">
-                <span className="block">Listings</span>
-                <span className="absolute left-0 bottom-0 w-full h-0.5 bg-[#373386] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-              </span>
-            </button>
+          <Link 
+            to="/search?type=rent" 
+            className="text-black hover:text-[#d54d39] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
+          >
+            For Rent
           </Link>
-
-          <div className="relative" ref={usersMenuRef}>
+          <Link 
+            to="/search" 
+            className="text-black hover:text-[#d54d39] font-medium text-lg transition-colors duration-300"
+          >
+            Listings
+          </Link>
+          <div className="relative">
             <button 
               onClick={() => setIsUsersMenuOpen(!isUsersMenuOpen)}
-              className={`flex items-center gap-2 text-base uppercase font-bold transition-colors duration-300 ${
-                isHomePage 
-                  ? 'text-white hover:text-gray-200' 
-                  : 'text-[#373386] hover:text-[#4a47b3]'
-              }`}
+              className="text-black hover:text-[#d54d39] font-medium text-lg transition-colors duration-300"
             >
-              <FaUsers className={`text-lg ${isHomePage ? 'text-white' : 'text-[#373386]'}`} />
-              <span className="relative group hidden sm:inline">
-                <span className="block">Users</span>
-                <span className="absolute left-0 bottom-0 w-full h-0.5 bg-[#373386] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></span>
-              </span>
+              Users
             </button>
-
             {isUsersMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-2 z-50">
+              <div className="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg py-2 z-50">
                 <Link
                   to="/landlords"
                   className="block px-4 py-2 text-gray-700 hover:bg-slate-100"
@@ -345,29 +287,46 @@ export default function Header() {
                 >
                   Tenants
                 </Link>
+                {isRealEstateCompany && (
+                  <Link 
+                    to="/real-estate-company"
+                    className="block px-4 py-2 hover:bg-gray-100"
+                    onClick={() => setIsUsersMenuOpen(false)}
+                  >
+                    Real Estate Company
+                  </Link>
+                )}
+                {isAgent && (
+                  <Link 
+                    to="/agent-dashboard"
+                    className="block px-4 py-2 hover:bg-gray-100"
+                    onClick={() => setIsUsersMenuOpen(false)}
+                  >
+                    Agent Dashboard
+                  </Link>
+                )}
               </div>
             )}
           </div>
-
+        </div>
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
           {isLoggedIn ? (
-            <div className='relative' ref={dropdownRef}>
-              <img
-                src={getAvatar()}
-                alt="profile"
-                className="h-10 w-10 object-cover cursor-pointer shadow-md hover:shadow-lg transition-all duration-300 rounded-lg"
+            <div className='relative flex items-center gap-2' ref={dropdownRef}>
+              <div 
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
-                }}
-              />
-              {shouldShowNotifications && unreadCount > 0 && (
-                <span className='absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs'>
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                className="flex items-center gap-2 cursor-pointer text-black hover:text-slate-700"
+              >
+                <span className="text-black font-medium mr-2">
+                  {hasListings ? 'Welcome Back' : 'Hello'} {currentUser.username}
                 </span>
-              )}
+                <img 
+                  src={getAvatar()} 
+                  alt="profile" 
+                  className="rounded-none h-[43px] w-[43px] object-cover"
+                />
+              </div>
               {isProfileDropdownOpen && (
-                <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-md shadow-lg z-20">
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50">
                   {currentUser && (
                     <>
                       <div className="px-4 py-2 text-sm text-gray-700">
@@ -441,16 +400,17 @@ export default function Header() {
             </div>
           ) : (
             <Link to="/sign-in">
-              <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] ${
-                isHomePage 
-                  ? 'text-white border-white' 
-                  : 'text-[#C62300] border-[#C62300]'
-              } rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#373386] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+              <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#373386] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
                 Sign in
               </button>
             </Link>
           )}
-        </ul>
+        </div>
+        <div className="mx-auto">
+          <Link to="/">
+            <img src={logo} alt="Just List+It Logo" className="h-10 w-auto" />
+          </Link>
+        </div>
       </div>
     </header>
   );
