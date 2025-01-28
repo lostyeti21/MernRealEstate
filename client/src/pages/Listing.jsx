@@ -26,6 +26,7 @@ import {
 import Contact from "../components/Contact";
 import RateLandlord from "../components/RateLandlord"; // Import RateLandlord component
 import { geocodeAddress } from "../../../api/utils/geocode";
+import { motion } from 'framer-motion';
 
 export default function Listing() {
   const [listing, setListing] = useState(null);
@@ -364,11 +365,11 @@ export default function Listing() {
   };
 
   const renderStars = (rating) => {
-    return [...Array(5)].map((_, index) => (
+    return Array.from({ length: 5 }, (_, i) => (
       <span
-        key={index}
-        className={`text-xl ${
-          index < rating ? 'text-yellow-400' : 'text-gray-300'
+        key={i + 1}
+        className={`text-lg ${
+          i + 1 <= Math.round(rating) ? "text-yellow-500" : "text-gray-300"
         }`}
       >
         ★
@@ -469,6 +470,22 @@ export default function Listing() {
   const handleMarkerClick = () => {
     const address = encodeURIComponent(listing.address);
     window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
+  };
+
+  const handleImageClick = (index) => {
+    setFullscreenIndex(index);
+    setShowFullscreen(true);
+    setShowMap(false); // Hide map when entering fullscreen
+  };
+
+  const closeFullscreen = () => {
+    console.log('Closing fullscreen', { 
+      showFullscreen, 
+      showMap, 
+      fullscreenIndex 
+    });
+    setShowFullscreen(false);
+    setShowMap(true); // Show map when exiting fullscreen
   };
 
   const renderListedBy = () => {
@@ -608,17 +625,6 @@ export default function Listing() {
     );
   };
 
-  const handleImageClick = (index) => {
-    setFullscreenIndex(index);
-    setShowFullscreen(true);
-    setShowMap(false); // Hide map when entering fullscreen
-  };
-
-  const closeFullscreen = () => {
-    setShowFullscreen(false);
-    setShowMap(true); // Show map when exiting fullscreen
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -649,7 +655,10 @@ export default function Listing() {
   const defaultLng = 36.8219;
 
   return (
-    <main>
+    <div 
+      className="w-full mx-auto px-4 bg-white min-h-screen relative pt-20"
+      style={{ zIndex: 0 }}
+    >
       {listing.imageUrls && listing.imageUrls.length > 0 ? (
         <>
           <Swiper
@@ -676,21 +685,38 @@ export default function Listing() {
           </Swiper>
 
           {showFullscreen && (
-            <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-90 z-[9999] flex items-center justify-center"
+              onMouseDown={(e) => {
+                // Only close if clicking directly on the background
+                if (e.target === e.currentTarget) {
+                  closeFullscreen();
+                }
+              }}
+            >
               <button
-                onClick={closeFullscreen}
-                className="absolute top-4 right-4 text-white text-4xl z-10 hover:text-gray-300"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  closeFullscreen();
+                }}
+                className="fixed bottom-8 left-8 bg-white hover:bg-gray-100 text-black rounded-full p-4 transition-all duration-200 shadow-lg flex items-center gap-2 z-[10000]"
+                aria-label="Close fullscreen"
               >
-                <FaTimes />
+                <FaTimes className="text-2xl mr-2" />
+                <span className="text-sm font-medium">Close</span>
               </button>
               <Swiper
                 navigation
                 initialSlide={fullscreenIndex}
                 className="w-full h-full"
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 {listing.imageUrls.map((url, index) => (
                   <SwiperSlide key={index}>
-                    <div className="w-full h-full flex items-center justify-center">
+                    <div 
+                      className="w-full h-full flex items-center justify-center"
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
                       <img
                         src={url}
                         alt={`Fullscreen ${index + 1}`}
@@ -770,13 +796,14 @@ export default function Listing() {
           </div>
         </div>
 
-        <div className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md ${showMap ? '' : 'hidden'}`}>
+        <div className={`flex-1 h-[600px] lg:h-auto rounded-lg overflow-hidden shadow-md relative ${showMap ? '' : 'hidden'}`} style={{ zIndex: 0 }}>
           {coordinates ? (
             <MapContainer
               center={[coordinates.lat, coordinates.lng]}
               zoom={13}
               scrollWheelZoom={false}
-              className="h-full w-full"
+              className="h-full w-full relative"
+              style={{ zIndex: 0 }}
             >
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <Marker
@@ -923,6 +950,6 @@ export default function Listing() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

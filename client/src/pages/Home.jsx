@@ -22,8 +22,8 @@ import backImage5 from "/src/assets/back5.jpg";
 
 const StyledButton = styled.div`
   .cssbuttons-io-button {
-    background: #d95734;
-    color: white;
+    background: #c9f2ac;
+    color: black;
     font-family: inherit;
     padding: 0.35em;
     padding-left: 1.2em;
@@ -34,7 +34,7 @@ const StyledButton = styled.div`
     letter-spacing: 0.05em;
     display: flex;
     align-items: center;
-    box-shadow: inset 0 0 1.6em -0.6em #be0054;
+    box-shadow: inset 0 0 1.6em -0.6em #c9f2ac;
     overflow: hidden;
     position: relative;
     height: 2.8em;
@@ -52,19 +52,19 @@ const StyledButton = styled.div`
     height: 2.2em;
     width: 2.2em;
     border-radius: 0.7em;
-    box-shadow: 0.1em 0.1em 0.6em 0.2em #be0054;
+    box-shadow: 0.1em 0.1em 0.6em 0.2em #c9f2ac;
     right: 0.3em;
     transition: all 0.3s;
-  }
-
-  .cssbuttons-io-button:hover .icon {
-    width: calc(100% - 0.6em);
   }
 
   .cssbuttons-io-button .icon svg {
     width: 1.1em;
     transition: transform 0.3s;
-    color: #d95734;
+    color: black;
+  }
+
+  .cssbuttons-io-button:hover .icon {
+    width: calc(100% - 0.6em);
   }
 
   .cssbuttons-io-button:hover .icon svg {
@@ -472,7 +472,7 @@ export default function Home() {
                   <img
                     src={image}
                     alt={`Hero ${index}`}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover brightness-"
                     style={{
                       objectPosition: 'center'
                     }}
@@ -597,7 +597,7 @@ export default function Home() {
                     Property
                   </h2>
                   <div 
-                    className={`absolute top-0 right-0 bg-[#1E90FF] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingFeatured ? 'animate-jello-once' : ''}`}
+                    className={`absolute top-0 right-0 bg-[#009688] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingFeatured ? 'animate-jello-once' : ''}`}
                   >
                     Recommended by Us
                   </div>
@@ -818,7 +818,7 @@ export default function Home() {
                 >
                   <Link 
                     to="/search?type=rent"
-                    className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
+                    className="bg-[#c9f2ac] hover:bg-[#c41212] text-black px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
                   >
                     Show more places for rent
                   </Link>
@@ -932,7 +932,7 @@ export default function Home() {
                 >
                   <Link 
                     to="/search?type=sale"
-                    className="bg-[#d95734] hover:bg-[#c41212] text-white px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
+                    className="bg-[#c9f2ac] hover:bg-[#c41212] text-black px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
                   >
                     Show more places for sale
                   </Link>
@@ -1003,13 +1003,13 @@ export default function Home() {
               <div className="flex justify-around mb-4">
                 <button
                   onClick={() => handleRentOrBuy("rent")}
-                  className="bg-[#d95734] hover:bg-[#c41212] text-white py-2 px-4 rounded"
+                  className="bg-[#c9f2ac] hover:bg-[#c41212] text-white py-2 px-4 rounded"
                 >
                   Rent
                 </button>
                 <button
                   onClick={() => handleRentOrBuy("sale")}
-                  className="bg-[#d95734] hover:bg-[#c41212] text-white py-2 px-4 rounded"
+                  className="bg-[#c9f2ac] hover:bg-[#c41212] text-white py-2 px-4 rounded"
                 >
                   Buy
                 </button>
@@ -1051,7 +1051,7 @@ export default function Home() {
                 )}
                 <button
                   onClick={handlePriceSubmit}
-                  className="mt-6 bg-[#d95734] hover:bg-[#c41212] text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
+                  className="mt-6 bg-[#c9f2ac] hover:bg-[#c41212] text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
                 >
                   Search Listings
                 </button>
@@ -1069,7 +1069,7 @@ export default function Home() {
 
       <Link
         to="/about"
-        className="fixed bottom-4 left-4 bg-slate-700 text-white p-3 rounded-full hover:bg-slate-800 transition-colors shadow-lg z-50"
+        className="fixed bottom-4 left-4 bg-[#c9f2ac] text-black p-3 rounded-full hover:bg-white transition-colors shadow-lg z-50"
         title="About"
       >
         <FaInfoCircle className="text-3xl" />

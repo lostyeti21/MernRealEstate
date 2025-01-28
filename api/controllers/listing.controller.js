@@ -56,7 +56,11 @@ export const deleteListing = async (req, res, next) => {
       return next(errorHandler(404, 'Listing not found!'));
     }
 
-    if (req.user._id.toString() !== listing.userRef.toString()) {
+    // Get the user ID from the decoded token
+    const userId = req.user.id || req.user._id;
+    
+    // Compare the listing's userRef with the authenticated user's ID
+    if (userId.toString() !== listing.userRef.toString()) {
       return next(errorHandler(401, 'You can only delete your own listings!'));
     }
 
@@ -73,10 +77,12 @@ export const deleteListing = async (req, res, next) => {
       });
     } catch (error) {
       console.error('Error tracking listing deletion:', error);
+      // Don't fail the request if analytics fails
     }
 
     res.status(200).json('Listing has been deleted!');
   } catch (error) {
+    console.error('Delete listing error:', error);
     next(error);
   }
 };

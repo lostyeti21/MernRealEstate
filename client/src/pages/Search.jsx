@@ -331,7 +331,7 @@ export default function Search() {
     return (
       <button
         onClick={scrollToTop}
-        className="absolute bottom-4 left-4 bg-[#F20505] text-white p-2 rounded-full shadow-lg hover:bg-[#c41212] transition-all duration-300 opacity-50 hover:opacity-100 z-50"
+        className="absolute bottom-4 left-4 bg-[#009688] text-white p-2 rounded-full shadow-lg hover:bg-[#00796b] transition-all duration-300 opacity-50 hover:opacity-100 z-50"
         aria-label="Scroll to top"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -342,7 +342,7 @@ export default function Search() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row">
+    <div className="flex flex-col md:flex-row bg-white min-h-screen">
       {showPopup && (
         <div className="fixed top-0 left-0 w-full h-full flex justify-center items-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96 relative">
@@ -588,7 +588,7 @@ export default function Search() {
         </div>
       </div>
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative bg-white">
         {loading && (
           <div className="fixed inset-0 flex justify-center items-center bg-white bg-opacity-90 z-[9999]">
             <Loader />
@@ -636,9 +636,16 @@ export default function Search() {
               </span>
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
-                className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 ${
-                  currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+                className={`
+                  px-4 py-2 rounded-lg 
+                  ${
+                    currentPage === totalPages
+                      ? 'bg-[#009688] text-white hover:bg-[#00796b]' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }
+                  transition-colors duration-300
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                `}
                 disabled={currentPage === totalPages || loading}
               >
                 Next
@@ -656,7 +663,16 @@ export default function Search() {
               <button
                 onClick={goToPage}
                 disabled={loading}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50"
+                className={`
+                  px-4 py-2 rounded-lg 
+                  ${
+                    inputPage && inputPage !== currentPage.toString()
+                      ? 'bg-[#009688] text-white hover:bg-[#00796b]' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }
+                  transition-colors duration-300
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                `}
               >
                 Go
               </button>

@@ -248,26 +248,26 @@ export default function Header() {
         <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
           <Link 
             to="/search?type=sale" 
-            className="text-black hover:text-[#d54d39] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
+            className="text-black hover:text-[#009688] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
           >
             For Sale
           </Link>
           <Link 
             to="/search?type=rent" 
-            className="text-black hover:text-[#d54d39] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
+            className="text-black hover:text-[#009688] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
           >
             For Rent
           </Link>
           <Link 
             to="/search" 
-            className="text-black hover:text-[#d54d39] font-medium text-lg transition-colors duration-300"
+            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
           >
-            Listings
+            All Listings
           </Link>
           <div className="relative">
             <button 
               onClick={() => setIsUsersMenuOpen(!isUsersMenuOpen)}
-              className="text-black hover:text-[#d54d39] font-medium text-lg transition-colors duration-300"
+              className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
             >
               Users
             </button>
@@ -314,16 +314,19 @@ export default function Header() {
             <div className='relative flex items-center gap-2' ref={dropdownRef}>
               <div 
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="flex items-center gap-2 cursor-pointer text-black hover:text-slate-700"
+                className="relative cursor-pointer"
               >
-                <span className="text-black font-medium mr-2">
-                  {hasListings ? 'Welcome Back' : 'Hello'} {currentUser.username}
-                </span>
-                <img 
+                <img
                   src={getAvatar()} 
-                  alt="profile" 
-                  className="rounded-none h-[43px] w-[43px] object-cover"
+                  alt='profile' 
+                  className='rounded-full h-12 w-12 object-cover'
                 />
+                {shouldShowNotifications && unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 
+                    bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </div>
               {isProfileDropdownOpen && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50">
@@ -355,7 +358,9 @@ export default function Header() {
                       <Link
                         to="/messages"
                         className={`block px-4 py-2 text-sm hover:bg-gray-100 relative ${
-                          shouldShowNotifications && unreadCount > 0 ? 'font-bold text-[#FF0072]' : 'text-gray-700'
+                          shouldShowNotifications && unreadCount > 0 
+                            ? 'font-bold text-[#009688]' 
+                            : 'text-gray-700'
                         }`}
                         onClick={() => setIsProfileDropdownOpen(false)}
                       >
@@ -377,14 +382,6 @@ export default function Header() {
                         Create Listing
                       </Link>
                       
-                      <Link
-                        to="/my-listings"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setIsProfileDropdownOpen(false)}
-                      >
-                        My Listings
-                      </Link>
-                      
                       <hr className="border-gray-200" />
                       
                       <button
@@ -400,7 +397,7 @@ export default function Header() {
             </div>
           ) : (
             <Link to="/sign-in">
-              <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#373386] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
+              <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#009688] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
                 Sign in
               </button>
             </Link>
