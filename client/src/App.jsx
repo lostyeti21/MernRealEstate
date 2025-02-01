@@ -37,6 +37,7 @@ import Messages from './pages/Messages';
 import LandlordProfile from './pages/LandlordProfile';
 import GeneratedCode from './pages/GeneratedCode';
 import VerifyCode from './pages/VerifyCode';
+import ImageCollageManager from './pages/ImageCollageManager';
 
 const App = () => {
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
@@ -104,6 +105,7 @@ const App = () => {
         <Route path="/messages" element={<Messages />} />
         <Route path="/generated-code" element={<GeneratedCode />} />
         <Route path="/verify-code/:userId/:code" element={<VerifyCode />} />
+        <Route path="/image-collage-manager" element={<ImageCollageManager />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
@@ -113,6 +115,7 @@ const App = () => {
           <Route path="/agent-create-listing" element={<AgentCreateListing />} />
           <Route path="/update-listing/:listingId" element={<UpdateListing />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
+          <Route path="/image-collage-manager" element={<ImageCollageManager />} />
         </Route>
       </Routes>
       <Toaster 

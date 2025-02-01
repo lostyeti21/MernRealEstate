@@ -1,13 +1,12 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FaSearch, FaUsers, FaHome, FaList, FaBell } from 'react-icons/fa';
 import { useState, useEffect, useRef } from 'react';
 import { signOut, realEstateSignInSuccess } from '../redux/user/userSlice';
 import { io } from 'socket.io-client';
 import logo from '../assets/logo.png';
 
 export default function Header() {
-  const { currentUser, isRealEstateCompany } = useSelector((state) => state.user);
+  const { currentUser, isRealEstateCompany, realEstateCompany } = useSelector((state) => state.user);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
   const [isAgent, setIsAgent] = useState(false);
@@ -21,8 +20,16 @@ export default function Header() {
   const isHomePage = location.pathname === '/';
   const isMessagesPage = location.pathname === '/messages';
 
+  // Determine which user object to use
+  const user = isRealEstateCompany ? realEstateCompany : currentUser;
+
+  // Determine avatar
+  const avatarUrl = isRealEstateCompany 
+    ? (realEstateCompany?.banner || realEstateCompany?.avatar || '/default-company-avatar.png')
+    : (currentUser?.avatar || '/default-user-avatar.png');
+
   useEffect(() => {
-    if (!currentUser) return;
+    if (!user) return;
 
     socket.current = io('http://localhost:3000', {
       auth: { token: localStorage.getItem('token') },
@@ -39,7 +46,7 @@ export default function Header() {
 
     // Listen for message read events
     socket.current.on('messages_read', (data) => {
-      if (data.userId === currentUser._id) {
+      if (data.userId === user._id) {
         setUnreadCount(prev => Math.max(0, prev - data.count));
       }
     });
@@ -47,22 +54,45 @@ export default function Header() {
     // Fetch initial unread count
     const fetchUnreadCount = async () => {
       try {
+        // Only fetch unread count for non-real estate company users and non-agents
+        if (isRealEstateCompany || isAgent) {
+          return;
+        }
+
+        // Try multiple token sources
+        const token = 
+          localStorage.getItem('access_token') || 
+          localStorage.getItem('token') || 
+          (currentUser && currentUser.token);
+
+        if (!token) {
+          console.log('No authentication token found');
+          return;
+        }
+
         const res = await fetch('/api/messages/unread-count', {
+          method: 'GET',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         });
 
         if (!res.ok) {
-          throw new Error('Failed to fetch unread count');
+          // Detailed error logging
+          const errorText = await res.text();
+          console.error('Unread count fetch error:', {
+            status: res.status,
+            statusText: res.statusText,
+            body: errorText
+          });
+          return;
         }
 
         const data = await res.json();
-        if (data.success) {
-          setUnreadCount(data.count);
-        }
+        setUnreadCount(data.unreadCount || 0);
       } catch (error) {
-        console.error('Error fetching unread count:', error);
+        console.error('Comprehensive error in unread count fetch:', error);
       }
     };
 
@@ -77,7 +107,7 @@ export default function Header() {
         socket.current.disconnect();
       }
     };
-  }, [currentUser, isMessagesPage]);
+  }, [user, isMessagesPage]);
 
   // Reset unread count when entering messages page
   useEffect(() => {
@@ -89,7 +119,7 @@ export default function Header() {
   // Check if user has listings
   useEffect(() => {
     const checkUserListings = async () => {
-      if (!currentUser) {
+      if (!user) {
         setHasListings(false);
         localStorage.removeItem('isLandlord');
         return;
@@ -97,7 +127,7 @@ export default function Header() {
 
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`/api/user/listings/${currentUser._id}`, {
+        const res = await fetch(`/api/user/listings/${user._id}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -129,7 +159,7 @@ export default function Header() {
     };
 
     checkUserListings();
-  }, [currentUser]);
+  }, [user]);
 
   // Debug log when hasListings changes
   useEffect(() => {
@@ -156,65 +186,40 @@ export default function Header() {
     const realEstateCompany = localStorage.getItem('realEstateCompany');
     const realEstateToken = localStorage.getItem('realEstateToken');
     const agentInfo = localStorage.getItem('agentInfo');
+    
+    // More robust agent status check
+    const determineAgentStatus = () => {
+      // If there's no current user, definitely not an agent
+      if (!currentUser) return false;
+      
+      // Check if the user has an explicit agent role
+      const userIsAgent = currentUser.role === 'agent' || 
+                          currentUser.isAgent === true || 
+                          (agentInfo && JSON.parse(agentInfo)._id === currentUser._id);
+      
+      return userIsAgent;
+    };
 
     // If real estate company data exists in localStorage, restore the state
     if (realEstateCompany && realEstateToken && !currentUser) {
       dispatch(realEstateSignInSuccess(JSON.parse(realEstateCompany)));
     }
 
-    setIsAgent(!!agentInfo);
+    setIsAgent(determineAgentStatus());
   }, [currentUser, dispatch]);
 
-  // Get the avatar based on user type
-  const getAvatar = () => {
-    const defaultProfilePic = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
-    
-    // For Real Estate Company
-    if (isRealEstateCompany && currentUser?.avatar) {
-      return currentUser.avatar;
-    }
-    
-    // For regular user
-    if (currentUser?.avatar) {
-      return currentUser.avatar;
-    }
-
-    // Fallback to default
-    return defaultProfilePic;
-  };
-
-  // Check if user is logged in
-  const isLoggedIn = currentUser || isAgent || isRealEstateCompany;
-
-  const handleSignOut = async () => {
-    try {
-      const res = await fetch('/api/auth/signout');
-      const data = await res.json();
-      
-      if (data.success === false) {
-        console.error('Error signing out:', data.message);
-        return;
-      }
-
-      // Clear all auth tokens
-      localStorage.removeItem('token');
-      localStorage.removeItem('agentToken');
+  const handleSignOut = () => {
+    if (isRealEstateCompany) {
+      // Real estate company sign out logic
       localStorage.removeItem('realEstateToken');
-      localStorage.removeItem('agentInfo');
       localStorage.removeItem('realEstateCompany');
-      
-      // Reset states
-      setIsAgent(false);
-      setHasListings(false);
-      setIsProfileDropdownOpen(false);
-
-      // Dispatch signout action
       dispatch(signOut());
-
-      // Navigate to home page
-      navigate('/');
-    } catch (error) {
-      console.error('Error signing out:', error);
+      navigate('/real-estate-login');
+    } else {
+      // Regular user sign out logic
+      localStorage.removeItem('token');
+      dispatch(signOut());
+      navigate('/sign-in');
     }
   };
 
@@ -233,7 +238,7 @@ export default function Header() {
 
   const handleMessagesClick = (e) => {
     e.preventDefault();
-    if (!currentUser) {
+    if (!user) {
       navigate('/sign-in');
       return;
     }
@@ -247,14 +252,20 @@ export default function Header() {
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3 relative">
         <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
           <Link 
+            to="/" 
+            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
+          >
+            Home
+          </Link>
+          <Link 
             to="/search?type=sale" 
-            className="text-black hover:text-[#009688] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
+            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
           >
             For Sale
           </Link>
           <Link 
             to="/search?type=rent" 
-            className="text-black hover:text-[#009688] font-medium flex items-center gap-1 text-lg transition-colors duration-300"
+            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
           >
             For Rent
           </Link>
@@ -310,14 +321,14 @@ export default function Header() {
           </div>
         </div>
         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
-          {isLoggedIn ? (
+          {user ? (
             <div className='relative flex items-center gap-2' ref={dropdownRef}>
               <div 
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                 className="relative cursor-pointer"
               >
                 <img
-                  src={getAvatar()} 
+                  src={avatarUrl} 
                   alt='profile' 
                   className='rounded-full h-12 w-12 object-cover'
                 />
@@ -330,31 +341,34 @@ export default function Header() {
               </div>
               {isProfileDropdownOpen && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50">
-                  {currentUser && (
+                  {user && (
                     <>
                       <div className="px-4 py-2 text-sm text-gray-700">
                         <span className="block font-medium text-gray-900">
-                          {currentUser.username || currentUser.name}
+                          {user.username || user.name}
                         </span>
                         <span className="block text-gray-500 text-xs">
-                          {currentUser.email}
+                          {user.email}
                         </span>
                       </div>
                       <hr className="border-gray-200" />
                       
                       {/* Debug info */}
+                      {!isRealEstateCompany && (
                       <div className="px-4 py-1 text-xs text-gray-500">
                       Status:{hasListings ? 'Has Listings' : 'No Listings'}
                       </div>
+                      )}
                       
                       <Link
-                        to={currentUser && hasListings ? '/landlord-profile' : '/profile'}
+                        to={isRealEstateCompany ? '/real-estate-dashboard' : '/profile'}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsProfileDropdownOpen(false)}
                       >
-                        {currentUser && hasListings ? 'Landlord Profile' : 'Profile'}
+                        {isRealEstateCompany ? 'Dashboard' : 'Profile'}
                       </Link>
                       
+                      {!isRealEstateCompany && !isAgent && (
                       <Link
                         to="/messages"
                         className={`block px-4 py-2 text-sm hover:bg-gray-100 relative ${
@@ -373,14 +387,17 @@ export default function Header() {
                           )}
                         </div>
                       </Link>
+                      )}
                       
+                      {isAgent && (
                       <Link
-                        to="/create-listing"
+                        to="/agent-dashboard"
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsProfileDropdownOpen(false)}
                       >
-                        Create Listing
+                        Agents Dashboard
                       </Link>
+                      )}
                       
                       <hr className="border-gray-200" />
                       

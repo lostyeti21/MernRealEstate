@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -11,7 +11,7 @@ import { app } from '../firebase';
 import axios from 'axios';
 
 export default function AgentCreateListing() {
-  const { currentUser } = useSelector((state) => state.user);
+  const { currentUser, isAgent, realEstateCompany } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const [files, setFiles] = useState([]);
   const [formData, setFormData] = useState({
@@ -30,12 +30,62 @@ export default function AgentCreateListing() {
     m2: 0,
     backupPower: false,
     backupWaterSupply: false,
-    boreholeWater: false
+    boreholeWater: false,
+    apartmentType: 'House',
+    lounges: 1,
+    electricFence: false,
+    walledOrFenced: false,
+    electricGate: false,
+    builtInCupboards: false,
+    fittedKitchen: false,
+    solarGeyser: false,
+    gym: false,
+    pool: false,
+    garden: false,
+    balcony: false,
+    airConditioning: false,
+    wifi: false,
   });
   const [imageUploadError, setImageUploadError] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Determine the correct user for listing creation
+  const user = isAgent ? currentUser : null;
+
+  // Persistent agent authentication check
+  useEffect(() => {
+    // Check both Redux state and localStorage for agent status
+    const checkAgentAuthentication = () => {
+      const storedUser = localStorage.getItem('currentUser');
+      let isAgentAuthenticated = isAgent;
+
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          isAgentAuthenticated = parsedUser.isAgent === true;
+        } catch (error) {
+          console.error('Error parsing stored user:', error);
+          isAgentAuthenticated = false;
+        }
+      }
+
+      if (!isAgentAuthenticated) {
+        console.error('Agent authentication failed');
+        navigate('/real-estate-agent-login');
+      }
+    };
+
+    checkAgentAuthentication();
+  }, [isAgent, navigate]);
+
+  // Redirect if not an agent
+  useEffect(() => {
+    if (!isAgent) {
+      navigate('/sign-in');
+    }
+  }, [isAgent, navigate]);
 
   const handleImageSubmit = async (e) => {
     if (files.length > 0 && files.length + formData.imageUrls.length < 7) {
@@ -73,13 +123,13 @@ export default function AgentCreateListing() {
       console.log('Uploading image:', {
         fileSize: file.size,
         fileType: file.type,
-        token: currentUser?.token ? 'Present' : 'Missing'
+        token: user?.token ? 'Present' : 'Missing'
       });
 
       const response = await fetch('/api/upload/image', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${currentUser.token}`
+          'Authorization': `Bearer ${user.token}`
         },
         body: formData
       });
@@ -124,7 +174,19 @@ export default function AgentCreateListing() {
       e.target.id === 'offer' ||
       e.target.id === 'backupPower' ||
       e.target.id === 'backupWaterSupply' ||
-      e.target.id === 'boreholeWater'
+      e.target.id === 'boreholeWater' ||
+      e.target.id === 'electricFence' ||
+      e.target.id === 'walledOrFenced' ||
+      e.target.id === 'electricGate' ||
+      e.target.id === 'builtInCupboards' ||
+      e.target.id === 'fittedKitchen' ||
+      e.target.id === 'solarGeyser' ||
+      e.target.id === 'gym' ||
+      e.target.id === 'pool' ||
+      e.target.id === 'garden' ||
+      e.target.id === 'balcony' ||
+      e.target.id === 'airConditioning' ||
+      e.target.id === 'wifi'
     ) {
       setFormData({
         ...formData,
@@ -142,6 +204,14 @@ export default function AgentCreateListing() {
         [e.target.id]: e.target.value,
       });
     }
+
+    // Add apartment type handling
+    if (e.target.id === 'apartmentType') {
+      setFormData({
+        ...formData,
+        apartmentType: e.target.value,
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -152,18 +222,31 @@ export default function AgentCreateListing() {
       if (+formData.regularPrice < +formData.discountPrice)
         return setError('Discount price must be lower than regular price');
 
+      // Validate apartment type
+      if (!formData.apartmentType) {
+        setError('Please select an apartment type');
+        return;
+      }
+
       setLoading(true);
       setError(false);
+      
+      // Ensure user is an agent before creating listing
+      if (!user) {
+        setError('User not found. Please log in as an agent.');
+        setLoading(false);
+        return;
+      }
 
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser.token}`
+          'Authorization': `Bearer ${user.token}`
         },
         body: JSON.stringify({
           ...formData,
-          userRef: currentUser._id,
+          userRef: user._id,
           userModel: 'Agent'
         })
       });
@@ -300,6 +383,66 @@ export default function AgentCreateListing() {
               />
               <span>Borehole Water</span>
             </div>
+            <div className='flex gap-2'>
+              <input
+                type='checkbox'
+                id='electricFence'
+                className='w-5'
+                onChange={handleChange}
+                checked={formData.electricFence}
+              />
+              <span>Electric Fence</span>
+            </div>
+            <div className='flex gap-2'>
+              <input
+                type='checkbox'
+                id='walledOrFenced'
+                className='w-5'
+                onChange={handleChange}
+                checked={formData.walledOrFenced}
+              />
+              <span>Walled or Fenced</span>
+            </div>
+            <div className='flex gap-2'>
+              <input
+                type='checkbox'
+                id='electricGate'
+                className='w-5'
+                onChange={handleChange}
+                checked={formData.electricGate}
+              />
+              <span>Electric Gate</span>
+            </div>
+            <div className='flex gap-2'>
+              <input
+                type='checkbox'
+                id='builtInCupboards'
+                className='w-5'
+                onChange={handleChange}
+                checked={formData.builtInCupboards}
+              />
+              <span>Built-in Cupboards</span>
+            </div>
+            <div className='flex gap-2'>
+              <input
+                type='checkbox'
+                id='fittedKitchen'
+                className='w-5'
+                onChange={handleChange}
+                checked={formData.fittedKitchen}
+              />
+              <span>Fitted Kitchen</span>
+            </div>
+            <div className='flex gap-2'>
+              <input
+                type='checkbox'
+                id='solarGeyser'
+                className='w-5'
+                onChange={handleChange}
+                checked={formData.solarGeyser}
+              />
+              <span>Solar Geyser</span>
+            </div>
           </div>
           <div className='flex flex-wrap gap-6'>
             <div className='flex items-center gap-2'>
@@ -327,6 +470,19 @@ export default function AgentCreateListing() {
                 value={formData.bathrooms}
               />
               <p>Baths</p>
+            </div>
+            <div className='flex items-center gap-2'>
+              <input
+                type='number'
+                id='lounges'
+                min='1'
+                max='10'
+                required
+                className='p-3 border border-gray-300 rounded-lg'
+                onChange={handleChange}
+                value={formData.lounges}
+              />
+              <p>Lounges</p>
             </div>
             <div className='flex items-center gap-2'>
               <input
@@ -376,6 +532,143 @@ export default function AgentCreateListing() {
                 </div>
               </div>
             )}
+            <div className='flex items-center gap-2'>
+              <select
+                id='apartmentType'
+                className='p-3 border border-gray-300 rounded-lg'
+                onChange={handleChange}
+                value={formData.apartmentType}
+              >
+                <option value='House'>House</option>
+                <option value='Flat/Apartment'>Flat/Apartment</option>
+                <option value='Cluster'>Cluster</option>
+                <option value='Cottage'>Cottage</option>
+                <option value='Garden Flat'>Garden Flat</option>
+              </select>
+              <p>Apartment Type</p>
+            </div>
+          </div>
+          <div className='flex flex-wrap gap-6'>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='electricFence'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.electricFence}
+              />
+              <span>Electric Fence</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='walledOrFenced'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.walledOrFenced}
+              />
+              <span>Walled/Fenced</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='electricGate'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.electricGate}
+              />
+              <span>Electric Gate</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='builtInCupboards'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.builtInCupboards}
+              />
+              <span>Built In Cupboards</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='fittedKitchen'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.fittedKitchen}
+              />
+              <span>Fitted Kitchen</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='solarGeyser'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.solarGeyser}
+              />
+              <span>Solar Geyser</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='gym'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.gym}
+              />
+              <span>Gym</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='pool'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.pool}
+              />
+              <span>Pool</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='garden'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.garden}
+              />
+              <span>Garden</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='balcony'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.balcony}
+              />
+              <span>Balcony</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='airConditioning'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.airConditioning}
+              />
+              <span>Air Conditioning</span>
+            </div>
+            <div className='flex gap-2 items-center'>
+              <input
+                type='checkbox'
+                id='wifi'
+                className='w-5 h-5'
+                onChange={handleChange}
+                checked={formData.wifi}
+              />
+              <span>WiFi</span>
+            </div>
           </div>
         </div>
         <div className='flex flex-col flex-1 gap-4'>

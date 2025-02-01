@@ -59,6 +59,21 @@ const listingSchema = new mongoose.Schema(
       enum: ['User', 'Agent'],
       required: true,
     },
+    apartmentType: {
+      type: String,
+      required: true,
+      enum: [
+        'House', 
+        'Flat/Apartment', 
+        'Cluster', 
+        'Cottage', 
+        'Garden Flat', 
+        'Townhouse/Complex/Cluster/Cottage/Garden Flat', 
+        'Stand', 
+        'Room'
+      ],
+      default: 'House'
+    },
     interestedUsers: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
@@ -78,7 +93,43 @@ const listingSchema = new mongoose.Schema(
     boreholeWater: {
       type: Boolean,
       required: true,
-    }
+    },
+    lounges: {
+      type: Number,
+      required: true,
+      default: 1,
+      min: 0
+    },
+    electricFence: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    walledOrFenced: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    electricGate: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    builtInCupboards: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    fittedKitchen: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    solarGeyser: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
   },
   { timestamps: true }
 );

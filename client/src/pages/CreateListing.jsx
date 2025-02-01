@@ -25,6 +25,20 @@ const CreateListing = () => {
     backupPower: false,
     backupWaterSupply: false,
     boreholeWater: false,
+    apartmentType: "House",
+    lounges: 1,
+    electricFence: false,
+    walledOrFenced: false,
+    electricGate: false,
+    builtInCupboards: false,
+    fittedKitchen: false,
+    solarGeyser: false,
+    gym: false,
+    pool: false,
+    garden: false,
+    balcony: false,
+    airConditioning: false,
+    wifi: false,
   });
 
   const [imageUploadError, setImageUploadError] = useState(false);
@@ -163,7 +177,7 @@ const CreateListing = () => {
     if (["sale", "rent"].includes(id)) {
       setFormData({ ...formData, type: id });
     } else if (
-      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply", "boreholeWater"].includes(id)
+      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply", "boreholeWater", "electricFence", "walledOrFenced", "electricGate", "builtInCupboards", "fittedKitchen", "solarGeyser", "gym", "pool", "garden", "balcony", "airConditioning", "wifi"].includes(id)
     ) {
       setFormData({ ...formData, [id]: checked });
     } else if (["number", "text", "textarea"].includes(type)) {
@@ -174,6 +188,11 @@ const CreateListing = () => {
         setFormData({ ...formData, [id]: value });
       }
     }
+    
+    // Add apartment type handling
+    if (id === 'apartmentType') {
+      setFormData({ ...formData, apartmentType: value });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -183,6 +202,13 @@ const CreateListing = () => {
         setError('You must upload at least one image');
         return;
       }
+      
+      // Validate apartment type
+      if (!formData.apartmentType) {
+        setError('Please select an apartment type');
+        return;
+      }
+      
       setLoading(true);
       setError(false);
 
@@ -421,6 +447,129 @@ const CreateListing = () => {
               </div>
             </div>
 
+            <div className="flex flex-wrap gap-6">
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="electricFence"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.electricFence}
+                />
+                <span>Electric Fence</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="walledOrFenced"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.walledOrFenced}
+                />
+                <span>Walled/Fenced</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="electricGate"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.electricGate}
+                />
+                <span>Electric Gate</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="builtInCupboards"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.builtInCupboards}
+                />
+                <span>Built In Cupboards</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="fittedKitchen"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.fittedKitchen}
+                />
+                <span>Fitted Kitchen</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="solarGeyser"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.solarGeyser}
+                />
+                <span>Solar Geyser</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="gym"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.gym}
+                />
+                <span>Gym</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="pool"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.pool}
+                />
+                <span>Pool</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="garden"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.garden}
+                />
+                <span>Garden</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="balcony"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.balcony}
+                />
+                <span>Balcony</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="airConditioning"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.airConditioning}
+                />
+                <span>Air Conditioning</span>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="wifi"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.wifi}
+                />
+                <span>Wifi</span>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <label htmlFor="bedrooms" className="font-semibold">Beds</label>
@@ -447,6 +596,19 @@ const CreateListing = () => {
                 />
               </div>
               <div className="flex items-center gap-2">
+                <label htmlFor="lounges" className="font-semibold">Lounges</label>
+                <input
+                  type="number"
+                  id="lounges"
+                  min="1"
+                  max="10"
+                  required
+                  className="p-3 border rounded-lg"
+                  onChange={handleChange}
+                  value={formData.lounges}
+                />
+              </div>
+              <div className="flex items-center gap-2">
                 <label htmlFor="regularPrice" className="font-semibold">Regular Price</label>
                 <input
                   type="number"
@@ -469,6 +631,23 @@ const CreateListing = () => {
                   value={formData.m2}
                 />
               </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label htmlFor="apartmentType" className="font-semibold">Apartment Type</label>
+              <select
+                id="apartmentType"
+                required
+                className="border p-3 rounded-lg"
+                onChange={handleChange}
+                value={formData.apartmentType}
+              >
+                <option value="House">House</option>
+                <option value="Flat/Apartment">Flat/Apartment</option>
+                <option value="Cluster">Cluster</option>
+                <option value="Cottage">Cottage</option>
+                <option value="Garden Flat">Garden Flat</option>
+              </select>
             </div>
           </div>
 

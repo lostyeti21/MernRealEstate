@@ -23,7 +23,7 @@ const safeJSONParse = (str) => {
 
 export default function RealEstateDashboard() {
   const navigate = useNavigate();
-  const { currentUser } = useSelector((state) => state.user);
+  const { currentUser, realEstateCompany, isRealEstateCompany } = useSelector((state) => state.user);
   const [companyData, setCompanyData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,6 +47,14 @@ export default function RealEstateDashboard() {
   const [bannerUploadError, setBannerUploadError] = useState(null);
   const avatarRef = useRef(null);
   const bannerRef = useRef(null);
+
+  // Redirect if not logged in as real estate company
+  useEffect(() => {
+    if (!isRealEstateCompany || !realEstateCompany) {
+      navigate('/real-estate-login');
+      return;
+    }
+  }, [isRealEstateCompany, realEstateCompany, navigate]);
 
   const handleAvatarClick = () => {
     if (fileRef.current) {
@@ -216,7 +224,7 @@ export default function RealEstateDashboard() {
       const uploadData = await uploadRes.json();
 
       // Update company with new banner URL
-      const updateRes = await fetch(`/api/company/update/${companyData._id}`, {
+      const updateRes = await fetch(`/api/company/update/${realEstateCompany._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -420,6 +428,11 @@ export default function RealEstateDashboard() {
 
   // Add initial data loading
   useEffect(() => {
+    if (!realEstateCompany) {
+      navigate('/real-estate-login');
+      return;
+    }
+
     const loadInitialData = async () => {
       try {
         setLoading(true);
@@ -500,10 +513,12 @@ export default function RealEstateDashboard() {
     };
 
     loadInitialData();
-  }, [navigate]);
+  }, [realEstateCompany, navigate]);
 
   // Load company data safely
   useEffect(() => {
+    if (!realEstateCompany) return;
+
     const loadCompanyData = () => {
       try {
         const storedData = localStorage.getItem('realEstateCompany');
@@ -528,9 +543,9 @@ export default function RealEstateDashboard() {
 
     const fetchCompanyData = async () => {
       try {
-        const response = await fetch(`/api/company/${currentUser._id}`, {
+        const response = await fetch(`/api/company/${realEstateCompany._id}`, {
           headers: {
-            'Authorization': `Bearer ${currentUser.token}`
+            'Authorization': `Bearer ${realEstateCompany.token}`
           }
         });
         
@@ -550,9 +565,11 @@ export default function RealEstateDashboard() {
     };
 
     loadCompanyData();
-  }, [currentUser._id, currentUser.token]);
+  }, [realEstateCompany?.token, realEstateCompany?._id]);
 
   useEffect(() => {
+    if (!realEstateCompany) return;
+
     const fetchListings = async () => {
       if (activeTab !== 'listings') return;
       
@@ -635,7 +652,7 @@ export default function RealEstateDashboard() {
     };
 
     fetchListings();
-  }, [activeTab, navigate, companyData]);
+  }, [activeTab, navigate, companyData, realEstateCompany]);
 
   // Add this function to handle agent form submission
   const handleAgentSubmit = async (e) => {
@@ -660,7 +677,7 @@ export default function RealEstateDashboard() {
 
       console.log('Creating new agent:', { ...agentData, password: '***' });
 
-      const response = await fetch(`/api/real-estate/${companyData._id}/agents`, {
+      const response = await fetch(`/api/real-estate/${realEstateCompany._id}/agents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

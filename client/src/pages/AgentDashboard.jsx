@@ -5,7 +5,7 @@ import { FaStar, FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
 import { updateUserSuccess } from '../redux/user/userSlice';
 
 export default function AgentDashboard() {
-  const { currentUser } = useSelector((state) => state.user);
+  const { currentUser, isAgent } = useSelector((state) => state.user);
   const dispatch = useDispatch();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +27,16 @@ export default function AgentDashboard() {
   const [newName, setNewName] = useState(currentUser?.name || '');
   const [nameUpdateSuccess, setNameUpdateSuccess] = useState(false);
   const [nameUpdateError, setNameUpdateError] = useState(null);
+  const [agentRating, setAgentRating] = useState(currentUser?.averageRating || 0);
+  const [agentRatingError, setAgentRatingError] = useState(null);
+
+  useEffect(() => {
+    if (!isAgent) {
+      console.error('Not an agent, redirecting to login');
+      navigate('/real-estate-agent-login');
+      return;
+    }
+  }, [isAgent, navigate]);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -83,15 +93,12 @@ export default function AgentDashboard() {
   useEffect(() => {
     const fetchCompanyRating = async () => {
       try {
-        setCompanyRatingError(null);
-        
         // Fetch agent data first
         const agentRes = await fetch(`/api/agent/${currentUser._id}`, {
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json'
-          },
-          credentials: 'include'
+          }
         });
 
         if (!agentRes.ok) {
@@ -99,51 +106,103 @@ export default function AgentDashboard() {
         }
 
         const agentData = await agentRes.json();
-        if (!agentData.success || !agentData.agent) {
-          throw new Error(agentData.message || 'Failed to fetch agent data');
+        
+        // Check if agent has a company
+        const companyId = agentData.agent?.companyId;
+        if (!companyId) {
+          console.log('No company associated with this agent');
+          return;
         }
 
-        // Update agent rating in Redux store if needed
-        if (agentData.agent.averageRating !== currentUser.averageRating) {
-          dispatch(updateUserSuccess({
-            ...currentUser,
-            averageRating: agentData.agent.averageRating
-          }));
-        }
+        // Fetch company data
+        const companyRes = await fetch(`/api/company/${companyId}`, {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-        // Then fetch company data
-        const companyId = agentData.agent.companyId;
-        if (companyId) {
-          const companyRes = await fetch(`/api/company/${companyId}`, {
-            headers: {
-              'Authorization': `Bearer ${currentUser.token}`,
-              'Content-Type': 'application/json'
-            },
-            credentials: 'include'
+        if (!companyRes.ok) {
+          // Log the full response for debugging
+          const errorText = await companyRes.text();
+          console.error('Company fetch error:', {
+            status: companyRes.status,
+            statusText: companyRes.statusText,
+            body: errorText
           });
-
-          if (!companyRes.ok) {
-            throw new Error('Failed to fetch company data');
-          }
-
-          const companyData = await companyRes.json();
-          if (!companyData.success) {
-            throw new Error(companyData.message || 'Failed to fetch company data');
-          }
-
-          setCompanyData(companyData.company);
-          setCompanyRating(companyData.company.companyRating || 0);
+          throw new Error(`Failed to fetch company data: ${companyRes.status}`);
         }
+
+        const companyData = await companyRes.json();
+        
+        // Validate company data
+        if (!companyData.success) {
+          throw new Error(companyData.message || 'Invalid company data');
+        }
+
+        // Set company data safely
+        setCompanyData(companyData.company || null);
+        setCompanyRating(companyData.company?.companyRating || 0);
       } catch (error) {
-        console.error('Error fetching company rating:', error);
-        setCompanyRatingError('Failed to load ratings');
+        console.error('Comprehensive error in company rating fetch:', error);
+        setCompanyRatingError(error.message || 'Failed to load company ratings');
+        // Optional: set default or fallback values
+        setCompanyData(null);
+        setCompanyRating(0);
       }
     };
 
-    if (currentUser?._id) {
+    // Only attempt fetch if user is authenticated
+    if (currentUser?._id && currentUser?.token) {
       fetchCompanyRating();
     }
   }, [currentUser, dispatch]);
+
+  useEffect(() => {
+    const fetchAgentRating = async () => {
+      try {
+        // Fetch agent data to get the most up-to-date rating
+        const agentRes = await fetch(`/api/agent/${currentUser._id}`, {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!agentRes.ok) {
+          throw new Error('Failed to fetch agent data');
+        }
+
+        const agentData = await agentRes.json();
+        
+        // Check if agent data exists and has a rating
+        if (agentData.agent && agentData.agent.averageRating !== undefined) {
+          const newRating = agentData.agent.averageRating;
+          setAgentRating(newRating);
+
+          // Update Redux store if rating has changed
+          if (newRating !== currentUser.averageRating) {
+            dispatch(updateUserSuccess({
+              ...currentUser,
+              averageRating: newRating
+            }));
+          }
+        } else {
+          console.log('No rating found for agent');
+          setAgentRating(0);
+        }
+      } catch (error) {
+        console.error('Error fetching agent rating:', error);
+        setAgentRatingError(error.message || 'Failed to load agent rating');
+        setAgentRating(0);
+      }
+    };
+
+    // Only attempt fetch if user is an authenticated agent
+    if (currentUser?._id && currentUser?.token && isAgent) {
+      fetchAgentRating();
+    }
+  }, [currentUser, dispatch, isAgent]);
 
   useEffect(() => {
     const handleFileChange = async () => {
@@ -319,6 +378,16 @@ export default function AgentDashboard() {
     }
   };
 
+  const handleCreateListing = () => {
+    // Double-check agent status before navigation
+    if (isAgent) {
+      navigate('/agent-create-listing');
+    } else {
+      console.error('Not authorized to create listings');
+      navigate('/real-estate-agent-login');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -407,14 +476,14 @@ export default function AgentDashboard() {
                     <FaStar
                       key={star}
                       className={`${
-                        star <= (currentUser.averageRating || 0)
+                        star <= (agentRating || 0)
                           ? 'text-yellow-400'
                           : 'text-gray-300'
                       }`}
                     />
                   ))}
                   <span className="ml-1 text-gray-600">
-                    ({currentUser.averageRating?.toFixed(1) || 'N/A'})
+                    ({agentRating?.toFixed(1) || 'N/A'})
                   </span>
                 </div>
               </div>
@@ -521,7 +590,7 @@ export default function AgentDashboard() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">My Listings</h1>
         <button
-          onClick={() => navigate('/agent-create-listing')}
+          onClick={handleCreateListing}
           className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition"
         >
           Create New Listing
@@ -538,7 +607,7 @@ export default function AgentDashboard() {
         <div className="text-center py-8">
           <p className="text-gray-600 mb-4">You haven't created any listings yet.</p>
           <button
-            onClick={() => navigate('/agent-create-listing')}
+            onClick={handleCreateListing}
             className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition"
           >
             Create Your First Listing

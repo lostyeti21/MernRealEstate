@@ -597,7 +597,7 @@ export default function Home() {
                     Property
                   </h2>
                   <div 
-                    className={`absolute top-0 right-0 bg-[#009688] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingFeatured ? 'animate-jello-once' : ''}`}
+                    className={`absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingFeatured ? 'animate-jello-once' : ''}`}
                   >
                     Recommended by Us
                   </div>
@@ -648,6 +648,19 @@ export default function Home() {
                       >
                         {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
                       </div>
+                      <div
+                        className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full ${
+                          listing.apartmentType === 'House' ? 'bg-[#f14304]' :
+                          listing.apartmentType === 'Flat/Apartment' ? 'bg-[#212620]' :
+                          listing.apartmentType === 'Cluster' ? 'bg-[#39594D]' :
+                          listing.apartmentType === 'Cottage' ? 'bg-[#A6330A]' :
+                          listing.apartmentType === 'Garden Flat' ? 'bg-[#F26457]' :
+                          'bg-[#f14304]' // default to House color
+                        }`}
+                        style={{ zIndex: 10 }}
+                      >
+                        {listing.apartmentType || 'House'}
+                      </div>
 
                       <img
                         src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
@@ -658,18 +671,16 @@ export default function Home() {
                         <p className='truncate text-lg font-semibold text-slate-700'>
                           {listing.name}
                         </p>
-                        <div className='flex items-center gap-1'>
+                        <div className='flex items-center gap-1 text-sm text-slate-600'>
                           <MdLocationOn className='h-4 w-4 text-green-700' />
-                          <p className='text-sm text-gray-600 truncate w-full'>
-                            {listing.address}
-                          </p>
+                          <p className='truncate w-full'>{listing.address}</p>
                         </div>
-                        <p className='text-sm text-gray-600 line-clamp-2'>
-                          {listing.description}
-                        </p>
-                        <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+                        <p className='border border-[#16a349] bg-[#16a349] text-white w-fit px-4 py-2 rounded-full text-sm font-semibold mt-1'>
                           ${listing.offer ? listing.discountPrice : listing.regularPrice}
                           {listing.type === 'rent' && ' / month'}
+                        </p>
+                        <p className='text-sm text-gray-600 line-clamp-2'>
+                          {listing.description}
                         </p>
                         <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
                           <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
@@ -678,31 +689,12 @@ export default function Home() {
                           <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
                             <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
                           </div>
-                          {listing.parking && (
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaParking /> Parking
-                            </div>
-                          )}
-                          {listing.furnished && (
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaChair /> Furnished
-                            </div>
-                          )}
-                          {listing.backupPower && (
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaBolt /> Backup Power
-                            </div>
-                          )}
-                          {listing.backupWaterSupply && (
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaWater /> Backup Water
-                            </div>
-                          )}
-                          {listing.boreholeWater && (
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaTint /> Borehole Water
-                            </div>
-                          )}
+                        </div>
+                      </div>
+                      <div className='absolute bottom-3 right-3 group'>
+                        <div className='absolute inset-0 bg-[#212620] opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform -translate-y-[0.2em] group-hover:-translate-y-[0.33em]'></div>
+                        <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white group-hover:translate-y-[-0.2em] transition-transform duration-300'>
+                          More Info
                         </div>
                       </div>
                     </motion.div>
@@ -749,6 +741,19 @@ export default function Home() {
                         >
                           {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
                         </div>
+                        <div
+                          className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full ${
+                            listing.apartmentType === 'House' ? 'bg-[#f14304]' :
+                            listing.apartmentType === 'Flat/Apartment' ? 'bg-[#212620]' :
+                            listing.apartmentType === 'Cluster' ? 'bg-[#39594D]' :
+                            listing.apartmentType === 'Cottage' ? 'bg-[#A6330A]' :
+                            listing.apartmentType === 'Garden Flat' ? 'bg-[#F26457]' :
+                            'bg-[#f14304]' // default to House color
+                          }`}
+                          style={{ zIndex: 10 }}
+                        >
+                          {listing.apartmentType || 'House'}
+                        </div>
 
                         <img
                           src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
@@ -759,18 +764,16 @@ export default function Home() {
                           <p className='truncate text-lg font-semibold text-slate-700'>
                             {listing.name}
                           </p>
-                          <div className='flex items-center gap-1'>
+                          <div className='flex items-center gap-1 text-sm text-slate-600'>
                             <MdLocationOn className='h-4 w-4 text-green-700' />
-                            <p className='text-sm text-gray-600 truncate w-full'>
-                              {listing.address}
-                            </p>
+                            <p className='truncate w-full'>{listing.address}</p>
                           </div>
-                          <p className='text-sm text-gray-600 line-clamp-2'>
-                            {listing.description}
-                          </p>
-                          <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
+                          <p className='border border-[#16a349] bg-[#16a349] text-white w-fit px-4 py-2 rounded-full text-sm font-semibold mt-1'>
                             ${listing.offer ? listing.discountPrice : listing.regularPrice}
                             {listing.type === 'rent' && ' / month'}
+                          </p>
+                          <p className='text-sm text-gray-600 line-clamp-2'>
+                            {listing.description}
                           </p>
                           <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
                             <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
@@ -779,31 +782,12 @@ export default function Home() {
                             <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
                               <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
                             </div>
-                            {listing.parking && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaParking /> Parking
-                              </div>
-                            )}
-                            {listing.furnished && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaChair /> Furnished
-                              </div>
-                            )}
-                            {listing.backupPower && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaBolt /> Backup Power
-                              </div>
-                            )}
-                            {listing.backupWaterSupply && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaWater /> Backup Water
-                              </div>
-                            )}
-                            {listing.boreholeWater && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaTint /> Borehole Water
-                              </div>
-                            )}
+                          </div>
+                        </div>
+                        <div className='absolute bottom-3 right-3 group'>
+                          <div className='absolute inset-0 bg-[#212620] opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform -translate-y-[0.2em] group-hover:-translate-y-[0.33em]'></div>
+                          <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white group-hover:translate-y-[-0.2em] transition-transform duration-300'>
+                            More Info
                           </div>
                         </div>
                       </motion.div>
@@ -863,6 +847,19 @@ export default function Home() {
                         >
                           {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
                         </div>
+                        <div
+                          className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full ${
+                            listing.apartmentType === 'House' ? 'bg-[#f14304]' :
+                            listing.apartmentType === 'Flat/Apartment' ? 'bg-[#212620]' :
+                            listing.apartmentType === 'Cluster' ? 'bg-[#39594D]' :
+                            listing.apartmentType === 'Cottage' ? 'bg-[#A6330A]' :
+                            listing.apartmentType === 'Garden Flat' ? 'bg-[#F26457]' :
+                            'bg-[#f14304]' // default to House color
+                          }`}
+                          style={{ zIndex: 10 }}
+                        >
+                          {listing.apartmentType || 'House'}
+                        </div>
 
                         <img
                           src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
@@ -873,18 +870,16 @@ export default function Home() {
                           <p className='truncate text-lg font-semibold text-slate-700'>
                             {listing.name}
                           </p>
-                          <div className='flex items-center gap-1'>
+                          <div className='flex items-center gap-1 text-sm text-slate-600'>
                             <MdLocationOn className='h-4 w-4 text-green-700' />
-                            <p className='text-sm text-gray-600 truncate w-full'>
-                              {listing.address}
-                            </p>
+                            <p className='truncate w-full'>{listing.address}</p>
                           </div>
+                          <p className='border border-[#16a349] bg-[#16a349] text-white w-fit px-4 py-2 rounded-full text-sm font-semibold mt-1'>
+                            ${listing.offer ? listing.discountPrice.toLocaleString('en-US') : listing.regularPrice.toLocaleString('en-US')}
+                            {listing.type === 'rent' && ' / month'}
+                          </p>
                           <p className='text-sm text-gray-600 line-clamp-2'>
                             {listing.description}
-                          </p>
-                          <p className='border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold mt-2'>
-                            ${listing.offer ? listing.discountPrice : listing.regularPrice}
-                            {listing.type === 'rent' && ' / month'}
                           </p>
                           <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
                             <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
@@ -893,31 +888,12 @@ export default function Home() {
                             <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
                               <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
                             </div>
-                            {listing.parking && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaParking /> Parking
-                              </div>
-                            )}
-                            {listing.furnished && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaChair /> Furnished
-                              </div>
-                            )}
-                            {listing.backupPower && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaBolt /> Backup Power
-                              </div>
-                            )}
-                            {listing.backupWaterSupply && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaWater /> Backup Water
-                              </div>
-                            )}
-                            {listing.boreholeWater && (
-                              <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                                <FaTint /> Borehole Water
-                              </div>
-                            )}
+                          </div>
+                        </div>
+                        <div className='absolute bottom-3 right-3 group'>
+                          <div className='absolute inset-0 bg-[#212620] opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform -translate-y-[0.2em] group-hover:-translate-y-[0.33em]'></div>
+                          <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white group-hover:translate-y-[-0.2em] transition-transform duration-300'>
+                            More Info
                           </div>
                         </div>
                       </motion.div>
@@ -949,7 +925,7 @@ export default function Home() {
                 Agents in Zimbabwe
               </h2>
               <div 
-                className={`absolute top-0 right-0 bg-[#16a349] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingRealEstate ? 'animate-jello-once' : ''} flex items-center gap-2`}
+                className={`absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingRealEstate ? 'animate-jello-once' : ''} flex items-center gap-2`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 font-bold" viewBox="0 0 24 24" fill="white">
                   <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.208Z" clipRule="evenodd" />

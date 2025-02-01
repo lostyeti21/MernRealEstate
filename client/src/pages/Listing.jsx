@@ -606,7 +606,7 @@ export default function Listing() {
           {currentUser && currentUser._id !== landlord?._id && (
             <button
               onClick={() => setShowVerificationModal(true)}
-              className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
+              className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
             >
               Rate Landlord
             </button>
@@ -773,14 +773,54 @@ export default function Listing() {
                 <FaRulerCombined /> {listing.m2} m²
               </li>
               <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                <FaBolt /> {listing.backupPower ? "Backup Power" : "No Backup Power"}
+                <FaChair /> {listing.lounges} {listing.lounges > 1 ? 'Lounges' : 'Lounge'}
               </li>
-              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                <FaTint /> {listing.backupWaterSupply ? "Backup Water Supply" : "No Backup Water"}
-              </li>
-              <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
-                <FaWater /> {listing.boreholeWater ? "Borehole Water" : "No Borehole Water"}
-              </li>
+              {listing.backupPower && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaBolt /> Backup Power
+                </li>
+              )}
+              {listing.backupWaterSupply && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaWater /> Backup Water Supply
+                </li>
+              )}
+              {listing.boreholeWater && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaTint /> Borehole Water
+                </li>
+              )}
+              {/* New amenities */}
+              {listing.electricFence && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaBolt /> Electric Fence
+                </li>
+              )}
+              {listing.walledOrFenced && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaMapMarkerAlt /> Walled/Fenced
+                </li>
+              )}
+              {listing.electricGate && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaBolt /> Electric Gate
+                </li>
+              )}
+              {listing.builtInCupboards && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaChair /> Built-in Cupboards
+                </li>
+              )}
+              {listing.fittedKitchen && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaChair /> Fitted Kitchen
+                </li>
+              )}
+              {listing.solarGeyser && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                  <FaBolt /> Solar Geyser
+                </li>
+              )}
             </ul>
 
             {currentUser && currentUser._id !== listing.userRef && (

@@ -15,7 +15,11 @@ import {
   FaMapMarkerAlt,
   FaQuestionCircle,
   FaTimes,
-  FaMoneyBillWave
+  FaMoneyBillWave,
+  FaBuilding,  // Add for apartment
+  FaWarehouse,  // Add for warehouse
+  FaCity,       // Add for commercial
+  FaTree        // Add for land
 } from 'react-icons/fa';
 import { debounce } from 'lodash';
 import LoadingAnimation from '../components/LoadingAnimation';
@@ -31,7 +35,7 @@ export default function Search() {
   const initialState = {
     searchTerm: '',
     type: 'all',
-    userModel: 'all',
+    propertyType: 'all',  // Add propertyType to initial state
     parking: false,
     furnished: false,
     backupPower: false,
@@ -42,6 +46,14 @@ export default function Search() {
     order: 'desc',
     minPrice: '',
     maxPrice: '',
+    bedrooms: '', 
+    baths: '', 
+    electricFence: false,
+    walledOrFenced: false,
+    electricGate: false,
+    builtInCupboards: false,
+    fittedKitchen: false,
+    solarGeyser: false,
   };
 
   const [sidebardata, setSidebardata] = useState(initialState);
@@ -54,17 +66,35 @@ export default function Search() {
   const [error, setError] = useState('');
 
   const amenityIcons = {
-    parking: <FaParking />, 
-    furnished: <FaCouch />, 
-    backupPower: <FaBolt />, 
-    backupWaterSupply: <FaWater />, 
-    boreholeWater: <FaTint />,
+    parking: null, 
+    furnished: null, 
+    backupPower: null, 
+    backupWaterSupply: null, 
+    boreholeWater: null,
+    electricFence: null,
+    walledOrFenced: null,
+    electricGate: null,
+    builtInCupboards: null,
+    fittedKitchen: null,
+    solarGeyser: null,
   };
 
   const typeIcons = {
     all: <FaGlobe />,
     rent: <FaHome />,
     sale: <FaDollarSign />,
+  };
+
+  const propertyTypeIcons = {
+    all: null,
+    house: null,
+    apartment: null,
+    cluster: null,
+    cottage: null,
+    gardenFlat: null,
+    commercial: null, // Add commercial
+    land: null, // Add land
+    warehouse: null, // Add warehouse
   };
 
   // Add batch processing for impressions
@@ -95,118 +125,112 @@ export default function Search() {
     
     const searchTermFromUrl = urlParams.get('searchTerm');
     const typeFromUrl = urlParams.get('type');
-    const parkingFromUrl = urlParams.get('parking');
-    const furnishedFromUrl = urlParams.get('furnished');
-    const offerFromUrl = urlParams.get('offer');
+    const propertyTypeFromUrl = urlParams.get('propertyType');
     const sortFromUrl = urlParams.get('sort');
     const orderFromUrl = urlParams.get('order');
-    const pageFromUrl = urlParams.get('page') || 1;
+    const bedroomsFromUrl = urlParams.get('bedrooms');
+    const bathsFromUrl = urlParams.get('baths');
+    const minPriceFromUrl = urlParams.get('minPrice');
+    const maxPriceFromUrl = urlParams.get('maxPrice');
+    const pageFromUrl = urlParams.get('page');
 
-    console.log('URL Parameters:', {
-      searchTerm: searchTermFromUrl,
-      type: typeFromUrl,
-      parking: parkingFromUrl,
-      furnished: furnishedFromUrl,
-      offer: offerFromUrl,
-      sort: sortFromUrl,
-      order: orderFromUrl,
-      page: pageFromUrl
+    // Get amenity values from URL
+    const amenities = [
+      'parking',
+      'furnished',
+      'offer',
+      'backupPower',
+      'backupWaterSupply',
+      'boreholeWater',
+      'electricFence',
+      'walledOrFenced',
+      'electricGate',
+      'builtInCupboards',
+      'fittedKitchen',
+      'solarGeyser'
+    ];
+
+    const amenityValues = {};
+    amenities.forEach(amenity => {
+      amenityValues[amenity] = urlParams.get(amenity) === 'true';
     });
 
     if (
       searchTermFromUrl ||
       typeFromUrl ||
-      parkingFromUrl ||
-      furnishedFromUrl ||
-      offerFromUrl ||
+      propertyTypeFromUrl ||
       sortFromUrl ||
-      orderFromUrl
+      orderFromUrl ||
+      bedroomsFromUrl ||
+      bathsFromUrl ||
+      minPriceFromUrl ||
+      maxPriceFromUrl ||
+      pageFromUrl ||
+      Object.values(amenityValues).some(value => value)
     ) {
       setSidebardata({
         searchTerm: searchTermFromUrl || '',
         type: typeFromUrl || 'all',
-        parking: parkingFromUrl === 'true' ? true : false,
-        furnished: furnishedFromUrl === 'true' ? true : false,
-        offer: offerFromUrl === 'true' ? true : false,
+        propertyType: propertyTypeFromUrl || 'all',
         sort: sortFromUrl || 'createdAt',
         order: orderFromUrl || 'desc',
+        bedrooms: bedroomsFromUrl || '',
+        baths: bathsFromUrl || '',
+        minPrice: minPriceFromUrl || '',
+        maxPrice: maxPriceFromUrl || '',
+        ...amenityValues
       });
+
+      // Update current page from URL
+      if (pageFromUrl) {
+        setCurrentPage(Number(pageFromUrl));
+      } else {
+        setCurrentPage(1);
+      }
     }
 
     const fetchListings = async () => {
       setLoading(true);
+      setError(null);
+      
       const urlParams = new URLSearchParams(location.search);
       
       // Ensure required pagination parameters are set
-      if (!urlParams.get('listingsPerPage')) {
-        urlParams.set('listingsPerPage', listingsPerPage);
+      if (!urlParams.has('listingsPerPage')) {
+        urlParams.set('listingsPerPage', listingsPerPage.toString());
       }
-      if (!urlParams.get('page')) {
-        urlParams.set('page', 1);
+      if (!urlParams.has('page')) {
+        urlParams.set('page', '1');
       }
 
       const searchQuery = urlParams.toString();
-      const paginatedSearchQuery = searchQuery;
-
-      console.log('Fetching listings with query:', paginatedSearchQuery);
 
       try {
-        const res = await fetch(`/api/listing/get?${paginatedSearchQuery}`);
+        const res = await fetch(`/api/listing/get?${searchQuery}`);
         const data = await res.json();
 
-        console.log('Fetched data:', data);
-
         if (data.success) {
-          // Record impressions in batches
-          recordImpressions(data.listings);
-          
-          // Record search terms for each listing found
-          const searchTerm = urlParams.get('searchTerm');
-          if (searchTerm) {
-            data.listings.forEach(async (listing) => {
-              try {
-                await fetch(`http://localhost:3000/api/analytics/search/record/${listing._id}`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({ 
-                    searchTerm,
-                    // Include additional search criteria
-                    filters: {
-                      type: urlParams.get('type') || 'all',
-                      parking: urlParams.get('parking') === 'true',
-                      furnished: urlParams.get('furnished') === 'true',
-                      offer: urlParams.get('offer') === 'true'
-                    }
-                  })
-                });
-              } catch (error) {
-                console.error('Error recording search term:', error);
-              }
-            });
-          }
-
-          console.log('Setting listings:', data.listings);
-          console.log('Total pages:', data.totalPages);
-          console.log('Current page:', urlParams.get('page') || 1);
-
-          // Ensure new listings are fetched for each page
           setListings(data.listings);
-          setTotalPages(data.totalPages || 1);
-          setCurrentPage(+urlParams.get('page') || 1);
+          
+          // Use totalPages directly from backend response
+          setTotalPages(data.totalPages);
+          
+          // Use currentPage from backend or URL
+          const currentPageFromUrl = Number(urlParams.get('page')) || 1;
+          setCurrentPage(currentPageFromUrl);
+          
           setLoading(false);
+
+          // Record impressions and search analytics
+          recordImpressions(data.listings);
+          recordSearchAnalytics(data.listings, urlParams);
         } else {
-          // Handle case where no listings are found
-          console.log('No listings found');
-          setListings([]);
-          setTotalPages(1);
-          setCurrentPage(1);
+          setError(data.message);
           setLoading(false);
         }
       } catch (error) {
         console.error('Error fetching listings:', error);
-        setListings([]);
+        setError('Failed to fetch listings');
         setLoading(false);
       }
     };
@@ -214,35 +238,139 @@ export default function Search() {
     fetchListings();
   }, [location.search]);
 
-  useEffect(() => {
-    // No-op
-  }, [currentPage]);
-
   const handleChange = (e) => {
-    const { id, value, checked, type } = e.target;
-    setSidebardata((prev) => ({
-      ...prev,
-      [id]: type === 'checkbox' ? checked : value,
-    }));
+    if (e.target.id === 'searchTerm') {
+      setSidebardata({ ...sidebardata, searchTerm: e.target.value });
+    }
+
+    if (e.target.id === 'type') {
+      setSidebardata({ ...sidebardata, type: e.target.value });
+      
+      // Update URL and trigger search immediately
+      const urlParams = new URLSearchParams(window.location.search);
+      if (e.target.value === 'all') {
+        urlParams.delete('type');
+      } else {
+        urlParams.set('type', e.target.value);
+      }
+      const searchQuery = urlParams.toString();
+      navigate(`/search?${searchQuery}`);
+    }
+
+    if (e.target.id === 'sort') {
+      const sort = e.target.value.split('_')[0] || 'createdAt';
+      const order = e.target.value.split('_')[1] || 'desc';
+
+      setSidebardata({
+        ...sidebardata,
+        sort,
+        order,
+      });
+    }
+
+    if (e.target.id === 'propertyType') {
+      setSidebardata({
+        ...sidebardata,
+        propertyType: e.target.value,
+      });
+    }
+
+    if (e.target.id === 'parking' || e.target.id === 'furnished' || e.target.id === 'offer' || e.target.id === 'backupPower' || e.target.id === 'backupWaterSupply' || e.target.id === 'boreholeWater' || e.target.id === 'electricFence' || e.target.id === 'walledOrFenced' || e.target.id === 'electricGate' || e.target.id === 'builtInCupboards' || e.target.id === 'fittedKitchen' || e.target.id === 'solarGeyser') {
+      setSidebardata({
+        ...sidebardata,
+        [e.target.id]: e.target.checked,
+      });
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setCurrentPage(1);
-    const urlParams = new URLSearchParams();
+    const urlParams = new URLSearchParams(window.location.search);
     
-    // Only add parameters that have values and differ from initial state
-    Object.entries(sidebardata).forEach(([key, value]) => {
-      if (
-        value !== '' && 
-        value !== false && 
-        value !== 'all' &&
-        value !== initialState[key]
-      ) {
-        urlParams.set(key, value);
+    // Reset page to 1 when applying new filters
+    urlParams.set('page', 1);
+    urlParams.set('listingsPerPage', listingsPerPage);
+    
+    // Handle search term
+    if (sidebardata.searchTerm) {
+      urlParams.set('searchTerm', sidebardata.searchTerm);
+    } else {
+      urlParams.delete('searchTerm');
+    }
+
+    // Handle type
+    if (sidebardata.type !== 'all') {
+      urlParams.set('type', sidebardata.type);
+    } else {
+      urlParams.delete('type');
+    }
+
+    // Handle property type
+    if (sidebardata.propertyType !== 'all') {
+      urlParams.set('propertyType', sidebardata.propertyType);
+    } else {
+      urlParams.delete('propertyType');
+    }
+
+    // Handle amenities
+    const amenities = [
+      'parking',
+      'furnished',
+      'offer',
+      'backupPower',
+      'backupWaterSupply',
+      'boreholeWater',
+      'electricFence',
+      'walledOrFenced',
+      'electricGate',
+      'builtInCupboards',
+      'fittedKitchen',
+      'solarGeyser'
+    ];
+
+    amenities.forEach(amenity => {
+      if (sidebardata[amenity]) {
+        urlParams.set(amenity, 'true');
+      } else {
+        urlParams.delete(amenity);
       }
     });
-    
+
+    // Handle sort and order
+    if (sidebardata.sort !== 'createdAt') {
+      urlParams.set('sort', sidebardata.sort);
+      urlParams.set('order', sidebardata.order);
+    } else {
+      urlParams.delete('sort');
+      urlParams.delete('order');
+    }
+
+    // Handle bedrooms and baths
+    if (sidebardata.bedrooms) {
+      urlParams.set('bedrooms', sidebardata.bedrooms);
+    } else {
+      urlParams.delete('bedrooms');
+    }
+
+    if (sidebardata.baths) {
+      urlParams.set('baths', sidebardata.baths);
+    } else {
+      urlParams.delete('baths');
+    }
+
+    // Handle price range
+    if (sidebardata.minPrice) {
+      urlParams.set('minPrice', sidebardata.minPrice);
+    } else {
+      urlParams.delete('minPrice');
+    }
+
+    if (sidebardata.maxPrice) {
+      urlParams.set('maxPrice', sidebardata.maxPrice);
+    } else {
+      urlParams.delete('maxPrice');
+    }
+
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
   };
@@ -254,36 +382,39 @@ export default function Search() {
     navigate('/search');
   };
 
-  const handlePageChange = async (newPage) => {
-    if (newPage > 0 && newPage <= totalPages && !loading) {
-      const urlParams = new URLSearchParams(location.search);
-      urlParams.set('page', newPage);
-      
-      // Reset listings and set loading state
-      setLoading(true);
-      setListings([]);
-      setCurrentPage(newPage);
-      
-      // Force scroll to top immediately
-      document.body.scrollTop = 0; // For Safari
-      document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
-      
-      // Force a re-render by updating the URL
-      navigate(`/search?${urlParams.toString()}`, { replace: true });
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages || loading) return;
+
+    const urlParams = new URLSearchParams(location.search);
+    urlParams.set('page', newPage);
+    
+    // Preserve listingsPerPage parameter
+    if (!urlParams.has('listingsPerPage')) {
+      urlParams.set('listingsPerPage', listingsPerPage);
     }
+
+    const searchQuery = urlParams.toString();
+    navigate(`/search?${searchQuery}`);
+    setCurrentPage(newPage);
+    window.scrollTo(0, 0);
   };
 
   const handlePageInput = (e) => {
     const value = e.target.value;
-    if (value === '' || (/^\d+$/.test(value) && +value > 0 && +value <= totalPages)) {
+    // Only allow numbers and empty string
+    if (value === '' || (/^\d+$/.test(value) && parseInt(value) <= totalPages)) {
       setInputPage(value);
     }
   };
 
   const goToPage = () => {
-    if (inputPage) {
-      handlePageChange(+inputPage);
-      setInputPage('');
+    const pageNumber = parseInt(inputPage);
+    if (pageNumber && pageNumber > 0 && pageNumber <= totalPages) {
+      handlePageChange(pageNumber);
+      setInputPage(''); // Clear input after successful navigation
+    } else {
+      // Alert user if input is invalid
+      alert(`Please enter a valid page number between 1 and ${totalPages}`);
     }
   };
 
@@ -408,12 +539,11 @@ export default function Search() {
             </span>
           </div>
 
-          {/* Listed By Section Removed */}
-
+          {/* Type Filter */}
           <div className="flex flex-col gap-2">
             <label className="font-semibold">Type:</label>
             <div className="flex flex-wrap gap-2">
-              {['all', 'rent', 'sale'].map((type) => (
+              {['all', 'sale', 'rent'].map((type) => (
                 <div 
                   key={type}
                   className={`
@@ -423,15 +553,69 @@ export default function Search() {
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }
                   `}
-                  onClick={() => handleChange({
-                    target: { 
-                      id: 'type', 
-                      value: type 
+                  onClick={() => {
+                    setSidebardata(prevData => ({
+                      ...prevData,
+                      type: type
+                    }));
+                    
+                    // Update URL and trigger search
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (type === 'all') {
+                      urlParams.delete('type');
+                    } else {
+                      urlParams.set('type', type);
                     }
-                  })}
+                    const searchQuery = urlParams.toString();
+                    navigate(`/search?${searchQuery}`);
+                  }}
                 >
                   <span className="text-sm">
-                    {type === 'all' ? 'All' : type === 'rent' ? 'For Rent' : 'For Sale'}
+                    {type === 'all' ? 'All' : 
+                     type === 'sale' ? 'For Sale' : 'For Rent'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Property Type Filter */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold">Property Type:</label>
+            <div className="flex flex-wrap gap-2">
+              {['all', 'house', 'apartment', 'cluster', 'cottage', 'gardenFlat'].map((propertyType) => (
+                <div 
+                  key={propertyType}
+                  className={`
+                    flex items-center gap-2 px-3 py-1 rounded-full cursor-pointer transition-all duration-300 ease-in-out
+                    ${sidebardata.propertyType === propertyType 
+                      ? 'bg-[#F20505] text-white hover:bg-[#c41212]' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }
+                  `}
+                  onClick={() => {
+                    setSidebardata(prevData => ({
+                      ...prevData,
+                      propertyType: propertyType
+                    }));
+                    
+                    // Trigger search immediately
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (propertyType === 'all') {
+                      urlParams.delete('propertyType');
+                    } else {
+                      urlParams.set('propertyType', propertyType);
+                    }
+                    const searchQuery = urlParams.toString();
+                    navigate(`/search?${searchQuery}`);
+                  }}
+                >
+                  <span className="text-sm">
+                    {propertyType === 'all' ? 'All' : 
+                     propertyType === 'house' ? 'House' : 
+                     propertyType === 'apartment' ? 'Flat/Apartment' : 
+                     propertyType === 'cluster' ? 'Cluster' : 
+                     propertyType === 'cottage' ? 'Cottage' : 'Garden Flat'}
                   </span>
                 </div>
               ))}
@@ -441,33 +625,93 @@ export default function Search() {
           <div className="flex flex-col gap-2">
             <label className="font-semibold">Amenities:</label>
             <div className="grid grid-cols-2 gap-2">
-              {['parking', 'furnished', 'backupPower', 'backupWaterSupply', 'boreholeWater'].map((amenity) => (
+              {['parking', 'furnished', 'backupPower', 'backupWaterSupply', 'boreholeWater', 'electricFence', 'walledOrFenced', 'electricGate', 'builtInCupboards', 'fittedKitchen', 'solarGeyser'].map((amenity) => (
                 <div 
                   key={amenity}
                   className={`
-                    inline-flex items-center gap-2 px-3 py-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out
-                    h-10 max-w-full
+                    flex items-center gap-2 px-3 py-1 rounded-full cursor-pointer transition-all duration-300 ease-in-out
                     ${sidebardata[amenity] 
                       ? 'bg-[#F20505] text-white hover:bg-[#c41212]' 
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }
                   `}
-                  onClick={() => handleChange({
-                    target: { 
-                      id: amenity, 
-                      type: 'checkbox', 
-                      checked: !sidebardata[amenity] 
+                  onClick={() => {
+                    // Update sidebardata
+                    setSidebardata(prevData => ({
+                      ...prevData,
+                      [amenity]: !prevData[amenity]
+                    }));
+
+                    // Update URL and trigger search
+                    const urlParams = new URLSearchParams(window.location.search);
+                    if (!sidebardata[amenity]) {
+                      urlParams.set(amenity, 'true');
+                    } else {
+                      urlParams.delete(amenity);
                     }
-                  })}
+                    const searchQuery = urlParams.toString();
+                    navigate(`/search?${searchQuery}`);
+                  }}
                 >
-                  <span className="mr-2">{amenityIcons[amenity]}</span>
                   <span className="text-sm whitespace-nowrap overflow-hidden">
                     {amenity === 'backupWaterSupply' ? 'Backup Water' : 
+                     amenity === 'backupPower' ? 'Backup Power' :
+                     amenity === 'boreholeWater' ? 'Borehole Water' :
+                     amenity === 'electricFence' ? 'Electric Fence' :
+                     amenity === 'walledOrFenced' ? 'Walled/Fenced' :
+                     amenity === 'electricGate' ? 'Electric Gate' :
+                     amenity === 'builtInCupboards' ? 'Built-in Cupboards' :
+                     amenity === 'fittedKitchen' ? 'Fitted Kitchen' :
+                     amenity === 'solarGeyser' ? 'Solar Geyser' :
                      amenity.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
                   </span>
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Bedrooms Filter */}
+          <div className='flex items-center gap-2'>
+            <label className='font-semibold'>Bedrooms:</label>
+            <select 
+              id='bedrooms'
+              className='border rounded-lg p-2'
+              value={sidebardata.bedrooms}
+              onChange={(e) => {
+                setSidebardata({
+                  ...sidebardata,
+                  bedrooms: e.target.value
+                });
+              }}
+            >
+              <option value=''>Any</option>
+              <option value='1'>1 Bedroom</option>
+              <option value='2'>2 Bedrooms</option>
+              <option value='3'>3 Bedrooms</option>
+              <option value='4'>4+ Bedrooms</option>
+            </select>
+          </div>
+
+          {/* Baths Filter */}
+          <div className='flex items-center gap-2'>
+            <label className='font-semibold'>Baths:</label>
+            <select 
+              id='baths'
+              className='border rounded-lg p-2'
+              value={sidebardata.baths}
+              onChange={(e) => {
+                setSidebardata({
+                  ...sidebardata,
+                  baths: e.target.value
+                });
+              }}
+            >
+              <option value=''>Any</option>
+              <option value='1'>1 Bathroom</option>
+              <option value='2'>2 Bathrooms</option>
+              <option value='3'>3 Bathrooms</option>
+              <option value='4'>4+ Bathrooms</option>
+            </select>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -503,7 +747,7 @@ export default function Search() {
             <select
               id="sort"
               onChange={handleChange}
-              className="border rounded-lg p-3"
+              className="border rounded-lg p-2"
               value={sidebardata.sort}
             >
               <option value="createdAt">Latest</option>
@@ -512,7 +756,7 @@ export default function Search() {
             <select
               id="order"
               onChange={handleChange}
-              className="border rounded-lg p-3"
+              className="border rounded-lg p-2"
               value={sidebardata.order}
             >
               <option value="desc">Descending</option>
@@ -631,7 +875,7 @@ export default function Search() {
               >
                 Previous
               </button>
-              <span className="text-lg">
+              <span className="text-lg font-semibold">
                 Page {currentPage} of {totalPages}
               </span>
               <button
@@ -640,11 +884,10 @@ export default function Search() {
                   px-4 py-2 rounded-lg 
                   ${
                     currentPage === totalPages
-                      ? 'bg-[#009688] text-white hover:bg-[#00796b]' 
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-500 hover:bg-blue-600'
                   }
-                  transition-colors duration-300
-                  disabled:opacity-50 disabled:cursor-not-allowed
+                  text-white transition-colors duration-300
                 `}
                 disabled={currentPage === totalPages || loading}
               >
@@ -658,19 +901,19 @@ export default function Search() {
                 placeholder="Go to page"
                 value={inputPage}
                 onChange={handlePageInput}
-                className="border rounded-lg p-2 w-24"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    goToPage();
+                  }
+                }}
+                className="border rounded-lg p-2 w-24 text-center"
               />
               <button
                 onClick={goToPage}
-                disabled={loading}
+                disabled={!inputPage || loading || parseInt(inputPage) > totalPages}
                 className={`
-                  px-4 py-2 rounded-lg 
-                  ${
-                    inputPage && inputPage !== currentPage.toString()
-                      ? 'bg-[#009688] text-white hover:bg-[#00796b]' 
-                      : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }
-                  transition-colors duration-300
+                  px-4 py-2 rounded-lg bg-blue-500 text-white
+                  hover:bg-blue-600 transition-colors duration-300
                   disabled:opacity-50 disabled:cursor-not-allowed
                 `}
               >

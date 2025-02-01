@@ -256,6 +256,8 @@ export const getListings = async (req, res, next) => {
       order,
       minPrice,
       maxPrice,
+      bedrooms,
+      baths,
       page = 1,
       limit = 12
     } = req.query;
@@ -271,63 +273,103 @@ export const getListings = async (req, res, next) => {
       query.type = type;
     }
 
-    if (parking === 'true') {
-      query.parking = true;
+    // Add apartment type filter
+    const propertyType = req.query.propertyType;
+    if (propertyType && propertyType !== 'all') {
+      query.apartmentType = propertyType === 'apartment' ? 'Flat/Apartment' : 
+                           propertyType === 'house' ? 'House' :
+                           propertyType === 'cluster' ? 'Cluster' :
+                           propertyType === 'cottage' ? 'Cottage' :
+                           propertyType === 'gardenFlat' ? 'Garden Flat' : propertyType;
     }
 
-    if (furnished === 'true') {
-      query.furnished = true;
-    }
+    // Add amenity filters
+    const amenities = [
+      'parking',
+      'furnished',
+      'backupPower',
+      'backupWaterSupply',
+      'boreholeWater',
+      'electricFence',
+      'walledOrFenced',
+      'electricGate',
+      'builtInCupboards',
+      'fittedKitchen',
+      'solarGeyser'
+    ];
+
+    amenities.forEach(amenity => {
+      if (req.query[amenity] === 'true') {
+        query[amenity] = true;
+      }
+    });
 
     if (offer === 'true') {
       query.offer = true;
     }
 
+    // Add bedrooms filter
+    if (bedrooms) {
+      const bedroomsNum = parseInt(bedrooms, 10);
+      if (bedroomsNum === 4) {
+        // For 4 or more bedrooms
+        query.bedrooms = { $gte: 4 };
+      } else {
+        // For specific number of bedrooms
+        query.bedrooms = bedroomsNum;
+      }
+    }
+
+    // Add baths filter
+    if (baths) {
+      const bathsNum = parseInt(baths, 10);
+      if (bathsNum === 4) {
+        // For 4 or more bathrooms
+        query.bathrooms = { $gte: 4 };
+      } else {
+        // For specific number of bathrooms
+        query.bathrooms = bathsNum;
+      }
+    }
+
     if (searchTerm) {
       query.$or = [
         { name: { $regex: searchTerm, $options: 'i' } },
-        { description: { $regex: searchTerm, $options: 'i' } }
+        { description: { $regex: searchTerm, $options: 'i' } },
+        { address: { $regex: searchTerm, $options: 'i' } }
       ];
     }
 
-    if (minPrice || maxPrice) {
-      query.regularPrice = {};
-      if (minPrice) query.regularPrice.$gte = parseInt(minPrice);
-      if (maxPrice) query.regularPrice.$lte = parseInt(maxPrice);
+    if (minPrice) {
+      query.regularPrice = { $gte: parseFloat(minPrice) };
     }
 
-    // Build sort object
-    let sortObj = {};
-    if (sort === 'price') {
-      sortObj.regularPrice = order === 'desc' ? -1 : 1;
-    } else if (sort === 'createdAt') {
-      sortObj.createdAt = order === 'desc' ? -1 : 1;
+    if (maxPrice) {
+      query.regularPrice = query.regularPrice || {};
+      query.regularPrice.$lte = parseFloat(maxPrice);
+    }
+
+    // Sort
+    const sortOptions = {};
+    if (sort) {
+      sortOptions[sort] = order === 'asc' ? 1 : -1;
     } else {
-      sortObj.createdAt = -1; // Default sort
+      sortOptions.createdAt = -1; // Default sort by most recent
     }
 
-    console.log('Search query:', {
-      query,
-      sort: sortObj,
-      skip,
-      limit: parseInt(limit)
-    });
-
-    // Execute query
     const listings = await Listing.find(query)
-      .sort(sortObj)
+      .sort(sortOptions)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(Number(limit));
 
-    // Get total count for pagination
-    const total = await Listing.countDocuments(query);
+    const totalListings = await Listing.countDocuments(query);
+    const totalPages = Math.ceil(totalListings / limit);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       listings,
-      total,
-      currentPage: parseInt(page),
-      totalPages: Math.ceil(total / limit)
+      totalPages,
+      currentPage: page
     });
   } catch (error) {
     console.error('Get listings error:', error);

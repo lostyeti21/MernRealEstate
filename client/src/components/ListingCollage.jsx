@@ -71,7 +71,8 @@ export default function ListingCollage({ listing }) {
     furnished,
     backupPower,
     backupWaterSupply,
-    boreholeWater
+    boreholeWater,
+    apartmentType
   } = listing;
 
   // Format price with proper checks
@@ -122,13 +123,24 @@ export default function ListingCollage({ listing }) {
         <div className="grid grid-rows-1 h-full p-4">
           {/* Main Image */}
           <Link to={`/listing/${listing._id}`} className="relative h-full w-full overflow-hidden group cursor-pointer">
-            <div
-              className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
-                type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
-              }`}
-              style={{ zIndex: 10 }}
-            >
+            <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold z-10 ${
+              type === 'sale' 
+                ? 'bg-[#009688] text-white' 
+                : 'bg-[#c9f2ac] text-[#333333]'
+            }`}>
               {type === 'sale' ? 'For Sale' : 'For Rent'}
+            </div>
+            <div
+              className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full z-10 ${
+                listing.apartmentType === 'House' ? 'bg-[#f14304]' :
+                listing.apartmentType === 'Flat/Apartment' ? 'bg-[#212620]' :
+                listing.apartmentType === 'Cluster' ? 'bg-[#39594D]' :
+                listing.apartmentType === 'Cottage' ? 'bg-[#A6330A]' :
+                listing.apartmentType === 'Garden Flat' ? 'bg-[#F26457]' :
+                'bg-[#f14304]' // default to House color
+              }`}
+            >
+              {listing.apartmentType || 'House'}
             </div>
             <img 
               src={imageUrls[0]} 
@@ -136,16 +148,22 @@ export default function ListingCollage({ listing }) {
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
               style={{ objectPosition: 'center' }}
             />
-            <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg">
-              <h3 className="text-xl font-semibold text-gray-800">{name}</h3>
-              <div className="flex items-center text-gray-600 mt-1">
-                <MdLocationOn className="text-green-600" />
-                <p>{address}</p>
+            <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
+              <div className="bg-black/30 backdrop-blur-sm p-4 rounded-lg">
+                <h3 className="text-white font-semibold text-lg">
+                  {name}
+                </h3>
+                <div className="flex items-center gap-2 text-white mt-1">
+                  <MdLocationOn className='h-4 w-4 text-green-400' />
+                  <p className="text-sm truncate">{address}</p>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <p className="bg-[#16a348] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                    ${offer ? formatPrice(discountPrice) : formatPrice(regularPrice)}
+                    {type === 'rent' && ' / month'}
+                  </p>
+                </div>
               </div>
-              <p className="mt-2 border border-[#333333] bg-white text-[#333333] w-fit px-3 py-1 rounded-full text-sm font-semibold">
-                ${displayPrice}
-                {type === 'rent' && ' / month'}
-              </p>
             </div>
           </Link>
         </div>

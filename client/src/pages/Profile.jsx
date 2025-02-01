@@ -15,7 +15,7 @@ import { motion } from "framer-motion";
 
 const Profile = () => {
   const fileRef = useRef(null);
-  const { currentUser, loading, error, isRealEstateCompany, realEstateCompany } = useSelector((state) => state.user);
+  const { currentUser, loading, error, isRealEstateCompany, realEstateCompany, isAgent } = useSelector((state) => state.user);
   const navigate = useNavigate();
 
   const [file, setFile] = useState(undefined);
@@ -342,18 +342,22 @@ const Profile = () => {
             Edit your Account
           </h2>
           <div className='text-lg text-slate-500 absolute bottom-0 right-0 z-10 flex items-center'>
-            <span className='mr-2'>Your Rating:</span>
-            {ratingLoading ? (
-              <span className='text-gray-400'>Loading...</span>
-            ) : averageRating ? (
+            {!isAgent && (
               <>
-                {renderStars(averageRating)}
-                <span className='text-sm text-gray-500 ml-2'>
-                  ({averageRating.toFixed(1)})
-                </span>
+                <span className='mr-2'>Your Rating:</span>
+                {ratingLoading ? (
+                  <span className='text-gray-400'>Loading...</span>
+                ) : averageRating ? (
+                  <>
+                    {renderStars(averageRating)}
+                    <span className='text-sm text-gray-500 ml-2'>
+                      ({averageRating.toFixed(1)})
+                    </span>
+                  </>
+                ) : (
+                  <span className='text-gray-400'>Not Rated Yet</span>
+                )}
               </>
-            ) : (
-              <span className='text-gray-400'>Not Rated Yet</span>
             )}
           </div>
         </motion.div>
