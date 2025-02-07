@@ -7,7 +7,7 @@ import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
 import ListingCollage from "../components/ListingCollage";
 import Loader from '../components/Loader';
-import { FaInfoCircle, FaBed, FaBath, FaParking, FaChair, FaBolt, FaWater, FaTint, FaHome, FaKey } from 'react-icons/fa';
+import { FaInfoCircle, FaBed, FaBath, FaParking, FaChair, FaBolt, FaWater, FaTint, FaHome, FaKey, FaFileContract } from 'react-icons/fa';
 import { MdLocationOn } from 'react-icons/md';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
@@ -662,11 +662,21 @@ export default function Home() {
                         {listing.apartmentType || 'House'}
                       </div>
 
-                      <img
-                        src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                        alt='listing cover'
-                        className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                      />
+                      <div className="relative">
+                        <img
+                          src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                          alt='listing cover'
+                          className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                        />
+                        {listing.leaseAgreementUrl && (
+                          <div 
+                            className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
+                            style={{ zIndex: 10 }}
+                          >
+                            <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
+                          </div>
+                        )}
+                      </div>
                       <div className='p-3 flex flex-col gap-2 w-full'>
                         <p className='truncate text-lg font-semibold text-slate-700'>
                           {listing.name}
@@ -755,11 +765,21 @@ export default function Home() {
                           {listing.apartmentType || 'House'}
                         </div>
 
-                        <img
-                          src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                          alt='listing cover'
-                          className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                        />
+                        <div className="relative">
+                          <img
+                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                            alt='listing cover'
+                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                          />
+                          {listing.leaseAgreementUrl && (
+                            <div 
+                              className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
+                              style={{ zIndex: 10 }}
+                            >
+                              <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
+                            </div>
+                          )}
+                        </div>
                         <div className='p-3 flex flex-col gap-2 w-full'>
                           <p className='truncate text-lg font-semibold text-slate-700'>
                             {listing.name}
@@ -861,11 +881,21 @@ export default function Home() {
                           {listing.apartmentType || 'House'}
                         </div>
 
-                        <img
-                          src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                          alt='listing cover'
-                          className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                        />
+                        <div className="relative">
+                          <img
+                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+                            alt='listing cover'
+                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
+                          />
+                          {listing.leaseAgreementUrl && (
+                            <div 
+                              className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
+                              style={{ zIndex: 10 }}
+                            >
+                              <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
+                            </div>
+                          )}
+                        </div>
                         <div className='p-3 flex flex-col gap-2 w-full'>
                           <p className='truncate text-lg font-semibold text-slate-700'>
                             {listing.name}
@@ -979,13 +1009,13 @@ export default function Home() {
               <div className="flex justify-around mb-4">
                 <button
                   onClick={() => handleRentOrBuy("rent")}
-                  className="bg-[#c9f2ac] hover:bg-[#c41212] text-white py-2 px-4 rounded"
+                  className="bg-[#c9f2ac] hover:bg-[#c41212] text-black py-2 px-4 rounded"
                 >
                   Rent
                 </button>
                 <button
                   onClick={() => handleRentOrBuy("sale")}
-                  className="bg-[#c9f2ac] hover:bg-[#c41212] text-white py-2 px-4 rounded"
+                  className="bg-[#c9f2ac] hover:bg-[#c41212] text-black py-2 px-4 rounded"
                 >
                   Buy
                 </button>
@@ -1027,7 +1057,7 @@ export default function Home() {
                 )}
                 <button
                   onClick={handlePriceSubmit}
-                  className="mt-6 bg-[#c9f2ac] hover:bg-[#c41212] text-white py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
+                  className="mt-6 bg-[#c9f2ac] hover:bg-[#c41212] text-black py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
                 >
                   Search Listings
                 </button>

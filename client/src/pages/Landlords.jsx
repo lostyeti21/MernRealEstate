@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { FaFilter, FaStar } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 const Landlords = () => {
   const [landlords, setLandlords] = useState([]);
@@ -8,13 +10,15 @@ const Landlords = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showSortPopup, setShowSortPopup] = useState(false);
+  const [sortCriteria, setSortCriteria] = useState('overallRating');
 
   useEffect(() => {
     const fetchLandlords = async () => {
       try {
-        const res = await fetch("/api/user/landlords");
-        if (!res.ok) throw new Error("Failed to fetch landlords.");
-        const data = await res.json();
+        const response = await fetch(`/api/user/landlords?sort=${sortCriteria}`);
+        if (!response.ok) throw new Error("Failed to fetch landlords.");
+        const data = await response.json();
         setLandlords(data);
         setFilteredLandlords(data); // Initialize filtered landlords
         setLoading(false);
@@ -26,7 +30,7 @@ const Landlords = () => {
     };
 
     fetchLandlords();
-  }, []);
+  }, [sortCriteria]);
 
   const handleSearch = (e) => {
     const query = e.target.value.trim().toLowerCase();
@@ -49,6 +53,62 @@ const Landlords = () => {
         ★
       </span>
     ));
+  };
+
+  const sortOptions = [
+    { 
+      value: 'overallRating', 
+      label: 'Overall Rating', 
+      icon: <FaStar className="inline mr-2" /> 
+    },
+    { 
+      value: 'responseTime', 
+      label: 'Response Time', 
+      icon: <FaStar className="inline mr-2" /> 
+    },
+    { 
+      value: 'maintenance', 
+      label: 'Maintenance', 
+      icon: <FaStar className="inline mr-2" /> 
+    },
+    { 
+      value: 'experience', 
+      label: 'Experience', 
+      icon: <FaStar className="inline mr-2" /> 
+    }
+  ];
+
+  const SortPopup = () => {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-80">
+          <h2 className="text-xl font-bold mb-4 text-center">Sort Landlords</h2>
+          
+          {sortOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                setSortCriteria(option.value);
+                setShowSortPopup(false);
+              }}
+              className={`w-full text-left px-4 py-2 hover:bg-gray-100 rounded flex items-center ${
+                sortCriteria === option.value ? 'bg-blue-50 text-blue-600' : ''
+              }`}
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          ))}
+          
+          <button
+            onClick={() => setShowSortPopup(false)}
+            className="w-full mt-4 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
   };
 
   if (loading)
@@ -95,7 +155,7 @@ const Landlords = () => {
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-6"
+          className="mb-6 flex justify-between"
         >
           <input
             type="text"
@@ -104,6 +164,12 @@ const Landlords = () => {
             onChange={handleSearch}
             className="w-full p-3 border rounded-md focus:outline-none focus:ring focus:ring-blue-500"
           />
+          <button 
+            onClick={() => setShowSortPopup(true)}
+            className="text-gray-600 hover:text-blue-600 transition-colors ml-4"
+          >
+            <FaFilter className="w-6 h-6" />
+          </button>
         </motion.div>
 
         {filteredLandlords.length === 0 ? (
@@ -151,6 +217,7 @@ const Landlords = () => {
           </motion.ul>
         )}
       </div>
+      {showSortPopup && <SortPopup />}
     </motion.div>
   );
 };

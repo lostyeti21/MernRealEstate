@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import Loader from '../components/Loader';
+import { FaFileContract } from 'react-icons/fa';
 
 export default function UpdateListing() {
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const params = useParams();
   const [files, setFiles] = useState([]);
+  const [leaseAgreementFile, setLeaseAgreementFile] = useState(null);
+  const [leaseAgreementError, setLeaseAgreementError] = useState('');
+  const [uploadingLeaseAgreement, setUploadingLeaseAgreement] = useState(false);
   const [formData, setFormData] = useState({
     imageUrls: [],
     name: '',
@@ -24,7 +29,22 @@ export default function UpdateListing() {
     m2: 0,
     backupPower: false,
     backupWaterSupply: false,
-    boreholeWater: false
+    boreholeWater: false,
+    apartmentType: 'House',
+    lounges: 1,
+    electricFence: false,
+    walledOrFenced: false,
+    electricGate: false,
+    builtInCupboards: false,
+    fittedKitchen: false,
+    solarGeyser: false,
+    gym: false,
+    pool: false,
+    garden: false,
+    balcony: false,
+    airConditioning: false,
+    wifi: false,
+    leaseAgreementUrl: '', 
   });
   const [imageUploadError, setImageUploadError] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -50,7 +70,6 @@ export default function UpdateListing() {
         const listing = data.listing;
         console.log('Fetched listing data:', listing);
 
-        // Ensure all required fields are present with default values
         setFormData({
           imageUrls: listing.imageUrls || [],
           name: listing.name || '',
@@ -68,6 +87,21 @@ export default function UpdateListing() {
           backupPower: listing.backupPower || false,
           backupWaterSupply: listing.backupWaterSupply || false,
           boreholeWater: listing.boreholeWater || false,
+          apartmentType: listing.apartmentType || 'House',
+          lounges: listing.lounges || 1,
+          electricFence: listing.electricFence || false,
+          walledOrFenced: listing.walledOrFenced || false,
+          electricGate: listing.electricGate || false,
+          builtInCupboards: listing.builtInCupboards || false,
+          fittedKitchen: listing.fittedKitchen || false,
+          solarGeyser: listing.solarGeyser || false,
+          gym: listing.gym || false,
+          pool: listing.pool || false,
+          garden: listing.garden || false,
+          balcony: listing.balcony || false,
+          airConditioning: listing.airConditioning || false,
+          wifi: listing.wifi || false,
+          leaseAgreementUrl: listing.leaseAgreementUrl || '',
         });
       } catch (error) {
         console.error('Error fetching listing:', error);
@@ -79,6 +113,101 @@ export default function UpdateListing() {
 
     fetchListing();
   }, [params.listingId]);
+
+  const handleLeaseAgreementUpload = async (e) => {
+    const file = e.target.files[0];
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const maxSize = 2 * 1024 * 1024; 
+
+    if (!file) {
+      setLeaseAgreementError('');
+      setLeaseAgreementFile(null);
+      return;
+    }
+
+    if (!allowedTypes.includes(file.type)) {
+      setLeaseAgreementError('Only PDF and DOCX files are allowed');
+      setLeaseAgreementFile(null);
+      return;
+    }
+
+    if (file.size > maxSize) {
+      setLeaseAgreementError('File must be 2MB or smaller');
+      setLeaseAgreementFile(null);
+      return;
+    }
+
+    try {
+      setUploadingLeaseAgreement(true);
+      setLeaseAgreementError('');
+
+      const leaseAgreementUrl = await storeLeasePdf(file);
+      
+      setFormData(prevData => ({
+        ...prevData,
+        leaseAgreementUrl: leaseAgreementUrl
+      }));
+      
+      setLeaseAgreementFile(null);
+    } catch (error) {
+      setLeaseAgreementError(error.message || 'Failed to upload lease agreement');
+    } finally {
+      setUploadingLeaseAgreement(false);
+    }
+  };
+
+  const storeLeasePdf = async (file) => {
+    const formData = new FormData();
+    formData.append('document', file);
+
+    try {
+      const res = await fetch('/api/upload/document', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      console.log('Upload Response:', {
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries(res.headers.entries())
+      });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const errorText = await res.text();
+        console.error('Non-JSON response:', errorText);
+        throw new Error(`Server returned non-JSON response: ${res.status} ${res.statusText}`);
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Document upload failed');
+      }
+
+      if (!data.url || typeof data.url !== 'string') {
+        throw new Error('Invalid URL returned from server');
+      }
+
+      return data.url;
+    } catch (error) {
+      console.error('Lease Agreement upload error:', error);
+      
+      if (error.name === 'SyntaxError') {
+        throw new Error('Received invalid JSON from server. Please check server logs.');
+      }
+      
+      throw error;
+    }
+  };
+
+  const handleRemoveLeaseAgreement = () => {
+    setFormData(prevData => ({
+      ...prevData,
+      leaseAgreementUrl: ''
+    }));
+  };
 
   const handleImageSubmit = async (e) => {
     e.preventDefault();
@@ -160,7 +289,19 @@ export default function UpdateListing() {
       e.target.id === 'offer' ||
       e.target.id === 'backupPower' ||
       e.target.id === 'backupWaterSupply' ||
-      e.target.id === 'boreholeWater'
+      e.target.id === 'boreholeWater' ||
+      e.target.id === 'electricFence' ||
+      e.target.id === 'walledOrFenced' ||
+      e.target.id === 'electricGate' ||
+      e.target.id === 'builtInCupboards' ||
+      e.target.id === 'fittedKitchen' ||
+      e.target.id === 'solarGeyser' ||
+      e.target.id === 'gym' ||
+      e.target.id === 'pool' ||
+      e.target.id === 'garden' ||
+      e.target.id === 'balcony' ||
+      e.target.id === 'airConditioning' ||
+      e.target.id === 'wifi'
     ) {
       setFormData({
         ...formData,
@@ -183,61 +324,84 @@ export default function UpdateListing() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (formData.imageUrls.length < 1) {
-        setError('You must upload at least one image');
+      if (!formData.imageUrls || formData.imageUrls.length < 1) {
+        setError('You must upload at least one image before creating a listing');
         return;
       }
-      
-      if (+formData.regularPrice < +formData.discountPrice) {
-        setError('Discount price must be lower than regular price');
+
+      const requiredFields = [
+        'name', 'description', 'address', 'regularPrice', 
+        'discountPrice', 'bathrooms', 'bedrooms', 'type', 
+        'apartmentType', 'm2', 'lounges'
+      ];
+
+      const missingFields = requiredFields.filter(field => {
+        const value = formData[field];
+        return value === undefined || value === null || value === '';
+      });
+
+      if (missingFields.length > 0) {
+        setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
         return;
       }
 
       setLoading(true);
-      setError(null);
+      setError(false);
 
-      // Get the original listing to check ownership
       const getListingRes = await fetch(`/api/listing/get/${params.listingId}`);
       const listingData = await getListingRes.json();
-      
-      if (!listingData.success) {
-        setError('Could not verify listing ownership');
-        return;
-      }
 
-      const listing = listingData.listing;
-      
-      // Verify ownership - handle both agent and regular user IDs
-      const currentUserId = currentUser._id || currentUser.id;
-      if (listing.userRef !== currentUserId) {
-        setError('You can only update your own listings!');
-        return;
+      const updateData = {
+        ...formData,
+        userRef: currentUser._id,
+        userModel: 'User', 
+        imageUrls: Array.isArray(formData.imageUrls) ? formData.imageUrls : [],
+        
+        furnished: !!formData.furnished,
+        parking: !!formData.parking,
+        offer: !!formData.offer,
+        backupPower: !!formData.backupPower,
+        backupWaterSupply: !!formData.backupWaterSupply,
+        boreholeWater: !!formData.boreholeWater,
+        electricFence: !!formData.electricFence,
+        walledOrFenced: !!formData.walledOrFenced,
+        electricGate: !!formData.electricGate,
+        builtInCupboards: !!formData.builtInCupboards,
+        fittedKitchen: !!formData.fittedKitchen,
+        solarGeyser: !!formData.solarGeyser,
+        gym: !!formData.gym,
+        pool: !!formData.pool,
+        garden: !!formData.garden,
+        balcony: !!formData.balcony,
+        airConditioning: !!formData.airConditioning,
+        wifi: !!formData.wifi,
+      };
+
+      if (formData.leaseAgreementUrl) {
+        updateData.leaseAgreementUrl = formData.leaseAgreementUrl;
       }
 
       const res = await fetch(`/api/listing/update/${params.listingId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentUser.token}`
         },
-        body: JSON.stringify({
-          ...formData,
-          userRef: currentUserId,
-          userModel: currentUser.isAgent ? 'Agent' : 'User'
-        })
+        body: JSON.stringify(updateData),
       });
 
       const data = await res.json();
+      setLoading(false);
 
       if (!res.ok) {
         setError(data.message || 'Failed to update listing');
         return;
       }
 
-      navigate(`/listing/${data.listing._id}`);
+      // Use the original listing ID if not returned in the response
+      const listingId = data._id || params.listingId;
+      navigate(`/listing/${listingId}`);
     } catch (error) {
-      setError(error.message || 'Something went wrong updating the listing');
-    } finally {
+      setError(error.message);
       setLoading(false);
     }
   };
@@ -364,6 +528,126 @@ export default function UpdateListing() {
                 />
                 <span>Borehole Water</span>
               </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='electricFence'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.electricFence}
+                />
+                <span>Electric Fence</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='walledOrFenced'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.walledOrFenced}
+                />
+                <span>Walled or Fenced</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='electricGate'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.electricGate}
+                />
+                <span>Electric Gate</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='builtInCupboards'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.builtInCupboards}
+                />
+                <span>Built-in Cupboards</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='fittedKitchen'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.fittedKitchen}
+                />
+                <span>Fitted Kitchen</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='solarGeyser'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.solarGeyser}
+                />
+                <span>Solar Geyser</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='gym'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.gym}
+                />
+                <span>Gym</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='pool'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.pool}
+                />
+                <span>Pool</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='garden'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.garden}
+                />
+                <span>Garden</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='balcony'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.balcony}
+                />
+                <span>Balcony</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='airConditioning'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.airConditioning}
+                />
+                <span>Air Conditioning</span>
+              </div>
+              <div className='flex gap-2'>
+                <input
+                  type='checkbox'
+                  id='wifi'
+                  className='w-5'
+                  onChange={handleChange}
+                  checked={formData.wifi}
+                />
+                <span>Wifi</span>
+              </div>
             </div>
             <div className='flex flex-wrap gap-6'>
               <div className='flex items-center gap-2'>
@@ -442,6 +726,19 @@ export default function UpdateListing() {
                   <span className='text-xs'>(m²)</span>
                 </div>
               </div>
+              <div className='flex items-center gap-2'>
+                <input
+                  type='number'
+                  id='lounges'
+                  min='1'
+                  max='10'
+                  required
+                  className='p-3 border border-gray-300 rounded-lg'
+                  onChange={handleChange}
+                  value={formData.lounges}
+                />
+                <p>Lounges</p>
+              </div>
             </div>
           </div>
           <div className='flex flex-col flex-1 gap-4'>
@@ -492,6 +789,39 @@ export default function UpdateListing() {
                   </button>
                 </div>
               ))}
+            <div className='flex flex-col gap-4'>
+              <p className='font-semibold'>
+                Lease Agreement:
+              </p>
+              <input
+                type='file'
+                id='leaseAgreement'
+                accept='application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                onChange={handleLeaseAgreementUpload}
+              />
+              {leaseAgreementError && (
+                <p className='text-red-700 text-sm'>{leaseAgreementError}</p>
+              )}
+              {formData.leaseAgreementUrl && (
+                <div className='flex justify-between p-3 border items-center'>
+                  <p>Lease Agreement:</p>
+                  <a
+                    href={formData.leaseAgreementUrl}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  >
+                    View
+                  </a>
+                  <button
+                    type='button'
+                    onClick={handleRemoveLeaseAgreement}
+                    className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75'
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               disabled={loading || uploading}
               className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80'

@@ -16,10 +16,9 @@ import {
   FaQuestionCircle,
   FaTimes,
   FaMoneyBillWave,
-  FaBuilding,  // Add for apartment
-  FaWarehouse,  // Add for warehouse
-  FaCity,       // Add for commercial
-  FaTree        // Add for land
+  FaBuilding,
+  FaWindowRestore,  // Add popup icon
+  FaChevronDown
 } from 'react-icons/fa';
 import { debounce } from 'lodash';
 import LoadingAnimation from '../components/LoadingAnimation';
@@ -31,29 +30,31 @@ export default function Search() {
   const location = useLocation();
   const [showPopup, setShowPopup] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  
+  const [showPropertyTypePopup, setShowPropertyTypePopup] = useState(false);
+  const [showAmenitiesDropdown, setShowAmenitiesDropdown] = useState(false);
+
   const initialState = {
     searchTerm: '',
     type: 'all',
-    propertyType: 'all',  // Add propertyType to initial state
-    parking: false,
-    furnished: false,
-    backupPower: false,
-    backupWaterSupply: false,
-    boreholeWater: false,
+    propertyType: 'all',
+    parking: null,
+    furnished: null,
+    backupPower: null,
+    backupWaterSupply: null,
+    boreholeWater: null,
+    electricFence: null,
+    walledOrFenced: null,
+    electricGate: null,
+    builtInCupboards: null,
+    fittedKitchen: null,
+    solarGeyser: null,
+    bedrooms: null,
+    bathrooms: null,
     offer: false,
     sort: 'createdAt',
     order: 'desc',
     minPrice: '',
     maxPrice: '',
-    bedrooms: '', 
-    baths: '', 
-    electricFence: false,
-    walledOrFenced: false,
-    electricGate: false,
-    builtInCupboards: false,
-    fittedKitchen: false,
-    solarGeyser: false,
   };
 
   const [sidebardata, setSidebardata] = useState(initialState);
@@ -64,6 +65,28 @@ export default function Search() {
   const listingsPerPage = 12;
   const [inputPage, setInputPage] = useState('');
   const [error, setError] = useState('');
+
+  const togglePropertyTypePopup = (e) => {
+    e.preventDefault();
+    setShowPropertyTypePopup(!showPropertyTypePopup);
+  };
+
+  const handlePropertyTypeSelect = (propertyType) => {
+    setSidebardata(prevState => ({
+      ...prevState,
+      propertyType: propertyType
+    }));
+    setShowPropertyTypePopup(false);
+  };
+
+  const propertyTypeOptions = [
+    { type: 'all', icon: <FaGlobe />, label: 'All Properties' },
+    { type: 'house', icon: <FaHome />, label: 'House' },
+    { type: 'apartment', icon: <FaBuilding />, label: 'Apartment' },
+    { type: 'cluster', icon: <FaHome />, label: 'Cluster' },
+    { type: 'cottage', icon: <FaHome />, label: 'Cottage' },
+    { type: 'gardenFlat', icon: <FaHome />, label: 'Garden Flat' },
+  ];
 
   const amenityIcons = {
     parking: null, 
@@ -92,9 +115,25 @@ export default function Search() {
     cluster: null,
     cottage: null,
     gardenFlat: null,
-    commercial: null, // Add commercial
-    land: null, // Add land
-    warehouse: null, // Add warehouse
+  };
+
+  const amenitiesList = [
+    { key: 'parking', label: 'Parking' },
+    { key: 'furnished', label: 'Furnished' },
+    { key: 'backupPower', label: 'Backup Power' },
+    { key: 'backupWaterSupply', label: 'Backup Water Supply' },
+    { key: 'boreholeWater', label: 'Borehole Water' },
+    { key: 'electricFence', label: 'Electric Fence' },
+    { key: 'walledOrFenced', label: 'Walled/Fenced' },
+    { key: 'electricGate', label: 'Electric Gate' },
+    { key: 'builtInCupboards', label: 'Built-in Cupboards' },
+    { key: 'fittedKitchen', label: 'Fitted Kitchen' },
+    { key: 'solarGeyser', label: 'Solar Geyser' }
+  ];
+
+  const toggleAmenitiesDropdown = (e) => {
+    e.preventDefault();
+    setShowAmenitiesDropdown(!showAmenitiesDropdown);
   };
 
   // Add batch processing for impressions
@@ -122,72 +161,37 @@ export default function Search() {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
-    
-    const searchTermFromUrl = urlParams.get('searchTerm');
-    const typeFromUrl = urlParams.get('type');
-    const propertyTypeFromUrl = urlParams.get('propertyType');
-    const sortFromUrl = urlParams.get('sort');
-    const orderFromUrl = urlParams.get('order');
-    const bedroomsFromUrl = urlParams.get('bedrooms');
-    const bathsFromUrl = urlParams.get('baths');
-    const minPriceFromUrl = urlParams.get('minPrice');
-    const maxPriceFromUrl = urlParams.get('maxPrice');
-    const pageFromUrl = urlParams.get('page');
+    const searchTermFromParams = urlParams.get('searchTerm');
+    const typeFromParams = urlParams.get('type');
+    const propertyTypeFromParams = urlParams.get('propertyType');
+    const bedroomsFromParams = urlParams.get('bedrooms');
+    const bathroomsFromParams = urlParams.get('bathrooms');
 
-    // Get amenity values from URL
-    const amenities = [
-      'parking',
-      'furnished',
-      'offer',
-      'backupPower',
-      'backupWaterSupply',
-      'boreholeWater',
-      'electricFence',
-      'walledOrFenced',
-      'electricGate',
-      'builtInCupboards',
-      'fittedKitchen',
-      'solarGeyser'
+    const amenitiesKeys = [
+      'parking', 'furnished', 'backupPower', 'backupWaterSupply', 
+      'boreholeWater', 'electricFence', 'walledOrFenced', 
+      'electricGate', 'builtInCupboards', 'fittedKitchen', 'solarGeyser'
     ];
 
-    const amenityValues = {};
-    amenities.forEach(amenity => {
-      amenityValues[amenity] = urlParams.get(amenity) === 'true';
+    const initialSidebarData = {
+      searchTerm: searchTermFromParams || '',
+      type: typeFromParams || 'all',
+      propertyType: propertyTypeFromParams || 'all',
+      bedrooms: bedroomsFromParams ? Number(bedroomsFromParams) : null,
+      bathrooms: bathroomsFromParams ? Number(bathroomsFromParams) : null,
+    };
+
+    // Add amenities to initialSidebarData
+    amenitiesKeys.forEach(key => {
+      initialSidebarData[key] = urlParams.get(key) === 'true';
     });
 
-    if (
-      searchTermFromUrl ||
-      typeFromUrl ||
-      propertyTypeFromUrl ||
-      sortFromUrl ||
-      orderFromUrl ||
-      bedroomsFromUrl ||
-      bathsFromUrl ||
-      minPriceFromUrl ||
-      maxPriceFromUrl ||
-      pageFromUrl ||
-      Object.values(amenityValues).some(value => value)
-    ) {
-      setSidebardata({
-        searchTerm: searchTermFromUrl || '',
-        type: typeFromUrl || 'all',
-        propertyType: propertyTypeFromUrl || 'all',
-        sort: sortFromUrl || 'createdAt',
-        order: orderFromUrl || 'desc',
-        bedrooms: bedroomsFromUrl || '',
-        baths: bathsFromUrl || '',
-        minPrice: minPriceFromUrl || '',
-        maxPrice: maxPriceFromUrl || '',
-        ...amenityValues
-      });
+    setSidebardata(initialSidebarData);
+    setIsInitialized(true);
+  }, [location.search]);
 
-      // Update current page from URL
-      if (pageFromUrl) {
-        setCurrentPage(Number(pageFromUrl));
-      } else {
-        setCurrentPage(1);
-      }
-    }
+  useEffect(() => {
+    if (!isInitialized) return;
 
     const fetchListings = async () => {
       setLoading(true);
@@ -236,7 +240,51 @@ export default function Search() {
     };
 
     fetchListings();
-  }, [location.search]);
+  }, [isInitialized, location.search]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const popupElement = document.querySelector('.property-type-popup');
+      const buttonElement = document.querySelector('.property-type-button');
+      
+      if (
+        showPropertyTypePopup && 
+        popupElement && 
+        !popupElement.contains(event.target) &&
+        buttonElement && 
+        !buttonElement.contains(event.target)
+      ) {
+        setShowPropertyTypePopup(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showPropertyTypePopup]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const dropdownElement = document.querySelector('.amenities-dropdown');
+      const buttonElement = document.querySelector('.amenities-dropdown-button');
+      
+      if (
+        showAmenitiesDropdown && 
+        dropdownElement && 
+        !dropdownElement.contains(event.target) &&
+        buttonElement && 
+        !buttonElement.contains(event.target)
+      ) {
+        setShowAmenitiesDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAmenitiesDropdown]);
 
   const handleChange = (e) => {
     if (e.target.id === 'searchTerm') {
@@ -352,10 +400,10 @@ export default function Search() {
       urlParams.delete('bedrooms');
     }
 
-    if (sidebardata.baths) {
-      urlParams.set('baths', sidebardata.baths);
+    if (sidebardata.bathrooms) {
+      urlParams.set('bathrooms', sidebardata.bathrooms);
     } else {
-      urlParams.delete('baths');
+      urlParams.delete('bathrooms');
     }
 
     // Handle price range
@@ -493,21 +541,63 @@ export default function Search() {
         </div>
       )}
       
+      {showPropertyTypePopup && (
+        <div className="fixed top-0 left-0 w-full h-full flex justify-center items-center bg-black bg-opacity-50 z-50">
+          <div 
+            className="bg-white p-6 rounded-lg shadow-lg w-96 relative property-type-popup 
+                       transform origin-top transition-all duration-300 ease-in-out 
+                       scale-y-100 opacity-100 
+                       animate-dropdown-enter"
+          >
+            <button
+              onClick={togglePropertyTypePopup}
+              className="absolute top-2 right-2 text-gray-600 hover:text-black"
+            >
+              <FaTimes />
+            </button>
+            <h2 className="text-lg font-bold mb-4">Select Property Type</h2>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {propertyTypeOptions.map((option) => (
+                <div 
+                  key={option.type}
+                  className={`
+                    px-4 py-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out
+                    text-sm
+                    ${sidebardata.propertyType === option.type 
+                      ? 'bg-[#009688] text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }
+                  `}
+                  onClick={() => handlePropertyTypeSelect(option.type)}
+                >
+                  {option.type === 'all' ? 'All Properties' : 
+                   option.type === 'house' ? 'House' : 
+                   option.type === 'apartment' ? 'Apartment' : 
+                   option.type === 'cluster' ? 'Cluster' : 
+                   option.type === 'cottage' ? 'Cottage' : 
+                   option.type === 'gardenFlat' ? 'Garden Flat' : ''}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="p-7 border-b-2 md:border-r-2 md:min-h-screen md:w-[34%] lg:w-[26%] gap-8">
         <form onSubmit={handleSubmit} className="flex flex-col gap-8">
           <div className="input-container w-[320.76px] relative">
             <input
               type="text"
               id="searchTerm"
-              placeholder="SEARCH..."
+              placeholder="Search By City/Suburb"
               className="
-                w-full h-10 p-2.5 
-                transition-all duration-200 linear 
-                border-2.5 border-black 
-                text-sm uppercase 
-                tracking-[2px]
+                w-full 
+                p-3 
+                border 
+                border-gray-300 
+                rounded-none 
                 focus:outline-none 
-                focus:border-0.5 
+                focus:border-black 
                 focus:shadow-[-5px_-5px_0px_black]
               "
               value={sidebardata.searchTerm}
@@ -541,17 +631,18 @@ export default function Search() {
 
           {/* Type Filter */}
           <div className="flex flex-col gap-2">
-            <label className="font-semibold">Type:</label>
-            <div className="flex flex-wrap gap-2">
-              {['all', 'sale', 'rent'].map((type) => (
+            <label className="font-semibold">Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {['all', 'rent', 'sale'].map((type) => (
                 <div 
                   key={type}
                   className={`
-                    flex items-center gap-2 px-3 py-1 rounded-full cursor-pointer transition-all duration-300 ease-in-out
+                    flex items-center justify-center w-full px-3 py-1 cursor-pointer transition-all duration-300 ease-in-out
                     ${sidebardata.type === type 
-                      ? 'bg-[#F20505] text-white hover:bg-[#c41212]' 
+                      ? 'bg-[#009688] text-white' 
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                     }
+                    rounded-none
                   `}
                   onClick={() => {
                     setSidebardata(prevData => ({
@@ -559,7 +650,7 @@ export default function Search() {
                       type: type
                     }));
                     
-                    // Update URL and trigger search
+                    // Trigger search immediately
                     const urlParams = new URLSearchParams(window.location.search);
                     if (type === 'all') {
                       urlParams.delete('type');
@@ -570,9 +661,10 @@ export default function Search() {
                     navigate(`/search?${searchQuery}`);
                   }}
                 >
-                  <span className="text-sm">
+                  <span>
                     {type === 'all' ? 'All' : 
-                     type === 'sale' ? 'For Sale' : 'For Rent'}
+                     type === 'rent' ? 'Rent' : 
+                     'Sale'}
                   </span>
                 </div>
               ))}
@@ -581,200 +673,216 @@ export default function Search() {
 
           {/* Property Type Filter */}
           <div className="flex flex-col gap-2">
-            <label className="font-semibold">Property Type:</label>
-            <div className="flex flex-wrap gap-2">
-              {['all', 'house', 'apartment', 'cluster', 'cottage', 'gardenFlat'].map((propertyType) => (
-                <div 
-                  key={propertyType}
-                  className={`
-                    flex items-center gap-2 px-3 py-1 rounded-full cursor-pointer transition-all duration-300 ease-in-out
-                    ${sidebardata.propertyType === propertyType 
-                      ? 'bg-[#F20505] text-white hover:bg-[#c41212]' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }
-                  `}
-                  onClick={() => {
-                    setSidebardata(prevData => ({
-                      ...prevData,
-                      propertyType: propertyType
-                    }));
-                    
-                    // Trigger search immediately
-                    const urlParams = new URLSearchParams(window.location.search);
-                    if (propertyType === 'all') {
-                      urlParams.delete('propertyType');
-                    } else {
-                      urlParams.set('propertyType', propertyType);
-                    }
-                    const searchQuery = urlParams.toString();
-                    navigate(`/search?${searchQuery}`);
-                  }}
-                >
-                  <span className="text-sm">
-                    {propertyType === 'all' ? 'All' : 
-                     propertyType === 'house' ? 'House' : 
-                     propertyType === 'apartment' ? 'Flat/Apartment' : 
-                     propertyType === 'cluster' ? 'Cluster' : 
-                     propertyType === 'cottage' ? 'Cottage' : 'Garden Flat'}
-                  </span>
-                </div>
-              ))}
+            <label className="font-semibold">Property Type</label>
+            <div className="flex flex-col items-start gap-1">
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  togglePropertyTypePopup(e);
+                }}
+                className="bg-[#009688] text-white px-4 py-2 transition-all duration-300 ease-in-out 
+                           hover:bg-[#00796b] hover:shadow-md cursor-pointer 
+                           active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-300
+                           w-[320.76px] rounded-none flex items-center justify-between"
+              >
+                {sidebardata.propertyType === 'all' ? 'All Properties' : 
+                 sidebardata.propertyType === 'house' ? 'House' : 
+                 sidebardata.propertyType === 'apartment' ? 'Apartment' : 
+                 sidebardata.propertyType === 'cluster' ? 'Cluster' : 
+                 sidebardata.propertyType === 'cottage' ? 'Cottage' : 
+                 sidebardata.propertyType === 'gardenFlat' ? 'Garden Flat' : ''}
+                <FaWindowRestore className={`ml-2 transition-transform duration-300 ${showPropertyTypePopup ? 'rotate-180' : ''}`} />
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="font-semibold">Amenities:</label>
-            <div className="grid grid-cols-2 gap-2">
-              {['parking', 'furnished', 'backupPower', 'backupWaterSupply', 'boreholeWater', 'electricFence', 'walledOrFenced', 'electricGate', 'builtInCupboards', 'fittedKitchen', 'solarGeyser'].map((amenity) => (
-                <div 
-                  key={amenity}
-                  className={`
-                    flex items-center gap-2 px-3 py-1 rounded-full cursor-pointer transition-all duration-300 ease-in-out
-                    ${sidebardata[amenity] 
-                      ? 'bg-[#F20505] text-white hover:bg-[#c41212]' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }
-                  `}
-                  onClick={() => {
-                    // Update sidebardata
+          {/* Bedrooms and Baths Filters */}
+          <div className="flex gap-4 w-[320.76px]">
+            <div className="flex flex-col gap-2 flex-1 relative">
+              <label className="font-semibold">Bedrooms</label>
+              <div className="relative">
+                <select
+                  id="bedrooms"
+                  className="w-full px-3 py-2 bg-[#e4e7eb] text-black rounded-none appearance-none pr-8"
+                  value={sidebardata.bedrooms || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? null : Number(e.target.value);
                     setSidebardata(prevData => ({
                       ...prevData,
-                      [amenity]: !prevData[amenity]
+                      bedrooms: value
                     }));
-
-                    // Update URL and trigger search
-                    const urlParams = new URLSearchParams(window.location.search);
-                    if (!sidebardata[amenity]) {
-                      urlParams.set(amenity, 'true');
-                    } else {
-                      urlParams.delete(amenity);
-                    }
-                    const searchQuery = urlParams.toString();
-                    navigate(`/search?${searchQuery}`);
                   }}
                 >
-                  <span className="text-sm whitespace-nowrap overflow-hidden">
-                    {amenity === 'backupWaterSupply' ? 'Backup Water' : 
-                     amenity === 'backupPower' ? 'Backup Power' :
-                     amenity === 'boreholeWater' ? 'Borehole Water' :
-                     amenity === 'electricFence' ? 'Electric Fence' :
-                     amenity === 'walledOrFenced' ? 'Walled/Fenced' :
-                     amenity === 'electricGate' ? 'Electric Gate' :
-                     amenity === 'builtInCupboards' ? 'Built-in Cupboards' :
-                     amenity === 'fittedKitchen' ? 'Fitted Kitchen' :
-                     amenity === 'solarGeyser' ? 'Solar Geyser' :
-                     amenity.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
-                  </span>
-                </div>
-              ))}
+                  <option value="">Any</option>
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <option key={num} value={num}>
+                      {num === 5 ? '5+' : num}
+                    </option>
+                  ))}
+                </select>
+                <FaChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-black" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 flex-1 relative">
+              <label className="font-semibold">Bathrooms</label>
+              <div className="relative">
+                <select
+                  id="bathrooms"
+                  className="w-full px-3 py-2 bg-[#e4e7eb] text-black rounded-none appearance-none pr-8"
+                  value={sidebardata.bathrooms || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? null : Number(e.target.value);
+                    setSidebardata(prevData => ({
+                      ...prevData,
+                      bathrooms: value
+                    }));
+                  }}
+                >
+                  <option value="">Any</option>
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <option key={num} value={num}>
+                      {num === 5 ? '5+' : num}
+                    </option>
+                  ))}
+                </select>
+                <FaChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-black" />
+              </div>
             </div>
           </div>
 
-          {/* Bedrooms Filter */}
-          <div className='flex items-center gap-2'>
-            <label className='font-semibold'>Bedrooms:</label>
-            <select 
-              id='bedrooms'
-              className='border rounded-lg p-2'
-              value={sidebardata.bedrooms}
-              onChange={(e) => {
-                setSidebardata({
-                  ...sidebardata,
-                  bedrooms: e.target.value
-                });
-              }}
-            >
-              <option value=''>Any</option>
-              <option value='1'>1 Bedroom</option>
-              <option value='2'>2 Bedrooms</option>
-              <option value='3'>3 Bedrooms</option>
-              <option value='4'>4+ Bedrooms</option>
-            </select>
+          {/* Amenities Dropdown */}
+          <div className="flex flex-col gap-2 mt-4">
+            <label className="font-semibold">Amenities</label>
+            <div className="relative w-[320.76px] amenities-dropdown-button">
+              <button 
+                onClick={toggleAmenitiesDropdown}
+                className="amenities-dropdown-button bg-[#e4e7eb] text-black px-4 py-2 w-full rounded-none transition-all duration-300 ease-in-out 
+                           hover:bg-[#d1d5db] hover:shadow-md cursor-pointer 
+                           active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-300
+                           flex items-center justify-between"
+              >
+                <span>Select</span>
+                <FaChevronDown className={`ml-2 transition-transform duration-300 ${showAmenitiesDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showAmenitiesDropdown && (
+                <div 
+                  className="amenities-dropdown absolute z-50 w-full bg-white border border-gray-200 shadow-lg 
+                             transform origin-top transition-all duration-300 ease-in-out 
+                             scale-y-100 opacity-100 
+                             animate-dropdown-enter"
+                >
+                  <div className="flex flex-wrap gap-2 p-4">
+                    {amenitiesList.map((amenity) => (
+                      <div 
+                        key={amenity.key}
+                        className={`
+                          px-4 py-2 rounded-full cursor-pointer transition-all duration-300 ease-in-out
+                          text-sm
+                          ${sidebardata[amenity.key] 
+                            ? 'bg-[#009688] text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }
+                        `}
+                        onClick={() => {
+                          setSidebardata(prevData => ({
+                            ...prevData,
+                            [amenity.key]: !prevData[amenity.key]
+                          }));
+                        }}
+                      >
+                        {amenity.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Baths Filter */}
-          <div className='flex items-center gap-2'>
-            <label className='font-semibold'>Baths:</label>
-            <select 
-              id='baths'
-              className='border rounded-lg p-2'
-              value={sidebardata.baths}
+          <div className="flex items-center gap-4">
+            <label className="font-semibold whitespace-nowrap">Sort:</label>
+            <select
               onChange={(e) => {
-                setSidebardata({
-                  ...sidebardata,
-                  baths: e.target.value
-                });
+                const [sort, order] = e.target.value.split('_');
+                setSidebardata(prevData => ({
+                  ...prevData,
+                  sort,
+                  order
+                }));
+                
+                // Trigger search with new sort parameters
+                const urlParams = new URLSearchParams(location.search);
+                urlParams.set('sort', sort);
+                urlParams.set('order', order);
+                urlParams.set('page', 1);
+                
+                navigate(`/search?${urlParams.toString()}`);
               }}
+              value={`createdAt_desc`}
+              className="w-full px-3 py-2 bg-[#e4e7eb] text-black rounded-none border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
             >
-              <option value=''>Any</option>
-              <option value='1'>1 Bathroom</option>
-              <option value='2'>2 Bathrooms</option>
-              <option value='3'>3 Bathrooms</option>
-              <option value='4'>4+ Bathrooms</option>
+              <option value="regularPrice_asc">Price Low to High</option>
+              <option value="regularPrice_desc">Price High to Low</option>
+              <option value="createdAt_desc">Latest</option>
+              <option value="createdAt_asc">Oldest</option>
             </select>
           </div>
 
           <div className="flex flex-col gap-2">
             <label className="font-semibold">Price Range:</label>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 bg-gray-200 rounded-full px-3 py-2">
-                <FaMoneyBillWave className="text-gray-600" />
+              <div className="relative w-full">
+                <FaDollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-black pointer-events-none" />
                 <input
                   type="number"
                   id="minPrice"
-                  placeholder="Min"
-                  className="bg-transparent w-[106px] outline-none"
-                  onChange={handleChange}
+                  placeholder="Min Price"
+                  className="w-full pl-8 pr-3 py-2 bg-[#e4e7eb] text-black rounded-none border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
                   value={sidebardata.minPrice}
+                  onChange={(e) => {
+                    setSidebardata({
+                      ...sidebardata,
+                      minPrice: e.target.value
+                    });
+                  }}
                 />
               </div>
-              <div className="flex items-center gap-2 bg-gray-200 rounded-full px-3 py-2">
-                <FaMoneyBillWave className="text-gray-600" />
+              <div className="relative w-full">
+                <FaDollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-black pointer-events-none" />
                 <input
                   type="number"
                   id="maxPrice"
-                  placeholder="Max"
-                  className="bg-transparent w-[106px] outline-none"
-                  onChange={handleChange}
+                  placeholder="Max Price"
+                  className="w-full pl-8 pr-3 py-2 bg-[#e4e7eb] text-black rounded-none border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
                   value={sidebardata.maxPrice}
+                  onChange={(e) => {
+                    setSidebardata({
+                      ...sidebardata,
+                      maxPrice: e.target.value
+                    });
+                  }}
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="font-semibold">Sort:</label>
-            <select
-              id="sort"
-              onChange={handleChange}
-              className="border rounded-lg p-2"
-              value={sidebardata.sort}
-            >
-              <option value="createdAt">Latest</option>
-              <option value="regularPrice">Price</option>
-            </select>
-            <select
-              id="order"
-              onChange={handleChange}
-              className="border rounded-lg p-2"
-              value={sidebardata.order}
-            >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
-          </div>
-
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
+              className="bg-[#009688] text-white px-4 py-2 rounded-none w-full transition-all duration-300 ease-in-out 
+                         hover:bg-[#00796b] hover:shadow-md 
+                         active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-300"
             >
-              Search
+               Refine Search
             </button>
             <button
               type="button"
               onClick={handleReset}
-              className="border rounded-lg p-3 text-gray-700 uppercase hover:bg-gray-200"
+              className="bg-gray-200 text-black px-4 py-2 rounded-none w-full transition-all duration-300 ease-in-out 
+                         hover:bg-gray-300 hover:shadow-md 
+                         active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
               Reset Search
             </button>
@@ -782,9 +890,9 @@ export default function Search() {
         </form>
 
         <div className="flex items-center justify-between mt-6">
-          <div className="flex items-center">
+          <div className="flex items-center cursor-pointer" onClick={() => setShowPopup(true)}>
             <FaMapMarkerAlt className="text-red-500 text-xl mr-2" />
-            <h2 className="text-lg font-bold">Hot Zones</h2>
+            <h2 className="text-lg font-bold hover:text-red-600 transition-colors duration-300">Hot Zones</h2>
           </div>
           <FaQuestionCircle
             className="text-gray-500 text-xl cursor-pointer hover:text-gray-700"

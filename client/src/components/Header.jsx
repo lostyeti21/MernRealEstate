@@ -8,9 +8,8 @@ import logo from '../assets/logo.png';
 export default function Header() {
   const { currentUser, isRealEstateCompany, realEstateCompany } = useSelector((state) => state.user);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
-  const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
   const [isAgent, setIsAgent] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [persistentUnreadCount, setPersistentUnreadCount] = useState(0);
   const [hasListings, setHasListings] = useState(false);
   const socket = useRef();
   const navigate = useNavigate();
@@ -19,6 +18,32 @@ export default function Header() {
   const location = useLocation();
   const isHomePage = location.pathname === '/';
   const isMessagesPage = location.pathname === '/messages';
+  const [showListingsDropdown, setShowListingsDropdown] = useState(false);
+  const [showResourcesDropdown, setShowResourcesDropdown] = useState(false);
+  const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
+
+  // Dropdown management function
+  const handleDropdownToggle = (dropdown) => {
+    // Close all dropdowns first
+    setShowListingsDropdown(false);
+    setShowResourcesDropdown(false);
+    setIsUsersMenuOpen(false);
+
+    // Open the selected dropdown
+    switch(dropdown) {
+      case 'listings':
+        setShowListingsDropdown(true);
+        break;
+      case 'resources':
+        setShowResourcesDropdown(true);
+        break;
+      case 'users':
+        setIsUsersMenuOpen(true);
+        break;
+      default:
+        break;
+    }
+  };
 
   // Determine which user object to use
   const user = isRealEstateCompany ? realEstateCompany : currentUser;
@@ -31,35 +56,43 @@ export default function Header() {
   useEffect(() => {
     if (!user) return;
 
-    socket.current = io('http://localhost:3000', {
-      auth: { token: localStorage.getItem('token') },
-      transports: ['websocket', 'polling']
-    });
+    // Fetch initial unread count from local storage
+    const storedUnreadCount = localStorage.getItem(`unreadMessages_${user._id}`);
+    if (storedUnreadCount) {
+      setPersistentUnreadCount(parseInt(storedUnreadCount, 10));
+    }
+
+    if (!socket.current) {
+      socket.current = io('http://localhost:3000', {
+        auth: { token: localStorage.getItem('token') },
+        transports: ['websocket', 'polling']
+      });
+    }
 
     // Listen for new messages
     socket.current.on('new_message', (data) => {
       console.log('New message received in header:', data);
       if (!isMessagesPage) {
-        setUnreadCount(prev => prev + 1);
+        const newCount = persistentUnreadCount + 1;
+        setPersistentUnreadCount(newCount);
+        localStorage.setItem(`unreadMessages_${user._id}`, newCount.toString());
       }
     });
 
     // Listen for message read events
     socket.current.on('messages_read', (data) => {
       if (data.userId === user._id) {
-        setUnreadCount(prev => Math.max(0, prev - data.count));
+        setPersistentUnreadCount(prev => Math.max(0, prev - data.count));
+        localStorage.setItem(`unreadMessages_${user._id}`, Math.max(0, persistentUnreadCount - data.count).toString());
       }
     });
 
-    // Fetch initial unread count
+    // Fetch initial unread count from server
     const fetchUnreadCount = async () => {
       try {
-        // Only fetch unread count for non-real estate company users and non-agents
-        if (isRealEstateCompany || isAgent) {
-          return;
-        }
+        // Skip for real estate companies and agents
+        if (isRealEstateCompany || isAgent) return;
 
-        // Try multiple token sources
         const token = 
           localStorage.getItem('access_token') || 
           localStorage.getItem('token') || 
@@ -79,7 +112,6 @@ export default function Header() {
         });
 
         if (!res.ok) {
-          // Detailed error logging
           const errorText = await res.text();
           console.error('Unread count fetch error:', {
             status: res.status,
@@ -90,7 +122,11 @@ export default function Header() {
         }
 
         const data = await res.json();
-        setUnreadCount(data.unreadCount || 0);
+        const unreadCount = data.unreadCount || 0;
+        
+        // Update persistent unread count
+        setPersistentUnreadCount(unreadCount);
+        localStorage.setItem(`unreadMessages_${user._id}`, unreadCount.toString());
       } catch (error) {
         console.error('Comprehensive error in unread count fetch:', error);
       }
@@ -98,21 +134,22 @@ export default function Header() {
 
     fetchUnreadCount();
 
-    // Set up interval to fetch unread count
-    const interval = setInterval(fetchUnreadCount, 30000); // Every 30 seconds
-
+    // Cleanup socket on unmount
     return () => {
-      clearInterval(interval);
       if (socket.current) {
-        socket.current.disconnect();
+        socket.current.off('new_message');
+        socket.current.off('messages_read');
       }
     };
-  }, [user, isMessagesPage]);
+  }, [user?._id, isMessagesPage]);
+
+  // Use persistentUnreadCount for rendering
+  const displayUnreadCount = isMessagesPage ? 0 : persistentUnreadCount;
 
   // Reset unread count when entering messages page
   useEffect(() => {
     if (isMessagesPage) {
-      setUnreadCount(0);
+      setPersistentUnreadCount(0);
     }
   }, [isMessagesPage]);
 
@@ -253,164 +290,271 @@ export default function Header() {
         <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
           <Link 
             to="/" 
-            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
+            className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1"
           >
             Home
           </Link>
-          <Link 
-            to="/search?type=sale" 
-            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
+          <div 
+            className="relative group"
           >
-            For Sale
-          </Link>
-          <Link 
-            to="/search?type=rent" 
-            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
+            <Link 
+              to="/search" 
+              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688]"
+              onMouseEnter={() => handleDropdownToggle('listings')}
+            >
+              Listings
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                width="16" 
+                height="16" 
+                className="fill-current transition-transform group-hover:rotate-180"
+              >
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </Link>
+            <div 
+              className={`absolute top-full left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
+                transition-all duration-300 ease-in-out transform origin-top 
+                ${showListingsDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} 
+                group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`}
+              onMouseEnter={() => handleDropdownToggle('listings')}
+              onMouseLeave={() => handleDropdownToggle(null)}
+            >
+              <Link 
+                to="/search?type=sale" 
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                For Sale
+              </Link>
+              <Link 
+                to="/search?type=rent" 
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                For Rent
+              </Link>
+              <Link 
+                to="/search" 
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                All Listings
+              </Link>
+            </div>
+          </div>
+          <div 
+            className="relative group"
           >
-            For Rent
-          </Link>
-          <Link 
-            to="/search" 
-            className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
-          >
-            All Listings
-          </Link>
-          <div className="relative">
-            <button 
-              onClick={() => setIsUsersMenuOpen(!isUsersMenuOpen)}
-              className="text-black hover:text-[#009688] font-medium text-lg transition-colors duration-300"
+            <Link 
+              to="/users" 
+              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688]"
+              onMouseEnter={() => handleDropdownToggle('users')}
             >
               Users
-            </button>
-            {isUsersMenuOpen && (
-              <div className="absolute left-0 mt-2 w-48 bg-white border rounded-lg shadow-lg py-2 z-50">
-                <Link
-                  to="/landlords"
-                  className="block px-4 py-2 text-gray-700 hover:bg-slate-100"
-                  onClick={() => setIsUsersMenuOpen(false)}
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                width="16" 
+                height="16" 
+                className="fill-current transition-transform group-hover:rotate-180"
+              >
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </Link>
+            <div 
+              className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
+                transition-all duration-300 ease-in-out transform origin-top 
+                ${isUsersMenuOpen ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} 
+                group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`}
+              onMouseEnter={() => handleDropdownToggle('users')}
+              onMouseLeave={() => handleDropdownToggle(null)}
+            >
+              <Link
+                to="/landlords"
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                Landlords
+              </Link>
+              <Link
+                to="/tenants"
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                Tenants
+              </Link>
+              {isRealEstateCompany && (
+                <Link 
+                  to="/real-estate-company"
+                  className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
                 >
-                  Landlords
+                  Real Estate Company
                 </Link>
-                <Link
-                  to="/tenants"
-                  className="block px-4 py-2 text-gray-700 hover:bg-slate-100"
-                  onClick={() => setIsUsersMenuOpen(false)}
+              )}
+              {isAgent && (
+                <Link 
+                  to="/agent-dashboard"
+                  className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
                 >
-                  Tenants
+                  Agent Dashboard
                 </Link>
-                {isRealEstateCompany && (
-                  <Link 
-                    to="/real-estate-company"
-                    className="block px-4 py-2 hover:bg-gray-100"
-                    onClick={() => setIsUsersMenuOpen(false)}
-                  >
-                    Real Estate Company
-                  </Link>
-                )}
-                {isAgent && (
-                  <Link 
-                    to="/agent-dashboard"
-                    className="block px-4 py-2 hover:bg-gray-100"
-                    onClick={() => setIsUsersMenuOpen(false)}
-                  >
-                    Agent Dashboard
-                  </Link>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
+          <div 
+            className="relative group"
+          >
+            <Link 
+              to="/resources" 
+              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688]"
+              onMouseEnter={() => handleDropdownToggle('resources')}
+            >
+              Resources
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                width="16" 
+                height="16" 
+                className="fill-current transition-transform group-hover:rotate-180"
+              >
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </Link>
+            <div 
+              className={`absolute top-full left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
+                transition-all duration-300 ease-in-out transform origin-top 
+                ${showResourcesDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} 
+                group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`}
+              onMouseEnter={() => handleDropdownToggle('resources')}
+              onMouseLeave={() => handleDropdownToggle(null)}
+            >
+              <Link 
+                to="/neighborhood-guides" 
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                Neighborhood Guides
+              </Link>
+              <Link 
+                to="/guides" 
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                Buying Guides
+              </Link>
+              <Link 
+                to="/market-trends" 
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                Market Trends
+              </Link>
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto">
+          <Link to="/">
+            <img src={logo} alt="Just List+It Logo" className="h-10 w-auto" />
+          </Link>
         </div>
         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
           {user ? (
             <div className='relative flex items-center gap-2' ref={dropdownRef}>
-              <div 
-                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                className="relative cursor-pointer"
-              >
-                <img
-                  src={avatarUrl} 
-                  alt='profile' 
-                  className='rounded-full h-12 w-12 object-cover'
-                />
-                {shouldShowNotifications && unreadCount > 0 && (
-                  <span className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 
-                    bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </div>
-              {isProfileDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50">
-                  {user && (
-                    <>
-                      <div className="px-4 py-2 text-sm text-gray-700">
-                        <span className="block font-medium text-gray-900">
-                          {user.username || user.name}
-                        </span>
-                        <span className="block text-gray-500 text-xs">
-                          {user.email}
-                        </span>
-                      </div>
-                      <hr className="border-gray-200" />
-                      
-                      {/* Debug info */}
-                      {!isRealEstateCompany && (
-                      <div className="px-4 py-1 text-xs text-gray-500">
-                      Status:{hasListings ? 'Has Listings' : 'No Listings'}
-                      </div>
-                      )}
-                      
-                      <Link
-                        to={isRealEstateCompany ? '/real-estate-dashboard' : '/profile'}
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setIsProfileDropdownOpen(false)}
-                      >
-                        {isRealEstateCompany ? 'Dashboard' : 'Profile'}
-                      </Link>
-                      
-                      {!isRealEstateCompany && !isAgent && (
-                      <Link
-                        to="/messages"
-                        className={`block px-4 py-2 text-sm hover:bg-gray-100 relative ${
-                          shouldShowNotifications && unreadCount > 0 
-                            ? 'font-bold text-[#009688]' 
-                            : 'text-gray-700'
-                        }`}
-                        onClick={() => setIsProfileDropdownOpen(false)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span>Messages</span>
-                          {shouldShowNotifications && unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                              {unreadCount > 99 ? '99+' : unreadCount}
-                            </span>
-                          )}
-                        </div>
-                      </Link>
-                      )}
-                      
-                      {isAgent && (
-                      <Link
-                        to="/agent-dashboard"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setIsProfileDropdownOpen(false)}
-                      >
-                        Agents Dashboard
-                      </Link>
-                      )}
-                      
-                      <hr className="border-gray-200" />
-                      
-                      <button
-                        onClick={handleSignOut}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        Sign Out
-                      </button>
-                    </>
+              <div className="flex items-center gap-4">
+                {/* Profile Image Container with Notification Dot */}
+                <div className="relative">
+                  <img
+                    src={avatarUrl} 
+                    alt='profile' 
+                    className='rounded-md h-12 w-12 object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200'
+                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                  />
+                  {displayUnreadCount > 0 && (
+                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-xs">
+                      {displayUnreadCount > 99 ? '99+' : displayUnreadCount}
+                    </div>
                   )}
                 </div>
-              )}
+                
+                {/* Profile Dropdown */}
+                {isProfileDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50 overflow-hidden transition-all duration-300 ease-in-out">
+                    {user && (
+                      <>
+                        <div className="px-4 py-2 text-sm text-gray-700">
+                          <span className="block font-medium text-gray-900">
+                            {user.username || user.name}
+                          </span>
+                          <span className="block text-gray-500 text-xs">
+                            {user.email}
+                          </span>
+                        </div>
+                        <hr className="border-gray-200" />
+                        
+                        {/* Debug info */}
+                        {!isRealEstateCompany && (
+                        <div className="px-4 py-1 text-xs text-gray-500">
+                        Status:{hasListings ? 'Has Listings' : 'No Listings'}
+                        </div>
+                        )}
+                        
+                        <Link
+                          to={isRealEstateCompany ? '/real-estate-dashboard' : '/profile'}
+                          className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          {isRealEstateCompany ? 'Dashboard' : 'Profile'}
+                        </Link>
+                        
+                        {!isRealEstateCompany && !isAgent && (
+                        <Link
+                          to="/messages"
+                          className={`block px-4 py-2 text-sm hover:bg-slate-100 relative ${
+                            shouldShowNotifications && displayUnreadCount > 0 
+                              ? 'font-bold text-[#009688]' 
+                              : 'text-slate-700 hover:text-[#009688]'
+                          } transition-colors duration-200`}
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>Messages</span>
+                            {shouldShowNotifications && displayUnreadCount > 0 && (
+                              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                {displayUnreadCount > 99 ? '99+' : displayUnreadCount}
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                        )}
+                        
+                        {isAgent && (
+                        <Link
+                          to="/agent-dashboard"
+                          className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          Agents Dashboard
+                        </Link>
+                        )}
+                        
+                        {currentUser && currentUser.role === 'admin' && (
+                          <Link
+                            to="/admin-center"
+                            className="block px-4 py-2 hover:bg-gray-100 text-slate-700 hover:text-[#009688] transition-colors duration-200"
+                          >
+                            <div className="flex items-center">
+                              Admin Center
+                            </div>
+                          </Link>
+                        )}
+                        
+                        <hr className="border-gray-200" />
+                        
+                        <button
+                          onClick={handleSignOut}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:text-[#009688] hover:bg-gray-100 transition-colors duration-200"
+                        >
+                          Sign Out
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <Link to="/sign-in">
@@ -419,11 +563,6 @@ export default function Header() {
               </button>
             </Link>
           )}
-        </div>
-        <div className="mx-auto">
-          <Link to="/">
-            <img src={logo} alt="Just List+It Logo" className="h-10 w-auto" />
-          </Link>
         </div>
       </div>
     </header>

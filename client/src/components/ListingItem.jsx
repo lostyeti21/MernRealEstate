@@ -8,7 +8,8 @@ import {
   FaBolt,
   FaWater,
   FaTint,
-  FaCouch
+  FaCouch,
+  FaFileContract
 } from 'react-icons/fa';
 
 export default function ListingItem({ listing }) {
@@ -40,6 +41,7 @@ export default function ListingItem({ listing }) {
     builtInCupboards = false,
     fittedKitchen = false,
     solarGeyser = false,
+    leaseAgreementUrl
   } = listing;
 
   // Format price with proper checks
@@ -68,6 +70,14 @@ export default function ListingItem({ listing }) {
           alt='listing cover'
           className='h-[300px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
         />
+        {leaseAgreementUrl && (
+          <div 
+            className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
+            style={{ zIndex: 10 }}
+          >
+            <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
+          </div>
+        )}
         <div
           className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full ${
             apartmentType === 'House' ? 'bg-[#f14304]' :

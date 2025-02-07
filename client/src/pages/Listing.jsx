@@ -656,7 +656,7 @@ export default function Listing() {
 
   return (
     <div 
-      className="w-full mx-auto px-4 bg-white min-h-screen relative pt-20"
+      className="w-full mx-auto px-4 bg-white min-h-screen relative pt-6"
       style={{ zIndex: 0 }}
     >
       {listing.imageUrls && listing.imageUrls.length > 0 ? (
