@@ -43,6 +43,7 @@ export const signin = async (req, res, next) => {
     
     res.status(200).json({
       success: true,
+      access_token: token,
       ...rest
     });
   } catch (error) {
@@ -99,6 +100,7 @@ export const agentSignin = async (req, res, next) => {
     
     res.status(200).json({
       success: true,
+      access_token: token,
       ...rest
     });
   } catch (error) {
@@ -156,6 +158,7 @@ export const google = async (req, res, next) => {
       const { password: pass, ...rest } = user._doc;
       res.status(200).json({
         success: true,
+        access_token: token,
         ...rest
       });
     } else {
@@ -174,6 +177,7 @@ export const google = async (req, res, next) => {
       const { password: pass, ...rest } = newUser._doc;
       res.status(200).json({
         success: true,
+        access_token: token,
         ...rest
       });
     }

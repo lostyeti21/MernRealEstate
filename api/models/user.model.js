@@ -1,132 +1,143 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
-// Schema for an agent
-const agentSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  contact: {
-    type: String,
-    required: true,
-  },
-  ratings: {
-    type: [Number],
-    default: [],
-  },
-  averageRating: {
+const ratingSchema = new mongoose.Schema({
+  value: {
     type: Number,
-    default: 0,
+    required: true,
+    min: 1,
+    max: 5
   },
+  category: {
+    type: String,
+    required: true,
+    enum: ['responseTime', 'maintenance', 'experience']
+  },
+  comment: {
+    type: String,
+    default: ''
+  },
+  ratedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 
-// Method to calculate and update an agent's average rating
-agentSchema.methods.updateAverageRating = function () {
-  const totalRatings = this.ratings.length;
-  if (totalRatings > 0) {
-    this.averageRating = this.ratings.reduce((sum, rating) => sum + rating, 0) / totalRatings;
-  } else {
-    this.averageRating = 0;
-  }
-};
-
-const userSchema = new mongoose.Schema(
-  {
-    username: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    password: {
-      type: String,
-      required: true,
-    },
-    avatar: {
-      type: String,
-      default:
-        "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png",
-    },
-    phoneNumbers: {
-      type: [String],
-      required: false,
-    },
-    ratings: {
-      type: [Number],
-      default: [],
-    },
-    ratedBy: {
-      type: [mongoose.Schema.Types.ObjectId],
-      ref: "User",
-      default: [],
-    },
-    averageRating: {
-      type: Number,
-      default: 0,
-    },
-    isAdmin: {
-      type: Boolean,
-      default: false, // Regular users are not admins by default
-    },
-    isAgent: {
-      type: Boolean,
-      default: false,
-    },
-    agentCompanyId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "RealEstateCompany",
-      default: null,
-    },
-    agentDetails: {
-      name: String,
-      contact: String,
-      email: String,
-    },
-    realEstateCompany: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "RealEstateCompany",
-      default: null,
-    },
+const userSchema = new mongoose.Schema({
+  username: {
+    type: String,
+    required: true,
+    unique: true,
   },
-  { timestamps: true }
-);
-
-// Method to calculate and update the real estate company's rating
-userSchema.methods.updateCompanyRating = function () {
-  if (this.realEstateCompany && this.realEstateCompany.agents.length > 0) {
-    const totalRatings = this.realEstateCompany.agents.reduce(
-      (sum, agent) => sum + (agent.averageRating || 0),
-      0
-    );
-    this.realEstateCompany.companyRating =
-      totalRatings / this.realEstateCompany.agents.length;
-  } else {
-    this.realEstateCompany.companyRating = 0;
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  avatar: {
+    type: String,
+    default: "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+  },
+  phoneNumbers: [{
+    type: String,
+    validate: {
+      validator: function(v) {
+        return /^\+?[\d\s-]+$/.test(v);
+      },
+      message: props => `${props.value} is not a valid phone number!`
+    }
+  }],
+  ratings: [ratingSchema],
+  ratedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  verificationCode: String,
+  resetToken: String,
+  resetTokenExpiry: Date,
+  isAdmin: {
+    type: Boolean,
+    default: false,
+  },
+  isAgent: {
+    type: Boolean,
+    default: false,
+  },
+  isRealEstateCompany: {
+    type: Boolean,
+    default: false,
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin', 'agent', 'landlord', 'tenant'],
+    default: 'user'
   }
-  return this.save();
+}, { 
+  timestamps: true 
+});
+
+// Method to get rating details
+userSchema.methods.getRatingDetails = function() {
+  // Ensure ratings array exists and is valid
+  const ratings = Array.isArray(this.ratings) ? this.ratings : [];
+  
+  // Initialize rating categories
+  const ratingsByCategory = {
+    responseTime: [],
+    maintenance: [],
+    experience: []
+  };
+
+  let totalRatings = 0;
+  let sumRatings = 0;
+
+  // Process each valid rating
+  ratings.forEach(rating => {
+    if (rating && rating.category && rating.value && rating.category in ratingsByCategory) {
+      ratingsByCategory[rating.category].push(rating.value);
+      sumRatings += rating.value;
+      totalRatings++;
+    }
+  });
+
+  // Helper function to safely calculate average
+  const calculateAverage = arr => {
+    if (!Array.isArray(arr) || arr.length === 0) return 0;
+    const sum = arr.reduce((a, b) => a + b, 0);
+    return Number((sum / arr.length).toFixed(1));
+  };
+
+  // Return formatted rating details
+  return {
+    overall: {
+      averageRating: totalRatings ? Number((sumRatings / totalRatings).toFixed(1)) : 0,
+      totalRatings
+    },
+    categories: {
+      responseTime: calculateAverage(ratingsByCategory.responseTime),
+      maintenance: calculateAverage(ratingsByCategory.maintenance),
+      experience: calculateAverage(ratingsByCategory.experience)
+    }
+  };
 };
 
-// Method to calculate and update user's average rating
-userSchema.methods.updateAverageRating = function () {
-  const totalRatings = this.ratings.length;
-  if (totalRatings > 0) {
-    this.averageRating = this.ratings.reduce((sum, rating) => sum + rating, 0) / totalRatings;
-  } else {
-    this.averageRating = 0;
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
   }
-};
+  next();
+});
 
-// Method to add an agent to the company
-userSchema.methods.addAgent = function (agent) {
-  this.realEstateCompany.agents.push(agent);
-  return this.save();
-};
-
-// Create the User model
-const User = mongoose.model("User", userSchema);
+const User = mongoose.model('User', userSchema);
 
 export default User;

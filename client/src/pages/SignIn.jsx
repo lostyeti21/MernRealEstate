@@ -88,6 +88,9 @@ export default function SignIn() {
       setError(null);
       dispatch(signInStart());
       
+      console.group('Sign In Process');
+      console.log('Submitting form data:', formData);
+      
       const res = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: {
@@ -98,15 +101,32 @@ export default function SignIn() {
 
       const data = await res.json();
       
+      console.log('Server Response:', {
+        status: res.status,
+        data: data
+      });
+      
       if (data.success === false) {
+        console.error('Sign In Failed:', data.message);
         setError(data.message);
         dispatch(signInFailure(data.message));
+        console.groupEnd();
         return;
       }
 
+      // Log token extraction
+      const token = 
+        data.token || 
+        data.accessToken || 
+        data.access_token;
+      
+      console.log('Extracted Token:', token);
+      
       dispatch(signInSuccess(data));
       navigate('/');
+      console.groupEnd();
     } catch (error) {
+      console.error('Sign In Error:', error);
       setError(error.message);
       dispatch(signInFailure(error.message));
     } finally {

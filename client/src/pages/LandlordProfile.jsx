@@ -14,6 +14,7 @@ import {
 } from '../redux/user/userSlice';
 import Loader from '../components/Loader';
 import { motion } from "framer-motion";
+import { FaStar } from 'react-icons/fa';
 
 export default function LandlordProfile() {
   const fileRef = useRef(null);
@@ -60,11 +61,21 @@ export default function LandlordProfile() {
         if (!res.ok) throw new Error("Failed to fetch landlord rating.");
         
         const data = await res.json();
-        setAverageRating(data.averageRating);
+        
+        // Use the overall rating from the user's account
+        const overallRating = data.ratings?.overall?.averageRating || null;
+        
+        console.log('Fetched User Rating:', {
+          overallRating,
+          fullRatingData: data.ratings
+        });
+
+        setAverageRating(overallRating);
         setRatingLoading(false);
       } catch (err) {
         console.error("Error loading landlord rating:", err);
         setRatingLoading(false);
+        setAverageRating(null);
       }
     };
 
@@ -359,16 +370,28 @@ export default function LandlordProfile() {
   };
 
   const renderStars = (rating) => {
+    // If rating is null, return 5 gray stars
+    if (rating === null) {
+      return Array.from({ length: 5 }, (_, i) => (
+        <FaStar 
+          key={i} 
+          className="inline-block text-gray-300"
+        />
+      ));
+    }
+
     return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i + 1}
-        className={`text-lg ${
-          i + 1 <= Math.round(rating) ? "text-yellow-500" : "text-gray-300"
-        }`}
-      >
-        ★
-      </span>
+      <FaStar 
+        key={i} 
+        className={`inline-block ${
+          i < Math.round(rating) ? 'text-yellow-500' : 'text-gray-300'
+        }`} 
+      />
     ));
+  };
+
+  const formatRating = (rating) => {
+    return rating === null ? 'N/A' : rating.toFixed(1);
   };
 
   return (
@@ -394,16 +417,16 @@ export default function LandlordProfile() {
           <div className='text-lg text-slate-500 absolute bottom-0 right-0 z-10 flex items-center'>
             <span className='mr-2'>Your Rating:</span>
             {ratingLoading ? (
-              <span className='text-gray-400'>Loading...</span>
-            ) : averageRating ? (
+              <span className='text-gray-500'>Loading rating...</span>
+            ) : averageRating !== null ? (
               <>
                 {renderStars(averageRating)}
                 <span className='text-sm text-gray-500 ml-2'>
-                  ({averageRating.toFixed(1)})
+                  ({formatRating(averageRating)})
                 </span>
               </>
             ) : (
-              <span className='text-gray-400'>Not Rated Yet</span>
+              <span className='text-gray-500'>No ratings yet</span>
             )}
           </div>
         </motion.div>
@@ -618,7 +641,7 @@ export default function LandlordProfile() {
         <div className='flex justify-between mt-5'>
           <button
             onClick={handleDeleteClick}
-            className='bg-red-600 text-white px-6 py-2 rounded-lg uppercase text-sm font-medium hover:bg-red-700 transition duration-200 flex items-center gap-2'
+            className='bg-red-600 text-white px-6 py-2 rounded-lg uppercase text-sm font-medium hover:bg-red-700 transition duration-200'
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -627,7 +650,7 @@ export default function LandlordProfile() {
           </button>
           <button
             onClick={handleSignOut}
-            className='bg-slate-700 text-white px-6 py-2 rounded-lg uppercase text-sm font-medium hover:bg-slate-800 transition duration-200 flex items-center gap-2'
+            className='bg-slate-700 text-white px-6 py-2 rounded-lg uppercase text-sm font-medium hover:bg-slate-800 transition duration-200'
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />

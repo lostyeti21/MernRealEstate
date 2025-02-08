@@ -12,6 +12,7 @@ import {
   signOut
 } from "../redux/user/userSlice.js";
 import { motion } from "framer-motion";
+import { FaStar } from 'react-icons/fa';
 
 const Profile = () => {
   const fileRef = useRef(null);
@@ -34,8 +35,10 @@ const Profile = () => {
   const [listingsFetched, setListingsFetched] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const [averageRating, setAverageRating] = useState(null);
-  const [ratingLoading, setRatingLoading] = useState(true);
+  const [userRatings, setUserRatings] = useState({
+    overall: { averageRating: null, totalRatings: 0 },
+    categories: {}
+  });
 
   const dispatch = useDispatch();
 
@@ -63,24 +66,39 @@ const Profile = () => {
   }, [currentUser, navigate]);
 
   useEffect(() => {
-    const fetchUserRating = async () => {
+    const fetchUserListings = async () => {
       try {
-        if (!currentUser?._id) return;
-
-        const res = await fetch(`/api/user/${currentUser._id}`);
-        if (!res.ok) throw new Error("Failed to fetch user rating.");
-        
+        const res = await fetch(`/api/user/listings/${currentUser._id}`);
         const data = await res.json();
-        setAverageRating(data.averageRating);
-        setRatingLoading(false);
-      } catch (err) {
-        console.error("Error loading user rating:", err);
-        setRatingLoading(false);
+        if (data.success === false) {
+          setShowListingsError(true);
+          return;
+        }
+        setUserListings(data);
+      } catch (error) {
+        setShowListingsError(true);
       }
     };
 
-    fetchUserRating();
-  }, [currentUser]);
+    const fetchUserRatings = async () => {
+      try {
+        const res = await fetch(`/api/tenant-rating/${currentUser._id}`);
+        const data = await res.json();
+        if (data.success === false) {
+          console.error('Failed to fetch ratings');
+          return;
+        }
+        setUserRatings(data.ratings);
+      } catch (error) {
+        console.error('Error fetching ratings:', error);
+      }
+    };
+
+    if (currentUser) {
+      fetchUserListings();
+      fetchUserRatings();
+    }
+  }, [currentUser._id]);
 
   const handleFileUpload = async (file) => {
     try {
@@ -308,19 +326,6 @@ const Profile = () => {
     return "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
   };
 
-  const renderStars = (rating) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i + 1}
-        className={`text-lg ${
-          i + 1 <= Math.round(rating) ? "text-yellow-500" : "text-gray-300"
-        }`}
-      >
-        ★
-      </span>
-    ));
-  };
-
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -345,13 +350,20 @@ const Profile = () => {
             {!isAgent && (
               <>
                 <span className='mr-2'>Your Rating:</span>
-                {ratingLoading ? (
-                  <span className='text-gray-400'>Loading...</span>
-                ) : averageRating ? (
+                {userRatings.overall.averageRating ? (
                   <>
-                    {renderStars(averageRating)}
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <FaStar
+                        key={star}
+                        className={`${
+                          star <= Math.round(userRatings.overall.averageRating || 0)
+                            ? 'text-yellow-500'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
                     <span className='text-sm text-gray-500 ml-2'>
-                      ({averageRating.toFixed(1)})
+                      ({userRatings.overall.averageRating.toFixed(1)})
                     </span>
                   </>
                 ) : (
@@ -640,6 +652,80 @@ const Profile = () => {
               ))}
             </div>
           )}
+          {/* User Ratings Section */}
+          <div className="bg-white rounded-lg shadow p-4 mt-4">
+            <h2 className="text-xl font-semibold mb-3">Your Ratings</h2>
+            
+            {/* Overall Rating */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-700 font-medium">Overall Rating</span>
+                <div className="flex items-center">
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <FaStar
+                        key={star}
+                        className={`${
+                          star <= Math.round(userRatings.overall.averageRating || 0)
+                            ? 'text-yellow-500'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="ml-2 text-gray-600">
+                    {userRatings.overall.averageRating 
+                      ? userRatings.overall.averageRating.toFixed(1)
+                      : 'No rating'
+                    }
+                  </span>
+                  <span className="ml-2 text-gray-500">
+                    ({userRatings.overall.totalRatings} {userRatings.overall.totalRatings === 1 ? 'rating' : 'ratings'})
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Category Ratings */}
+            <div className="space-y-3">
+              {Object.entries(userRatings.categories || {}).map(([category, data]) => (
+                <div key={category}>
+                  <div className="flex justify-between items-center">
+                    <span className="capitalize text-gray-700">{category}</span>
+                    <div className="flex items-center">
+                      <div className="flex">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <FaStar
+                            key={star}
+                            className={`${
+                              star <= Math.round(data.averageRating || 0)
+                                ? 'text-yellow-500'
+                                : 'text-gray-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="ml-2 text-gray-600">
+                        {data.averageRating ? data.averageRating.toFixed(1) : 'N/A'}
+                      </span>
+                      <span className="ml-2 text-gray-500">
+                        ({data.totalRatings})
+                      </span>
+                    </div>
+                  </div>
+                  {/* Rating Progress Bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                    <div 
+                      className="bg-yellow-500 h-1.5 rounded-full" 
+                      style={{ 
+                        width: `${data.averageRating ? (data.averageRating / 5) * 100 : 0}%` 
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </motion.div>

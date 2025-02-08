@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { signOut, realEstateSignInSuccess } from '../redux/user/userSlice';
 import { io } from 'socket.io-client';
 import logo from '../assets/logo.png';
+import { FaSearch } from 'react-icons/fa';
+import { FaUserCircle } from 'react-icons/fa';
 
 export default function Header() {
   const { currentUser, isRealEstateCompany, realEstateCompany } = useSelector((state) => state.user);
@@ -143,6 +145,30 @@ export default function Header() {
     };
   }, [user?._id, isMessagesPage]);
 
+  useEffect(() => {
+    if (currentUser && !isRealEstateCompany && !isAgent) {
+      checkUserListings();
+    }
+  }, [currentUser]);
+
+  const checkUserListings = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const res = await fetch(`/api/user/listings/${currentUser._id}`);
+      const data = await res.json();
+
+      if (data.success && data.listings && data.listings.length > 0) {
+        setHasListings(true);
+      } else {
+        setHasListings(false);
+      }
+    } catch (error) {
+      console.error('Error checking listings:', error);
+      setHasListings(false);
+    }
+  };
+
   // Use persistentUnreadCount for rendering
   const displayUnreadCount = isMessagesPage ? 0 : persistentUnreadCount;
 
@@ -152,51 +178,6 @@ export default function Header() {
       setPersistentUnreadCount(0);
     }
   }, [isMessagesPage]);
-
-  // Check if user has listings
-  useEffect(() => {
-    const checkUserListings = async () => {
-      if (!user) {
-        setHasListings(false);
-        localStorage.removeItem('isLandlord');
-        return;
-      }
-
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/user/listings/${user._id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!res.ok) {
-          console.error('Failed to fetch listings:', res.status);
-          setHasListings(false);
-          localStorage.removeItem('isLandlord');
-          return;
-        }
-        
-        const data = await res.json();
-        const userHasListings = Array.isArray(data.listings) && data.listings.length > 0;
-        setHasListings(userHasListings);
-        
-        if (userHasListings) {
-          localStorage.setItem('isLandlord', 'true');
-        } else {
-          localStorage.removeItem('isLandlord');
-        }
-        
-      } catch (error) {
-        console.error('Error checking listings:', error);
-        setHasListings(false);
-        localStorage.removeItem('isLandlord');
-      }
-    };
-
-    checkUserListings();
-  }, [user]);
 
   // Debug log when hasListings changes
   useEffect(() => {
@@ -493,11 +474,15 @@ export default function Header() {
                         )}
                         
                         <Link
-                          to={isRealEstateCompany ? '/real-estate-dashboard' : '/profile'}
+                          to={isRealEstateCompany ? '/real-estate-dashboard' : 
+                              isAgent ? '/agent-dashboard' : 
+                              hasListings ? '/landlord-profile' : '/profile'}
                           className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
                           onClick={() => setIsProfileDropdownOpen(false)}
                         >
-                          {isRealEstateCompany ? 'Dashboard' : 'Profile'}
+                          {isRealEstateCompany ? 'Dashboard' : 
+                           isAgent ? 'Agent Dashboard' :
+                           hasListings ? 'Landlord Profile' : 'Profile'}
                         </Link>
                         
                         {!isRealEstateCompany && !isAgent && (

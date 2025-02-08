@@ -10,6 +10,7 @@ import {
   checkIfRated,
   updateUser,
   deleteUser,
+  getUserProfile
 } from "../controllers/user.controller.js";
 import { verifyToken } from "../utils/verifyUser.js";
 import User from "../models/user.model.js";
@@ -19,12 +20,13 @@ import Listing from "../models/listing.model.js";
 const router = express.Router();
 
 // Public endpoints
-router.get("/landlords", getLandlords);
-router.get("/tenants", getTenants);
-router.get("/listings/:id", verifyToken, async (req, res) => {
+router.get("/get-landlords", getLandlords);
+router.get("/get-tenants", getTenants);
+
+router.get("/landlord/:id", async (req, res) => {
   try {
     const userId = req.params.id;
-    
+
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({
         success: false,
@@ -32,29 +34,52 @@ router.get("/listings/:id", verifyToken, async (req, res) => {
       });
     }
 
-    const listings = await Listing.find({ userRef: userId });
-    console.log('Found listings for user:', userId, listings);
+    // Find the landlord
+    const landlord = await User.findById(userId);
+
+    if (!landlord) {
+      return res.status(404).json({
+        success: false,
+        message: "Landlord not found"
+      });
+    }
+
+    // Find landlord's listings
+    const listings = await Listing.find({ userRef: userId.toString() });
+
+    // Get rating details using the method
+    const ratingDetails = landlord.getRatingDetails();
 
     return res.status(200).json({
       success: true,
-      listings: listings || []
+      landlord: {
+        _id: landlord._id,
+        username: landlord.username,
+        email: landlord.email,
+        avatar: landlord.avatar,
+        phoneNumbers: landlord.phoneNumbers || [],
+        averageRating: ratingDetails.overall.averageRating,
+        totalRatings: ratingDetails.overall.totalRatings,
+        categoryRatings: ratingDetails.categories
+      },
+      listings
     });
   } catch (error) {
-    console.error('Error fetching listings:', error);
+    console.error("Error fetching landlord:", error);
     return res.status(500).json({
       success: false,
-      message: "Error fetching listings"
+      message: "Error fetching landlord data"
     });
   }
 });
-router.get("/:id", getUser); // Get a single user
 
-// Protected endpoints
+// Protected routes - these require authentication
+router.get("/check-if-rated/:landlordId", verifyToken, checkIfRated);
 router.post("/rate-landlord", verifyToken, rateLandlord);
 router.post("/rate-tenant", verifyToken, rateTenant);
-router.get("/check-rated/:landlordId", verifyToken, checkIfRated);
-
-// Profile management (protected)
+router.get("/listings/:id", verifyToken, getUserListings);
+router.get("/:id", verifyToken, getUserProfile);
+router.get("/:id/user", verifyToken, getUser);
 router.post("/update/:id", verifyToken, updateUser);
 router.delete("/delete/:id", verifyToken, deleteUser);
 
@@ -91,60 +116,6 @@ router.post("/change-password/:id", verifyToken, async (req, res) => {
   }
 });
 
-// NEW ROUTE: Get landlord data and listings
-router.get("/landlord/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-    console.log('Fetching landlord data for:', userId);
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid user ID"
-      });
-    }
-
-    // Find the landlord
-    const landlord = await User.findById(userId, 
-      "username email avatar phoneNumbers ratings ratedBy"
-    );
-
-    if (!landlord) {
-      return res.status(404).json({
-        success: false,
-        message: "Landlord not found"
-      });
-    }
-
-    // Find landlord's listings
-    const listings = await Listing.find({ userRef: userId.toString() });
-
-    // Calculate average rating
-    const averageRating = landlord.ratings.length > 0
-      ? landlord.ratings.reduce((sum, rating) => sum + rating, 0) / landlord.ratings.length
-      : 0;
-
-    return res.status(200).json({
-      success: true,
-      landlord: {
-        _id: landlord._id,
-        username: landlord.username,
-        email: landlord.email,
-        avatar: landlord.avatar,
-        phoneNumbers: landlord.phoneNumbers,
-        averageRating,
-        totalRatings: landlord.ratedBy.length
-      },
-      listings
-    });
-  } catch (error) {
-    console.error("Error fetching landlord:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error fetching landlord data"
-    });
-  }
-});
 // Route to reset password via email
 router.post("/reset-password", async (req, res) => {
   const { email, password } = req.body;
@@ -170,6 +141,5 @@ router.post("/reset-password", async (req, res) => {
     res.status(500).json({ success: false, message: "An unexpected error occurred." });
   }
 });
-
 
 export default router;

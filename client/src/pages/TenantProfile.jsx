@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
+import { FaStar } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 const TenantProfile = () => {
   const { tenantId } = useParams();
@@ -7,25 +9,44 @@ const TenantProfile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [ratings, setRatings] = useState({
-    maintenance: 0,
-    behavior: 0,
-    payments: 0,
+    communication: 0,
+    cleanliness: 0,
+    reliability: 0
   });
   const [hoveredRating, setHoveredRating] = useState({
-    maintenance: 0,
-    behavior: 0,
-    payments: 0,
+    communication: 0,
+    cleanliness: 0,
+    reliability: 0
   });
-  const [rated, setRated] = useState(false);
+  const [currentRating, setCurrentRating] = useState(null);
+
+  // Calculate real-time overall rating
+  const currentOverallRating = useMemo(() => {
+    const values = Object.values(ratings);
+    const sum = values.reduce((acc, val) => acc + val, 0);
+    const average = sum / values.length;
+    return values.some(val => val > 0) ? Number(average.toFixed(1)) : 0;
+  }, [ratings]);
 
   useEffect(() => {
     const fetchTenantDetails = async () => {
       try {
+        // Fetch tenant details
         const resTenant = await fetch(`/api/user/${tenantId}`);
         const tenantData = await resTenant.json();
         if (!resTenant.ok) throw new Error("Failed to fetch tenant details");
 
+        // Fetch tenant ratings
+        const resRatings = await fetch(`/api/tenant-rating/${tenantId}`);
+        const ratingsData = await resRatings.json();
+        if (!resRatings.ok) throw new Error("Failed to fetch tenant ratings");
+
         setTenant(tenantData);
+        setCurrentRating({
+          averageRating: ratingsData.ratings.overall.averageRating || null,
+          totalRatings: ratingsData.ratings.overall.totalRatings || 0,
+          categories: ratingsData.ratings.categories || {}
+        });
       } catch (err) {
         setError(err.message);
       } finally {
@@ -36,163 +57,196 @@ const TenantProfile = () => {
     fetchTenantDetails();
   }, [tenantId]);
 
-  const fetchUpdatedTenant = async () => {
-    try {
-      const res = await fetch(`/api/user/${tenantId}`);
-      const updatedTenant = await res.json();
-      if (res.ok) {
-        setTenant(updatedTenant);
-      } else {
-        throw new Error("Failed to fetch updated tenant data");
-      }
-    } catch (error) {
-      console.error("Error fetching updated tenant data:", error);
-    }
-  };
-
-  const isValidRating = (rating) => rating >= 1 && rating <= 5;
-
   const handleRating = async () => {
-    const { maintenance, behavior, payments } = ratings;
-
-    if (
-      !isValidRating(maintenance) ||
-      !isValidRating(behavior) ||
-      !isValidRating(payments)
-    ) {
-      alert("Each rating must be a valid number between 1 and 5.");
-      return;
-    }
-
-    const totalRating = (
-      (maintenance + behavior + payments) /
-      3
-    ).toFixed(1);
-
     try {
-      const res = await fetch("/api/user/rate-tenant", {
-        method: "POST",
+      setError(null);
+
+      // Get current user token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Please log in to submit a rating');
+      }
+
+      // Check if user has already rated
+      const checkRes = await fetch(`/api/tenant-rating/check/${tenantId}`, {
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const checkData = await checkRes.json();
+      
+      if (checkData.hasRated) {
+        throw new Error('You have already rated this tenant');
+      }
+
+      // Prepare ratings array with overall rating
+      const ratingsArray = [
+        ...Object.entries(ratings).map(([category, value]) => ({
+          category,
+          value: Number(value),
+          comment: ''
+        })),
+        {
+          category: 'overall',
+          value: currentOverallRating,
+          comment: ''
+        }
+      ];
+
+      // Submit rating
+      const response = await fetch(`/api/tenant-rating/rate/${tenantId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          tenantId,
-          maintenance,
-          behavior,
-          payments,
-          averageRating: parseFloat(totalRating),
+          ratings: ratingsArray
         }),
       });
 
-      if (res.ok) {
-        setRated(true);
-        await fetchUpdatedTenant();
-      } else {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to submit rating");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to submit rating');
       }
+
+      // Update the current rating with the new values
+      setCurrentRating({
+        averageRating: data.ratings.overall.averageRating,
+        totalRatings: data.ratings.overall.totalRatings,
+        categories: data.ratings.categories
+      });
+
+      toast.success('Rating submitted successfully!');
+      
+      // Reset hover states
+      setHoveredRating({
+        communication: 0,
+        cleanliness: 0,
+        reliability: 0
+      });
+
     } catch (err) {
-      alert(err.message);
+      console.error('Rating submission error:', err);
+      toast.error(err.message || 'Failed to submit rating');
+      setError(err.message || 'Failed to submit rating');
     }
   };
 
-  const renderRatingStars = (category) => {
-    const categoryRating = ratings[category] || 0;
-    const hoveredCategoryRating = hoveredRating[category] || 0;
-    return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i + 1}
-        onClick={() => setRatings({ ...ratings, [category]: i + 1 })}
-        onMouseEnter={() =>
-          setHoveredRating({ ...hoveredRating, [category]: i + 1 })
-        }
-        onMouseLeave={() =>
-          setHoveredRating({ ...hoveredRating, [category]: 0 })
-        }
-        className={`cursor-pointer ${
-          i + 1 <= (hoveredCategoryRating || categoryRating)
-            ? "text-yellow-500"
-            : "text-gray-300"
-        }`}
-      >
-        ★
-      </span>
-    ));
-  };
+  const renderStars = (rating) => {
+    // If rating is null or 0, return 5 gray stars
+    if (!rating || rating === 0) {
+      return Array.from({ length: 5 }, (_, i) => (
+        <FaStar 
+          key={i} 
+          className="inline-block text-gray-300"
+        />
+      ));
+    }
 
-  const renderTenantRating = (avgRating) => {
     return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i + 1}
-        className={`text-xl ${i + 1 <= avgRating ? "text-yellow-500" : "text-gray-300"}`}
-      >
-        ★
-      </span>
+      <FaStar 
+        key={i} 
+        className={`inline-block ${
+          i < Math.round(rating) ? 'text-yellow-500' : 'text-gray-300'
+        }`} 
+      />
     ));
   };
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
+  if (!tenant) return <div>No tenant found</div>;
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <img
-            src={tenant.avatar || "https://via.placeholder.com/150"}
-            alt={tenant.username}
-            className="rounded-full w-32 h-32 object-cover"
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-6">
+        <div className="flex items-center space-x-6 mb-6">
+          <img 
+            src={tenant.avatar || 'https://via.placeholder.com/150'} 
+            alt={tenant.username} 
+            className="w-24 h-24 rounded-full object-cover"
           />
-          <h1 className="text-3xl font-bold">{tenant.username}</h1>
-        </div>
-        <div>
-          <span className="mr-2 text-xl font-semibold">Rating:</span>
-          <div className="flex text-xl">
-            {tenant.averageRating
-              ? renderTenantRating(tenant.averageRating)
-              : "No ratings yet"}
+          <div>
+            <h1 className="text-2xl font-bold">{tenant.username}</h1>
+            <div className="flex items-center space-x-2 mt-2">
+              {renderStars(currentRating?.averageRating)}
+              <span className="text-gray-600 ml-2">
+                ({currentRating?.totalRatings || 0} ratings)
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="mb-6 text-center">
-        <h3 className="text-2xl font-semibold mb-4">Rate this Tenant</h3>
-        <div className="p-6 border-2 border-gray-300 rounded-lg bg-gray-100 inline-block">
-          <div className="flex items-center justify-center gap-8">
-            <div className="text-center">
-              <h4>Maintenance</h4>
-              <div className="flex">{renderRatingStars("maintenance")}</div>
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Current Ratings</h2>
+          {currentRating?.categories && Object.entries(currentRating.categories).map(([category, data]) => (
+            <div key={category} className="mb-3">
+              <div className="flex justify-between items-center">
+                <span className="capitalize">{category}</span>
+                <div className="flex items-center">
+                  {renderStars(data.averageRating)}
+                  <span className="text-gray-600 ml-2">
+                    ({data.totalRatings || 0})
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="text-center">
-              <h4>Behavior</h4>
-              <div className="flex">{renderRatingStars("behavior")}</div>
-            </div>
-            <div className="text-center">
-              <h4>Payments</h4>
-              <div className="flex">{renderRatingStars("payments")}</div>
-            </div>
-          </div>
-          <div className="mt-4">
-            <h4>
-              Total Rating:{" "}
-              {(
-                (ratings.maintenance + ratings.behavior + ratings.payments) /
-                3
-              ).toFixed(1)}{" "}
-              / 5.0
-            </h4>
-          </div>
-          <div className="mt-6">
-            <button
-              onClick={handleRating}
-              className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600"
-            >
-              Submit Rating
-            </button>
-          </div>
+          ))}
         </div>
-        {rated && <p className="text-lg mt-4">Thank you for your rating!</p>}
+
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Rate Tenant</h2>
+          
+          {/* Real-time overall rating display */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="text-center">
+              <h3 className="text-lg font-medium mb-2">Overall Rating</h3>
+              <div className="flex justify-center items-center">
+                {renderStars(currentOverallRating)}
+                <span className="text-gray-600 ml-2">
+                  ({currentOverallRating || 0})
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {Object.entries(ratings).map(([category, rating]) => (
+            <div key={category} className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <label className="capitalize">{category}</label>
+                <div className="flex space-x-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <FaStar
+                      key={star}
+                      className={`cursor-pointer ${
+                        star <= (hoveredRating[category] || rating)
+                          ? 'text-yellow-500'
+                          : 'text-gray-300'
+                      }`}
+                      onMouseEnter={() => 
+                        setHoveredRating(prev => ({ ...prev, [category]: star }))
+                      }
+                      onMouseLeave={() => 
+                        setHoveredRating(prev => ({ ...prev, [category]: 0 }))
+                      }
+                      onClick={() => 
+                        setRatings(prev => ({ ...prev, [category]: star }))
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+          <button 
+            onClick={handleRating}
+            className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600"
+          >
+            Submit Rating
+          </button>
+        </div>
       </div>
     </div>
   );

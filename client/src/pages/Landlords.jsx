@@ -1,223 +1,323 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FaFilter, FaStar } from 'react-icons/fa';
+import { FaFilter, FaStar, FaBuilding, FaSearch, FaSort } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
+import Loader from '../components/Loader'; // Import Loader component
 
 const Landlords = () => {
   const [landlords, setLandlords] = useState([]);
   const [filteredLandlords, setFilteredLandlords] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
   const [showSortPopup, setShowSortPopup] = useState(false);
   const [sortCriteria, setSortCriteria] = useState('overallRating');
 
   useEffect(() => {
     const fetchLandlords = async () => {
       try {
-        const response = await fetch(`/api/user/landlords?sort=${sortCriteria}`);
-        if (!response.ok) throw new Error("Failed to fetch landlords.");
-        const data = await response.json();
-        setLandlords(data);
-        setFilteredLandlords(data); // Initialize filtered landlords
+        setLoading(true);
+        setError(null);
+
+        const queryParams = new URLSearchParams({
+          sort: sortCriteria,
+          limit: '9',
+          startIndex: '0'
+        });
+
+        const res = await fetch(`/api/user/get-landlords?${queryParams}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || 'Failed to fetch landlords');
+        }
+
+        // Ensure we're handling the new response structure
+        const landlordsList = data.landlords || [];
+
+        const normalizedLandlords = landlordsList.map(landlord => {
+          const processedLandlord = {
+            _id: landlord._id,
+            username: landlord.username,
+            email: landlord.email,
+            avatar: landlord.avatar || 'https://via.placeholder.com/150',
+            listingCount: landlord.listingCount || 0,
+            ratings: {
+              overall: { 
+                averageRating: landlord.averageRating || null, 
+                totalRatings: landlord.totalRatings || 0 
+              },
+              categories: [
+                { 
+                  category: 'responseTime', 
+                  averageRating: landlord.categoryRatings?.responseTime || null, 
+                  totalRatings: 0 
+                },
+                { 
+                  category: 'maintenance', 
+                  averageRating: landlord.categoryRatings?.maintenance || null, 
+                  totalRatings: 0 
+                },
+                { 
+                  category: 'experience', 
+                  averageRating: landlord.categoryRatings?.experience || null, 
+                  totalRatings: 0 
+                }
+              ]
+            }
+          };
+
+          console.log(`Processed landlord: ${landlord.username}`, JSON.stringify(processedLandlord, null, 2));
+
+          return processedLandlord;
+        });
+
+        console.log('Normalized Landlords:', JSON.stringify(normalizedLandlords, null, 2));
+
+        setLandlords(normalizedLandlords);
+        setFilteredLandlords(normalizedLandlords);
         setLoading(false);
+
       } catch (err) {
-        console.error("Error loading landlords:", err);
-        setError(true);
+        console.error('Detailed error in fetchLandlords:', err);
+        
+        const errorMessage = err instanceof Error 
+          ? err.message 
+          : 'An unknown error occurred while fetching landlords';
+        
+        toast.error(errorMessage);
+        setError(errorMessage);
         setLoading(false);
+        setLandlords([]);
+        setFilteredLandlords([]);
       }
     };
 
     fetchLandlords();
   }, [sortCriteria]);
 
-  const handleSearch = (e) => {
-    const query = e.target.value.trim().toLowerCase();
-    setSearchTerm(query);
-    setFilteredLandlords(
-      landlords.filter((landlord) =>
-        landlord.username.toLowerCase().includes(query)
-      )
+  const handleSearch = (event) => {
+    const term = event.target.value.toLowerCase();
+    setSearchTerm(term);
+    
+    const filtered = landlords.filter(landlord => 
+      landlord.username.toLowerCase().includes(term)
     );
+    
+    setFilteredLandlords(filtered);
+  };
+
+  const handleSortPopup = () => {
+    setShowSortPopup(!showSortPopup);
+  };
+
+  const handleSortCriteria = (criteria) => {
+    setSortCriteria(criteria);
+    setShowSortPopup(false);
   };
 
   const renderStars = (rating) => {
+    // If rating is null, return 5 gray stars
+    if (rating === null) {
+      return Array.from({ length: 5 }, (_, i) => (
+        <FaStar 
+          key={i} 
+          className="inline-block text-gray-300"
+        />
+      ));
+    }
+
     return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i + 1}
-        className={`text-lg ${
-          i + 1 <= Math.round(rating) ? "text-yellow-500" : "text-gray-300"
-        }`}
-      >
-        ★
-      </span>
+      <FaStar 
+        key={i} 
+        className={`inline-block ${
+          i < Math.round(rating) ? 'text-yellow-500' : 'text-gray-300'
+        }`} 
+      />
     ));
   };
 
-  const sortOptions = [
-    { 
-      value: 'overallRating', 
-      label: 'Overall Rating', 
-      icon: <FaStar className="inline mr-2" /> 
-    },
-    { 
-      value: 'responseTime', 
-      label: 'Response Time', 
-      icon: <FaStar className="inline mr-2" /> 
-    },
-    { 
-      value: 'maintenance', 
-      label: 'Maintenance', 
-      icon: <FaStar className="inline mr-2" /> 
-    },
-    { 
-      value: 'experience', 
-      label: 'Experience', 
-      icon: <FaStar className="inline mr-2" /> 
-    }
-  ];
-
-  const SortPopup = () => {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-80">
-          <h2 className="text-xl font-bold mb-4 text-center">Sort Landlords</h2>
-          
-          {sortOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => {
-                setSortCriteria(option.value);
-                setShowSortPopup(false);
-              }}
-              className={`w-full text-left px-4 py-2 hover:bg-gray-100 rounded flex items-center ${
-                sortCriteria === option.value ? 'bg-blue-50 text-blue-600' : ''
-              }`}
-            >
-              {option.icon}
-              {option.label}
-            </button>
-          ))}
-          
-          <button
-            onClick={() => setShowSortPopup(false)}
-            className="w-full mt-4 px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
+  const formatRating = (rating) => {
+    return rating === null ? 'N/A' : rating.toFixed(1);
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
-        <p>Loading landlords...</p>
-        <div className="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full"></div>
+      <div className="flex justify-center items-center h-screen">
+        <Loader />
       </div>
     );
+  }
 
-  if (error)
+  if (error) {
     return (
       <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
-        <p className="text-red-500">Error loading landlords. Please try again later.</p>
-        <button onClick={() => window.location.reload()} className="text-blue-500 underline mt-4">
-          Retry
+        <p className="text-red-500">Error: {error}</p>
+        <button 
+          onClick={() => {
+            setSortCriteria('overallRating');
+            setError(null);
+          }} 
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Try Again
         </button>
       </div>
     );
+  }
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="w-full mx-auto px-4 bg-white min-h-screen relative pt-20"
+      className='max-w-6xl mx-auto px-3 py-8'
     >
-      <div className="max-w-4xl mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative h-[100px] mb-8"
+      {/* Registered Landlords Section Header */}
+      <div className="relative h-[100px] mb-8">
+        <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+          <span style={{ color: '#d2d1e6', opacity: 0.6 }}>REGISTERED</span>
+        </h1>
+        <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+          Landlords
+        </h2>
+        <div 
+          className="absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full"
         >
-          <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-            <span style={{ color: '#d2d1e6', opacity: 0.6 }}>REGISTERED</span>
-          </h1>
-          <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
-            Landlords
-          </h2>
-        </motion.div>
+          Our Community
+        </div>
+      </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-6 flex justify-between"
-        >
-          <input
-            type="text"
-            placeholder="Search landlords by username..."
-            value={searchTerm}
-            onChange={handleSearch}
-            className="w-full p-3 border rounded-md focus:outline-none focus:ring focus:ring-blue-500"
-          />
-          <button 
-            onClick={() => setShowSortPopup(true)}
-            className="text-gray-600 hover:text-blue-600 transition-colors ml-4"
-          >
-            <FaFilter className="w-6 h-6" />
-          </button>
-        </motion.div>
+      {/* Search and Filter Section */}
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          {/* Search Bar */}
+          <div className="relative w-full sm:w-auto">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search landlords..."
+              value={searchTerm}
+              onChange={(e) => handleSearch(e)}
+              className="w-full sm:w-64 pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
+          {/* Sort Button */}
+          <div className="relative">
+            <button
+              onClick={handleSortPopup}
+              className="flex items-center space-x-2 px-4 py-2 bg-white border rounded-lg hover:bg-gray-50"
+            >
+              <FaSort />
+              <span>Sort</span>
+            </button>
+
+            {/* Sort Popup */}
+            {showSortPopup && (
+              <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-lg shadow-xl z-10 border">
+                <button
+                  onClick={() => handleSortCriteria('overallRating')}
+                  className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
+                    sortCriteria === 'overallRating' ? 'bg-blue-50 text-blue-600' : ''
+                  }`}
+                >
+                  Overall Rating
+                </button>
+                <button
+                  onClick={() => handleSortCriteria('responseTime')}
+                  className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
+                    sortCriteria === 'responseTime' ? 'bg-blue-50 text-blue-600' : ''
+                  }`}
+                >
+                  Response Time
+                </button>
+                <button
+                  onClick={() => handleSortCriteria('maintenance')}
+                  className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
+                    sortCriteria === 'maintenance' ? 'bg-blue-50 text-blue-600' : ''
+                  }`}
+                >
+                  Maintenance
+                </button>
+                <button
+                  onClick={() => handleSortCriteria('experience')}
+                  className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
+                    sortCriteria === 'experience' ? 'bg-blue-50 text-blue-600' : ''
+                  }`}
+                >
+                  Experience
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Landlords Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredLandlords.length === 0 ? (
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="text-center"
-          >
-            No landlords found matching your search.
-          </motion.p>
+          <div className="text-center text-gray-500 py-8">
+            No landlords found.
+          </div>
         ) : (
-          <motion.ul 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delayChildren: 0.3, staggerChildren: 0.1 }}
-            className="space-y-4"
-          >
-            {filteredLandlords.map((landlord) => (
-              <motion.li
-                key={landlord._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="flex items-center justify-between space-x-4 p-3 border rounded-md hover:shadow-lg transition-shadow"
+          filteredLandlords.map((landlord) => (
+            <motion.div 
+              key={landlord._id}
+              whileHover={{ scale: 1.05 }}
+              className="bg-white shadow-md rounded-lg p-6 flex flex-col items-center"
+            >
+              <img 
+                src={landlord.avatar} 
+                alt={`${landlord.username}'s avatar`} 
+                className="w-24 h-24 rounded-full object-cover mb-4"
+              />
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">{landlord.username}</h2>
+              
+              <div className="flex flex-col items-center">
+                <div className="flex items-center mb-2">
+                  <FaBuilding className="mr-2 text-gray-500" />
+                  <span className="text-sm text-gray-600">
+                    {landlord.listingCount} {landlord.listingCount === 1 ? 'Listing' : 'Listings'}
+                  </span>
+                </div>
+                <div className="flex items-center mb-2">
+                  {renderStars(landlord.ratings.overall.averageRating)}
+                  <span className="ml-2 text-gray-600">
+                    {formatRating(landlord.ratings.overall.averageRating)} 
+                  </span>
+                </div>
+              </div>
+              
+              {/* Detailed Ratings Breakdown */}
+              <div className="w-full mt-2">
+                {landlord.ratings.categories.map((category) => (
+                  <div key={category.category} className="flex justify-between items-center mb-1">
+                    <span className="text-sm text-gray-600 capitalize">
+                      {category.category.replace(/([A-Z])/g, ' $1').trim()}
+                    </span>
+                    <div className="flex items-center">
+                      {renderStars(category.averageRating)}
+                      <span className="ml-2 text-xs text-gray-500">
+                        ({formatRating(category.averageRating)})
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <Link 
+                to={`/landlord/${landlord._id}`} 
+                state={{ landlordRating: landlord.ratings.overall }}
+                className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
               >
-                <div className="flex items-center space-x-4">
-                  <img
-                    src={landlord.avatar || "https://via.placeholder.com/150"}
-                    alt={`${landlord.username}'s avatar`}
-                    className="rounded-full w-12 h-12 object-cover"
-                  />
-                  <Link to={`/landlord/${landlord._id}`} className="text-blue-600 hover:underline">
-                    <p className="font-semibold">{landlord.username}</p>
-                  </Link>
-                </div>
-                <div className="flex items-center space-x-1">
-                  {renderStars(landlord.averageRating || 0)}
-                  <p className="text-sm text-gray-500">
-                    ({landlord.averageRating ? landlord.averageRating.toFixed(1) : "N/A"})
-                  </p>
-                </div>
-              </motion.li>
-            ))}
-          </motion.ul>
+                View Profile
+              </Link>
+            </motion.div>
+          ))
         )}
       </div>
-      {showSortPopup && <SortPopup />}
     </motion.div>
   );
 };

@@ -1,167 +1,428 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import React, { useEffect, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { FaStar, FaSearch, FaSort, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { motion } from 'framer-motion';
+import Loader from '../components/Loader';
 
 const Tenants = () => {
   const [tenants, setTenants] = useState([]);
-  const [filteredTenants, setFilteredTenants] = useState([]); // For search functionality
-  const [searchTerm, setSearchTerm] = useState(""); // Search term state
+  const [filteredTenants, setFilteredTenants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showSortPopup, setShowSortPopup] = useState(false);
+  const [sortCriteria, setSortCriteria] = useState('rating');
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [tenantsPerPage] = useState(9);
+
+  // Ref for scrolling
+  const tenantsContainerRef = useRef(null);
+
+  // Smooth scroll to top function
+  const scrollToTop = () => {
+    if (tenantsContainerRef.current) {
+      tenantsContainerRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }
+  };
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    scrollToTop();
+  }, [currentPage]);
+
+  // Helper function to render stars with optional grayed-out style
+  const renderStars = (rating, isGrayedOut = false) => {
+    return [1, 2, 3, 4, 5].map((star) => (
+      <FaStar
+        key={star}
+        className={`${
+          star <= Math.round(rating || 0)
+            ? isGrayedOut 
+              ? 'text-gray-300' 
+              : 'text-yellow-500'
+            : isGrayedOut 
+              ? 'text-gray-200' 
+              : 'text-gray-300'
+        }`}
+      />
+    ));
+  };
+
+  // Predefined categories to always show
+  const ratingCategories = ['communication', 'cleanliness', 'reliability'];
+
+  const fetchTenants = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const queryParams = new URLSearchParams({
+        sort: sortCriteria,
+        order: sortOrder
+      });
+
+      const res = await fetch(`/api/user/get-tenants?${queryParams}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to fetch tenants');
+      }
+
+      const tenantsList = data.tenants || [];
+
+      // Fetch ratings for each tenant
+      const tenantsWithRatings = await Promise.all(
+        tenantsList.map(async (tenant) => {
+          try {
+            const ratingRes = await fetch(`/api/tenant-rating/${tenant._id}`);
+            const ratingData = await ratingRes.json();
+            
+            return {
+              ...tenant,
+              ratings: {
+                overall: ratingData.ratings.overall || { averageRating: 0, totalRatings: 0 },
+                categories: ratingData.ratings.categories || {}
+              }
+            };
+          } catch (err) {
+            console.error(`Error fetching ratings for tenant ${tenant._id}:`, err);
+            return {
+              ...tenant,
+              ratings: {
+                overall: { averageRating: 0, totalRatings: 0 },
+                categories: {}
+              }
+            };
+          }
+        })
+      );
+
+      // Sort tenants by rating by default
+      const sortedTenants = [...tenantsWithRatings].sort((a, b) => {
+        const ratingA = a.ratings?.overall?.averageRating || 0;
+        const ratingB = b.ratings?.overall?.averageRating || 0;
+        return sortOrder === 'desc' ? ratingB - ratingA : ratingA - ratingB;
+      });
+
+      setTenants(sortedTenants);
+      setFilteredTenants(sortedTenants);
+      setLoading(false);
+      setCurrentPage(1); // Reset to first page on new fetch
+
+    } catch (err) {
+      console.error('Error in fetchTenants:', err);
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : 'An unknown error occurred while fetching tenants';
+      
+      setError(errorMessage);
+      setLoading(false);
+      setTenants([]);
+      setFilteredTenants([]);
+    }
+  };
 
   useEffect(() => {
-    const fetchTenants = async () => {
-      try {
-        const res = await fetch("/api/user/tenants");
-        const data = await res.json();
-        setTenants(data);
-        setFilteredTenants(data); // Initialize filtered tenants
-        setLoading(false);
-      } catch (err) {
-        console.error("Error loading tenants:", err);
-        setError(true);
-        setLoading(false);
-      }
-    };
-
     fetchTenants();
-  }, []);
+  }, [sortCriteria, sortOrder]);
 
-  const handleSearch = (e) => {
-    const query = e.target.value.toLowerCase();
-    setSearchTerm(query);
-    setFilteredTenants(
-      tenants.filter((tenant) =>
-        tenant.username.toLowerCase().includes(query)
-      )
-    );
-  };
-
-  const renderAverageRating = (avgRating) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <span
-          key={i}
-          className={`text-xl ${
-            i <= Math.round(avgRating) ? "text-yellow-500" : "text-gray-300"
-          }`}
-        >
-          ★
-        </span>
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredTenants(tenants);
+      setCurrentPage(1);
+    } else {
+      const filtered = tenants.filter(tenant => 
+        tenant.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.email.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      setFilteredTenants(filtered);
+      setCurrentPage(1);
     }
-    return stars;
+  }, [searchTerm, tenants]);
+
+  const handleSort = (criteria) => {
+    if (criteria === sortCriteria) {
+      // If clicking the same criteria, toggle the order
+      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+    } else {
+      // If clicking a new criteria, set it and default to descending
+      setSortCriteria(criteria);
+      setSortOrder('desc');
+    }
+    setShowSortPopup(false);
   };
 
-  if (loading)
-    return (
-      <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
-        <p>Loading...</p>
-        <div className="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full"></div>
-      </div>
-    );
+  // Pagination logic
+  const indexOfLastTenant = currentPage * tenantsPerPage;
+  const indexOfFirstTenant = indexOfLastTenant - tenantsPerPage;
+  const currentTenants = filteredTenants.slice(indexOfFirstTenant, indexOfLastTenant);
 
-  if (error)
+  // Change page
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  // Next and Previous page handlers
+  const nextPage = () => {
+    if (currentPage < Math.ceil(filteredTenants.length / tenantsPerPage)) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  // Calculate total pages
+  const totalPages = Math.ceil(filteredTenants.length / tenantsPerPage);
+
+  if (loading) {
     return (
-      <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
-        <p className="text-red-500">Error loading tenants.</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="text-blue-500 underline mt-4"
-        >
-          Retry
-        </button>
+      <div className="flex justify-center items-center h-screen">
+        <Loader />
       </div>
     );
+  }
+
+  if (error) return <div>Error: {error}</div>;
 
   return (
-    <motion.div 
+    <motion.div
+      ref={tenantsContainerRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
-      className="w-full mx-auto px-4 bg-white min-h-screen pt-20"
+      className='max-w-6xl mx-auto px-3 py-8'
     >
-      <div className="max-w-4xl mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative h-[100px] mb-8"
+      {/* Registered Tenants Section Header */}
+      <div className="relative h-[100px] mb-8">
+        <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+          <span style={{ color: '#d2d1e6', opacity: 0.6 }}>REGISTERED</span>
+        </h1>
+        <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+          Tenants
+        </h2>
+        <div 
+          className="absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full"
         >
-          <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-            <span style={{ color: '#009688', opacity: 0.2 }}>REGISTERED</span>
-          </h1>
-          <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
-            Tenants
-          </h2>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-6"
-        >
-          <input
-            type="text"
-            placeholder="Search tenants by username..."
-            value={searchTerm}
-            onChange={handleSearch}
-            className="w-full p-3 border rounded-md focus:outline-none focus:ring focus:ring-blue-500"
-          />
-        </motion.div>
-
-        {filteredTenants.length === 0 ? (
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="text-center"
-          >
-            No tenants found.
-          </motion.p>
-        ) : (
-          <motion.ul 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delayChildren: 0.3, staggerChildren: 0.1 }}
-            className="space-y-4"
-          >
-            {filteredTenants.map((tenant) => (
-              <motion.li
-                key={tenant._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className="flex items-center justify-between p-3 border rounded-md hover:shadow-lg transition-shadow"
-              >
-                <div className="flex items-center space-x-4">
-                  <img
-                    src={tenant.avatar || "https://via.placeholder.com/150"}
-                    alt={tenant.username}
-                    className="rounded-full w-12 h-12 object-cover"
-                  />
-                  <Link
-                    to={`/tenant/${tenant._id}`}
-                    className="font-semibold text-blue-500 hover:underline"
-                  >
-                    {tenant.username}
-                  </Link>
-                </div>
-
-                {/* Average Rating */}
-                <div className="flex items-center space-x-1">
-                  {renderAverageRating(tenant.averageRating || 0)}
-                  <p className="text-sm text-gray-500">
-                    ({tenant.averageRating ? tenant.averageRating.toFixed(1) : "N/A"})
-                  </p>
-                </div>
-              </motion.li>
-            ))}
-          </motion.ul>
-        )}
+          Our Community
+        </div>
       </div>
+
+      {/* Search and Filter Section */}
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          {/* Search Bar */}
+          <div className="relative w-full sm:w-auto">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search tenants..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-64 pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Sort Button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSortPopup(!showSortPopup)}
+              className="flex items-center space-x-2 px-4 py-2 bg-white border rounded-lg hover:bg-gray-50"
+            >
+              <FaSort />
+              <span>Sort by: {sortCriteria === 'rating' ? 'Rating' : 'Name'} ({sortOrder === 'desc' ? 'High to Low' : 'Low to High'})</span>
+            </button>
+
+            {/* Sort Popup */}
+            {showSortPopup && (
+              <div className="absolute right-0 mt-2 py-2 w-48 bg-white rounded-lg shadow-xl z-10 border">
+                <button
+                  onClick={() => handleSort('rating')}
+                  className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
+                    sortCriteria === 'rating' ? 'bg-gray-100' : ''
+                  }`}
+                >
+                  Rating {sortCriteria === 'rating' && `(${sortOrder === 'desc' ? '↓' : '↑'})`}
+                </button>
+                <button
+                  onClick={() => handleSort('name')}
+                  className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
+                    sortCriteria === 'name' ? 'bg-gray-100' : ''
+                  }`}
+                >
+                  Name {sortCriteria === 'name' && `(${sortOrder === 'desc' ? '↓' : '↑'})`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tenants Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {currentTenants.map((tenant) => (
+          <motion.div
+            key={tenant._id}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white rounded-lg shadow-md overflow-hidden transform transition-all hover:scale-105"
+          >
+            <Link to={`/tenant/${tenant._id}`} className="block">
+              <div className="p-6">
+                <div className="flex items-center mb-4">
+                  <img 
+                    src={tenant.avatar} 
+                    alt={`${tenant.username}'s avatar`} 
+                    className="w-16 h-16 rounded-full mr-4 object-cover"
+                  />
+                  <div>
+                    <h2 className="text-xl font-semibold">{tenant.username}</h2>
+                  </div>
+                </div>
+
+                {/* Overall Rating Display */}
+                <div className="flex items-center mt-1">
+                  <div className="flex items-center">
+                    {renderStars(
+                      tenant.ratings?.overall?.averageRating, 
+                      !tenant.ratings?.overall?.averageRating
+                    )}
+                  </div>
+                  <div className="ml-2 text-gray-600">
+                    <span className="font-medium">
+                      {tenant.ratings?.overall?.averageRating 
+                        ? tenant.ratings.overall.averageRating.toFixed(1) 
+                        : 'No rating'}
+                    </span>
+                    <span className="mx-1">•</span>
+                    <span>
+                      {tenant.ratings?.overall?.totalRatings || 0} {tenant.ratings?.overall?.totalRatings === 1 ? 'rating' : 'ratings'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Category Ratings */}
+                <div className={`space-y-3 mt-4 border-t pt-4 relative ${
+                  !tenant.ratings?.overall?.averageRating ? 'opacity-[0.17] pointer-events-none' : ''
+                }`}>
+                  {!tenant.ratings?.overall?.averageRating && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                      <div className="bg-white bg-opacity-80 p-4 rounded-lg shadow-md">
+                        <p className="text-gray-700 font-semibold text-center">
+                          No Rating Yet
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {ratingCategories.map((category) => {
+                    // Get rating data for this category, or use default if not available
+                    const categoryData = tenant.ratings?.categories?.[category] || {
+                      averageRating: null,
+                      totalRatings: 0
+                    };
+
+                    return (
+                      <div key={category} className="flex flex-col">
+                        <div className="flex justify-between items-center">
+                          <span className="capitalize text-gray-700 font-medium">
+                            {category}
+                          </span>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex">
+                              {renderStars(
+                                categoryData.averageRating, 
+                                !categoryData.averageRating
+                              )}
+                            </div>
+                            <div className="text-gray-600 min-w-[80px] text-right">
+                              <span className="font-medium">
+                                {categoryData.averageRating 
+                                  ? categoryData.averageRating.toFixed(1) 
+                                  : 'N/A'}
+                              </span>
+                              <span className="text-sm ml-1">
+                                ({categoryData.totalRatings || 0})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Rating Progress Bar */}
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                          <div 
+                            className={`h-1.5 rounded-full ${
+                              categoryData.averageRating 
+                                ? 'bg-yellow-500' 
+                                : 'bg-gray-300'
+                            }`}
+                            style={{ 
+                              width: `${categoryData.averageRating 
+                                ? (categoryData.averageRating / 5) * 100 
+                                : 0}%` 
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </Link>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {filteredTenants.length > tenantsPerPage && (
+        <div className="flex justify-center items-center mt-8 space-x-4">
+          <button 
+            onClick={prevPage} 
+            disabled={currentPage === 1}
+            className={`px-4 py-2 rounded-lg ${
+              currentPage === 1 
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+          >
+            <FaChevronLeft />
+          </button>
+
+          {/* Page Numbers */}
+          {[...Array(totalPages)].map((_, index) => (
+            <button
+              key={index}
+              onClick={() => paginate(index + 1)}
+              className={`px-4 py-2 rounded-lg ${
+                currentPage === index + 1 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {index + 1}
+            </button>
+          ))}
+
+          <button 
+            onClick={nextPage} 
+            disabled={currentPage === totalPages}
+            className={`px-4 py-2 rounded-lg ${
+              currentPage === totalPages 
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+          >
+            <FaChevronRight />
+          </button>
+        </div>
+      )}
     </motion.div>
   );
 };

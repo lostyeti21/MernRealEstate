@@ -1,84 +1,142 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
+import { FaStar } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
 
 const LandlordListings = () => {
   const { userId } = useParams();
+  const location = useLocation();
   const [landlord, setLandlord] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [ratings, setRatings] = useState({
+  const initialRatingState = {
     responseTime: 0,
     maintenance: 0,
     experience: 0,
-  });
-  const [hoveredRating, setHoveredRating] = useState({
-    responseTime: 0,
-    maintenance: 0,
-    experience: 0,
-  });
+  };
+  const [ratings, setRatings] = useState(initialRatingState);
+  const [hoveredRating, setHoveredRating] = useState(initialRatingState);
   const [rated, setRated] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationError, setVerificationError] = useState("");
+  const [currentRating, setCurrentRating] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setRatings(initialRatingState);
+    setHoveredRating(initialRatingState);
+    setRated(false);
+    setIsVerified(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const fetchLandlordData = async () => {
       try {
         setLoading(true);
+        setError(null);
+
         const res = await fetch(`/api/user/landlord/${userId}`);
         const data = await res.json();
 
-        if (!data.success) {
-          setError(data.message);
-          return;
+        if (!res.ok) {
+          throw new Error(data.message || 'Failed to fetch landlord data');
         }
 
-        setLandlord(data.landlord);
-        setListings(data.listings);
-      } catch (error) {
-        setError("Failed to fetch landlord data");
-        console.error(error);
-      } finally {
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to fetch landlord data');
+        }
+
+        const { landlord, listings } = data;
+
+        setLandlord(landlord);
+        setListings(listings);
+
+        // Set current rating for display only (not for the rating form)
+        setCurrentRating({
+          averageRating: landlord.averageRating || 0,
+          totalRatings: landlord.totalRatings || 0
+        });
+
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching landlord data:', err);
+        setError(err.message || 'Failed to fetch landlord data');
         setLoading(false);
       }
     };
 
-    fetchLandlordData();
+    if (userId) {
+      fetchLandlordData();
+    }
   }, [userId]);
 
   const handleVerifyCode = async () => {
-    if (!verificationCode.trim()) {
-      setVerificationError('Please enter the verification code');
-      return;
-    }
-
     try {
-      const res = await fetch('/api/code/verify', {
+      if (!verificationCode.trim()) {
+        setVerificationError('Please enter a verification code');
+        return;
+      }
+
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setVerificationError('Please log in to verify');
+        return;
+      }
+
+      // First verify the code
+      const verifyResponse = await fetch('/api/code/verify', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           code: verificationCode,
           landlordId: userId
-        }),
+        })
       });
 
-      const data = await res.json();
-      
-      if (res.ok) {
-        setIsVerified(true);
-        setShowVerificationModal(false);
-        setVerificationError("");
-      } else {
-        setVerificationError(data.message || 'Invalid verification code');
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyResponse.ok) {
+        throw new Error(verifyData.message || 'Invalid verification code');
       }
-    } catch (error) {
-      setVerificationError('Failed to verify code');
+
+      if (!verifyData.success) {
+        throw new Error(verifyData.message || 'Verification failed');
+      }
+
+      // If code is valid, check if user has already rated
+      const ratedResponse = await fetch(`/api/user/check-if-rated/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const ratedData = await ratedResponse.json();
+
+      if (!ratedResponse.ok) {
+        throw new Error(ratedData.message || 'Failed to check rating status');
+      }
+
+      if (ratedData.hasRated) {
+        throw new Error('You have already rated this landlord');
+      }
+
+      // If all checks pass, allow rating
+      setIsVerified(true);
+      setVerificationError('');
+      toast.success('Verification successful! You can now rate the landlord.');
+
+    } catch (err) {
+      console.error('Verification error:', err);
+      setVerificationError(err.message || 'Failed to verify code');
+      toast.error(err.message || 'Failed to verify code');
     }
   };
 
@@ -99,54 +157,109 @@ const LandlordListings = () => {
   const isValidRating = (rating) => rating >= 1 && rating <= 5;
 
   const handleRating = async () => {
-    const { responseTime, maintenance, experience } = ratings;
-
-    // First validate individual ratings are numbers and between 1-5
-    const validatedRatings = {
-      responseTime: Number(responseTime),
-      maintenance: Number(maintenance),
-      experience: Number(experience)
-    };
-
-    // Check if any rating is missing or invalid
-    if (Object.values(validatedRatings).some(rating => !rating || rating < 1 || rating > 5)) {
-      alert("Please provide valid ratings between 1 and 5 for all categories");
-      return;
-    }
-
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('access_token='))
-        ?.split('=')[1];
+      setError(null);
 
-      const res = await fetch("/api/user/rate-landlord", {
-        method: "POST",
+      // Check if user is verified first
+      if (!isVerified) {
+        throw new Error('Please verify your code before submitting a rating');
+      }
+
+      // Get current user token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('Please log in to submit a rating');
+      }
+
+      // Validate that all ratings are set and valid
+      const hasInvalidRating = Object.values(ratings).some(rating => !rating || rating < 1 || rating > 5);
+      if (hasInvalidRating) {
+        throw new Error('Please provide a rating (1-5 stars) for all categories');
+      }
+
+      // Prepare ratings array with correct category names
+      const ratingsArray = Object.entries(ratings).map(([category, value]) => ({
+        category: category.toLowerCase(),  // Ensure category names match backend expectations
+        value: Number(value),
+        comment: ''
+      }));
+
+      const response = await fetch('/api/user/rate-landlord', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         credentials: 'include',
         body: JSON.stringify({
           landlordId: userId,
-          responseTime: validatedRatings.responseTime,
-          maintenance: validatedRatings.maintenance,
-          experience: validatedRatings.experience
+          ratings: ratingsArray
         }),
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to submit rating');
+      if (!response.ok || !data.success) {
+        const errorMessage = data.message || 'Failed to submit rating';
+        console.error('Rating submission error:', { status: response.status, data });
+        throw new Error(errorMessage);
       }
 
-      setRated(true);
-      await fetchUpdatedLandlord();
+      // Update the current rating with the new values
+      if (data.ratings?.overall) {
+        setCurrentRating({
+          averageRating: data.ratings.overall.averageRating,
+          totalRatings: data.ratings.overall.totalRatings
+        });
+
+        // Reset all rating states after successful submission
+        setRatings(initialRatingState);
+        setHoveredRating(initialRatingState);
+        setRated(true);
+        setIsVerified(false);
+        setVerificationCode("");
+
+        // Fetch updated landlord data to refresh the displayed ratings
+        await fetchUpdatedLandlord();
+        
+        toast.success('Rating submitted successfully!');
+      } else {
+        throw new Error('Invalid response from server');
+      }
+
     } catch (err) {
-      console.error('Rating error:', err);
-      alert(err.message || 'Failed to submit rating');
+      console.error('Rating submission error:', err);
+      toast.error(err.message || 'Failed to submit rating');
+      setError(err.message || 'Failed to submit rating');
     }
+  };
+
+  const renderStars = (rating) => {
+    // If rating is null or 0, return 5 gray stars
+    if (!rating || rating === 0) {
+      return Array.from({ length: 5 }, (_, i) => (
+        <FaStar 
+          key={i} 
+          className="inline-block text-gray-300"
+        />
+      ));
+    }
+
+    return Array.from({ length: 5 }, (_, i) => (
+      <FaStar 
+        key={i} 
+        className={`inline-block ${
+          i < Math.round(rating) ? 'text-yellow-500' : 'text-gray-300'
+        }`} 
+      />
+    ));
+  };
+
+  const formatRating = (rating) => {
+    // Ensure rating is always a number with one decimal place
+    return rating !== null && rating !== undefined 
+      ? Number(rating).toFixed(1) 
+      : 'N/A';
   };
 
   const renderRatingStars = (category) => {
@@ -169,131 +282,197 @@ const LandlordListings = () => {
     ));
   };
 
-  const renderLandlordRating = (avgRating) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i + 1}
-        className={`text-xl ${i + 1 <= avgRating ? "text-yellow-500" : "text-gray-300"}`}
-      >
-        ★
-      </span>
-    ));
-  };
+  if (loading) {
+    return (
+      <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
+        <div className="spinner animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div>
+        <p className="mt-4">Loading landlord details...</p>
+      </div>
+    );
+  }
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (error) {
+    return (
+      <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
+        <p className="text-red-500">Error: {error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <img
-            src={landlord?.avatar || "https://via.placeholder.com/150"}
-            alt={landlord?.username}
-            className="rounded-full w-32 h-32 object-cover"
-          />
-          <h1 className="text-3xl font-bold">{landlord?.username}</h1>
-        </div>
-        <div>
-          <span className="mr-2 text-xl font-semibold">Rating:</span>
-          <div className="flex text-xl">
-            {landlord?.averageRating
-              ? renderLandlordRating(landlord.averageRating)
-              : "No ratings yet"}
+    <div className="container mx-auto px-4 py-8">
+      {landlord && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <div className="flex flex-col items-center mb-6">
+            <img
+              src={landlord.avatar}
+              alt={`${landlord.username}'s avatar`}
+              className="w-24 h-24 rounded-full mb-4 object-cover"
+            />
+            <h2 className="text-2xl font-semibold text-gray-800">{landlord.username}</h2>
+            
+            {/* Overall Rating */}
+            <div className="flex items-center mt-2">
+              {renderStars(currentRating?.averageRating || 0)}
+              <span className="ml-2 text-gray-600">
+                ({currentRating?.totalRatings || 0} {currentRating?.totalRatings === 1 ? 'rating' : 'ratings'})
+              </span>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="mb-6 text-center relative">
-        <h3 className="text-2xl font-semibold mb-4">Rate this Landlord</h3>
-        <div className={`p-6 border-2 border-gray-300 rounded-lg bg-gray-100 inline-block relative ${!isVerified ? 'filter blur-sm pointer-events-none' : ''}`}>
-          <div className="flex items-center justify-center gap-8">
-            <div className="text-center">
-              <h4>Response Time</h4>
-              <div className="flex">{renderRatingStars("responseTime")}</div>
-            </div>
-            <div className="text-center">
-              <h4>Maintenance</h4>
-              <div className="flex">{renderRatingStars("maintenance")}</div>
-            </div>
-            <div className="text-center">
-              <h4>Experience</h4>
-              <div className="flex">{renderRatingStars("experience")}</div>
-            </div>
+          {/* Category Ratings */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {Object.entries(landlord.categoryRatings || {}).map(([category, rating]) => (
+              <div key={category} className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium text-gray-700 capitalize mb-2">
+                  {category.replace(/([A-Z])/g, ' $1').trim()}
+                </h3>
+                <div className="flex items-center">
+                  {renderStars(rating)}
+                  <span className="ml-2 text-gray-600">
+                    {rating ? rating.toFixed(1) : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="mt-4">
-            <h4>
-              Total Rating:{" "}
-              {(
-                (ratings.responseTime + ratings.maintenance + ratings.experience) /
-                3
-              ).toFixed(1)}{" "}
-              / 5.0
-            </h4>
-          </div>
-          <div className="mt-6">
-            <button
-              onClick={handleRating}
-              className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600"
-            >
-              Submit Rating
-            </button>
+
+          {/* Contact Information */}
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-medium text-gray-700 mb-2">Contact Information</h3>
+            <p className="text-gray-600">{landlord.email}</p>
+            {landlord.phoneNumbers && landlord.phoneNumbers.length > 0 && (
+              <div className="mt-2">
+                {landlord.phoneNumbers.map((phone, index) => (
+                  <p key={index} className="text-gray-600">{phone}</p>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        {!isVerified && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 text-center bg-white/70 backdrop-blur-sm p-8 rounded-lg shadow-xl border border-gray-200">
-            <p className="text-lg font-semibold mb-4">Please enter the authentication code to rate this landlord</p>
-            <div className="flex flex-col items-center gap-4">
-              <input
-                type="text"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                placeholder="Enter verification code"
-                className="px-4 py-2 border rounded-md w-full"
-              />
-              {verificationError && (
-                <p className="text-red-500 text-sm">{verificationError}</p>
-              )}
-              <button
-                onClick={handleVerifyCode}
-                className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600 w-full"
-              >
-                Verify Code
-              </button>
-            </div>
-          </div>
-        )}
-        {rated && <p className="text-lg mt-4">Thank you for your rating!</p>}
-      </div>
+      )}
 
-      <h2 className="text-xl font-semibold mb-8 text-left">Listings by this Landlord</h2>
-      {listings.length === 0 ? (
-        <p className="text-center">No listings found for this landlord.</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {listings.map((listing) => (
-            <div
-              key={listing._id}
-              className="border rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow p-4"
-            >
-              <img
-                src={listing.imageUrls[0]}
-                alt={listing.name}
-                className="w-full h-48 object-cover mb-4"
-              />
-              <h3 className="text-lg font-semibold">{listing.name}</h3>
-              <p>{listing.address}</p>
-              <p className="text-green-600 font-bold">
-                ${listing.regularPrice.toLocaleString()}
-                {listing.type === 'rent' && ' / month'}
-              </p>
-              <Link to={`/listing/${listing._id}`} className="text-blue-500">
-                View Details
-              </Link>
+      {/* Rating Form */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8 relative">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">Rate this Landlord</h3>
+        
+        <div className={`space-y-4 ${!isVerified ? 'filter blur-sm' : ''}`}>
+          {Object.entries(ratings).map(([category, value]) => (
+            <div key={category} className="flex flex-col">
+              <label className="text-gray-700 font-medium capitalize mb-2">
+                {category.replace(/([A-Z])/g, ' $1').trim()}
+              </label>
+              <div className="flex items-center space-x-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <FaStar
+                    key={star}
+                    className={`text-2xl cursor-pointer ${
+                      (hoveredRating[category] || value) >= star
+                        ? 'text-yellow-400'
+                        : 'text-gray-300'
+                    }`}
+                    onMouseEnter={() =>
+                      setHoveredRating((prev) => ({ ...prev, [category]: star }))
+                    }
+                    onMouseLeave={() =>
+                      setHoveredRating((prev) => ({ ...prev, [category]: 0 }))
+                    }
+                    onClick={() =>
+                      setRatings((prev) => ({ ...prev, [category]: star }))
+                    }
+                  />
+                ))}
+                <span className="ml-2 text-gray-600">
+                  {hoveredRating[category] || value || 0}
+                </span>
+              </div>
             </div>
           ))}
         </div>
-      )}
+
+        <button
+          onClick={handleRating}
+          disabled={!isVerified}
+          className={`mt-6 w-full py-2 px-4 rounded transition duration-200 ${
+            isVerified 
+              ? 'bg-blue-500 text-white hover:bg-blue-600' 
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          Submit Rating
+        </button>
+
+        {/* Verification Overlay */}
+        {!isVerified && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-lg">
+            <div className="text-center p-6 max-w-md">
+              <h4 className="text-lg font-semibold mb-4">Verify to Rate</h4>
+              <p className="text-gray-600 mb-6">
+                To rate this landlord, you need their verification code. Ask the landlord for their unique code, 
+                which they can generate from their dashboard.
+              </p>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="Enter landlord's verification code"
+                  className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {verificationError && (
+                  <p className="text-red-500 text-sm">{verificationError}</p>
+                )}
+                <button
+                  onClick={handleVerifyCode}
+                  className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200"
+                >
+                  Verify Code
+                </button>
+                <p className="text-sm text-gray-500 mt-4">
+                  Note: The verification code is valid for 24 hours after generation.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Listings Section */}
+      <div className="mt-6">
+        <h2 className="text-xl font-semibold mb-4">Listings</h2>
+        {listings.length === 0 ? (
+          <p className="text-gray-600">No listings available</p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {listings.map((listing) => (
+              <Link 
+                to={`/listing/${listing._id}`} 
+                key={listing._id} 
+                className="block bg-white shadow-md rounded-lg overflow-hidden hover:shadow-lg transition"
+              >
+                <img 
+                  src={listing.imageUrls[0]} 
+                  alt={listing.name} 
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold text-gray-800">{listing.name}</h3>
+                  <p className="text-gray-600">{listing.address}</p>
+                  <div className="mt-2 flex justify-between items-center">
+                    <span className="text-blue-600 font-bold">
+                      ${listing.regularPrice.toLocaleString()}
+                      {listing.type === 'rent' && ' / month'}
+                    </span>
+                    <span className="text-green-600">
+                      {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -40,8 +40,9 @@ export default function Listing() {
   const [fullscreenIndex, setFullscreenIndex] = useState(0);
   const [showMap, setShowMap] = useState(true); // New state variable
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [ratingHover, setRatingHover] = useState(0);
+  const [responseTimeRating, setResponseTimeRating] = useState(0);
+  const [maintenanceRating, setMaintenanceRating] = useState(0);
+  const [experienceRating, setExperienceRating] = useState(0);
   const [hasUserRated, setHasUserRated] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
@@ -377,35 +378,54 @@ export default function Listing() {
     ));
   };
 
-  const handleRatingSubmit = async () => {
-    if (!rating || !currentUser || !listedBy) return;
-
+  const handleSubmitRating = async () => {
     try {
-      const endpoint = listedBy.type === 'agent' 
-        ? `/api/agent/${listedBy.data._id}/rate`
-        : `/api/user/${listedBy.data._id}/rate`;
+      // Validate ratings
+      if (
+        responseTimeRating === 0 || 
+        maintenanceRating === 0 || 
+        experienceRating === 0
+      ) {
+        toast.error('Please provide ratings for all categories');
+        return;
+      }
 
-      const res = await fetch(endpoint, {
+      // Calculate overall rating
+      const overallRating = (responseTimeRating + maintenanceRating + experienceRating) / 3;
+
+      const response = await fetch('/api/user/rate-landlord', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
         },
-        body: JSON.stringify({ rating })
+        body: JSON.stringify({
+          landlordId: listing.userRef,
+          responseTime: responseTimeRating,
+          maintenance: maintenanceRating,
+          experience: experienceRating,
+          overallRating: overallRating
+        }),
       });
 
-      const data = await res.json();
-      
-      if (data.success) {
-        setHasUserRated(true);
-        setShowRatingModal(false);
-        // Refresh the listing to update ratings
-        fetchListing();
-      } else {
-        setError('Failed to submit rating');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to submit rating');
       }
+
+      toast.success('Rating submitted successfully!');
+      
+      // Update local state
+      setResponseTimeRating(0);
+      setMaintenanceRating(0);
+      setExperienceRating(0);
+      setShowRatingModal(false);
+
+      // Refresh listing to show updated ratings
+      fetchListing();
     } catch (error) {
-      setError('Error submitting rating');
+      console.error('Error submitting rating:', error);
+      toast.error(error.message || 'An error occurred while submitting rating');
     }
   };
 
@@ -909,36 +929,76 @@ export default function Listing() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
             <h3 className="text-xl font-semibold mb-4">Rate {listedBy.data.name}</h3>
-            <div className="flex justify-center gap-2 mb-6">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  className="text-3xl focus:outline-none"
-                  onMouseEnter={() => setRatingHover(star)}
-                  onMouseLeave={() => setRatingHover(0)}
-                  onClick={() => setRating(star)}
-                >
-                  <span className={`${
-                    (ratingHover || rating) >= star ? 'text-yellow-400' : 'text-gray-300'
-                  }`}>
-                    ★
-                  </span>
-                </button>
-              ))}
+            <div className="flex flex-col gap-4 mb-6">
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-medium">Response Time:</p>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    className="text-3xl focus:outline-none"
+                    onMouseEnter={() => setResponseTimeRating(star)}
+                    onMouseLeave={() => setResponseTimeRating(responseTimeRating)}
+                    onClick={() => setResponseTimeRating(star)}
+                  >
+                    <span className={`${
+                      responseTimeRating >= star ? 'text-yellow-400' : 'text-gray-300'
+                    }`}>
+                      ★
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-medium">Maintenance:</p>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    className="text-3xl focus:outline-none"
+                    onMouseEnter={() => setMaintenanceRating(star)}
+                    onMouseLeave={() => setMaintenanceRating(maintenanceRating)}
+                    onClick={() => setMaintenanceRating(star)}
+                  >
+                    <span className={`${
+                      maintenanceRating >= star ? 'text-yellow-400' : 'text-gray-300'
+                    }`}>
+                      ★
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-medium">Experience:</p>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    className="text-3xl focus:outline-none"
+                    onMouseEnter={() => setExperienceRating(star)}
+                    onMouseLeave={() => setExperienceRating(experienceRating)}
+                    onClick={() => setExperienceRating(star)}
+                  >
+                    <span className={`${
+                      experienceRating >= star ? 'text-yellow-400' : 'text-gray-300'
+                    }`}>
+                      ★
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowRatingModal(false);
-                  setRating(0);
-                  setRatingHover(0);
+                  setResponseTimeRating(0);
+                  setMaintenanceRating(0);
+                  setExperienceRating(0);
                 }}
                 className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
               >
                 Cancel
               </button>
               <button
-                onClick={handleRatingSubmit}
+                onClick={handleSubmitRating}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
               >
                 Submit Rating

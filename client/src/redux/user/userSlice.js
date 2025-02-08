@@ -42,16 +42,38 @@ const userSlice = createSlice({
       state.currentUser = action.payload;
       state.loading = false;
       state.error = null;
+      
+      // Enhanced token extraction and logging
+      console.group('Sign In Success Debug');
+      console.log('Payload:', action.payload);
+      
+      // Multiple ways to extract token
+      const token = 
+        action.payload.token || 
+        action.payload.accessToken || 
+        action.payload.access_token;
+      
+      console.log('Extracted Token:', token);
+      
+      if (!token) {
+        console.error('No token found in payload');
+        console.groupEnd();
+        return;
+      }
+      
+      // Store token explicitly
+      localStorage.setItem('access_token', token);
+      localStorage.setItem('currentUser', JSON.stringify({
+        ...action.payload,
+        token: token  // Ensure token is part of stored user object
+      }));
+      
+      console.log('Token and User stored in localStorage');
+      console.groupEnd();
+      
       // Set isAgent flag based on the user data
       state.isAgent = action.payload.isAgent || false;
       state.isRealEstateCompany = action.payload.isRealEstateCompany || false;
-      
-      // Store user data and token
-      const token = action.payload.token || action.payload.accessToken;
-      if (token) {
-        localStorage.setItem('access_token', token);
-      }
-      localStorage.setItem('currentUser', JSON.stringify(action.payload));
     },
     signInFailure: (state, action) => {
       state.loading = false;
