@@ -12,6 +12,7 @@ export default function Header() {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isAgent, setIsAgent] = useState(false);
   const [persistentUnreadCount, setPersistentUnreadCount] = useState(0);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [hasListings, setHasListings] = useState(false);
   const socket = useRef();
   const navigate = useNavigate();
@@ -55,15 +56,113 @@ export default function Header() {
     ? (realEstateCompany?.banner || realEstateCompany?.avatar || '/default-company-avatar.png')
     : (currentUser?.avatar || '/default-user-avatar.png');
 
+  // Global notification state management
   useEffect(() => {
-    if (!user) return;
+    // Comprehensive logging function
+    const logNotificationState = (context) => {
+      console.log(`NOTIFICATION DEBUG [${context}]:`, {
+        user: user?._id,
+        storedUnreadCount: localStorage.getItem(`unreadMessages_${user?._id}`),
+        storedHasUnread: localStorage.getItem(`hasUnread_${user?._id}`),
+        currentUnreadCount: persistentUnreadCount,
+        hasUnreadMessages: hasUnreadMessages,
+        isMessagesPage: isMessagesPage
+      });
+    };
 
-    // Fetch initial unread count from local storage
-    const storedUnreadCount = localStorage.getItem(`unreadMessages_${user._id}`);
-    if (storedUnreadCount) {
-      setPersistentUnreadCount(parseInt(storedUnreadCount, 10));
+    // Guard against invalid user state
+    if (!user) {
+      console.log('No user found, skipping notification initialization');
+      return;
     }
 
+    // Fetch and synchronize unread count
+    const synchronizeUnreadCount = async () => {
+      try {
+        // Skip for real estate companies and agents
+        if (isRealEstateCompany || isAgent) {
+          console.log('Skipping unread count for company/agent');
+          return;
+        }
+
+        // Retrieve authentication token
+        const token = 
+          localStorage.getItem('access_token') || 
+          localStorage.getItem('token') || 
+          (currentUser && currentUser.token);
+
+        if (!token) {
+          console.log('No authentication token found');
+          return;
+        }
+
+        // Fetch unread count from server
+        const res = await fetch('/api/messages/unread-count', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('Unread count fetch error:', {
+            status: res.status,
+            statusText: res.statusText,
+            body: errorText
+          });
+          return;
+        }
+
+        // Parse server response
+        const data = await res.json();
+        console.log('Server Response:', data);
+
+        // Get count from correct field in response
+        const serverUnreadCount = data.count || 0;
+        
+        console.log('Server Unread Count:', serverUnreadCount);
+
+        // Synchronize state and storage
+        const shouldUpdateState = 
+          serverUnreadCount !== persistentUnreadCount || 
+          (serverUnreadCount > 0) !== hasUnreadMessages;
+
+        if (shouldUpdateState) {
+          console.log('Synchronizing notification state with server:', {
+            serverUnreadCount,
+            currentCount: persistentUnreadCount,
+            currentHasUnread: hasUnreadMessages
+          });
+          
+          // Update component state
+          setPersistentUnreadCount(serverUnreadCount);
+          setHasUnreadMessages(serverUnreadCount > 0);
+          
+          // Update localStorage
+          localStorage.setItem(`unreadMessages_${user._id}`, serverUnreadCount.toString());
+          localStorage.setItem(`hasUnread_${user._id}`, (serverUnreadCount > 0).toString());
+
+          // Log final state
+          logNotificationState('ServerSync');
+        }
+      } catch (error) {
+        console.error('Comprehensive error in unread count synchronization:', error);
+      }
+    };
+
+    // Initial synchronization with debug log
+    console.log('Starting initial synchronization');
+    synchronizeUnreadCount();
+
+    // Setup periodic synchronization
+    const intervalId = setInterval(() => {
+      console.log('Running periodic synchronization');
+      synchronizeUnreadCount();
+    }, 3000);
+
+    // Socket event listeners for real-time updates
     if (!socket.current) {
       socket.current = io('http://localhost:3000', {
         auth: { token: localStorage.getItem('token') },
@@ -73,26 +172,65 @@ export default function Header() {
 
     // Listen for new messages
     socket.current.on('new_message', (data) => {
-      console.log('New message received in header:', data);
-      if (!isMessagesPage) {
-        const newCount = persistentUnreadCount + 1;
-        setPersistentUnreadCount(newCount);
-        localStorage.setItem(`unreadMessages_${user._id}`, newCount.toString());
-      }
+      console.log('New message received:', data);
+      synchronizeUnreadCount();
     });
 
     // Listen for message read events
     socket.current.on('messages_read', (data) => {
-      if (data.userId === user._id) {
-        setPersistentUnreadCount(prev => Math.max(0, prev - data.count));
-        localStorage.setItem(`unreadMessages_${user._id}`, Math.max(0, persistentUnreadCount - data.count).toString());
-      }
+      console.log('Messages read event:', data);
+      synchronizeUnreadCount();
     });
 
-    // Fetch initial unread count from server
+    // Cleanup function
+    return () => {
+      clearInterval(intervalId);
+      if (socket.current) {
+        socket.current.off('new_message');
+        socket.current.off('messages_read');
+      }
+    };
+  }, [user?._id, currentUser, isRealEstateCompany, isAgent]);
+
+  // Messages page effect
+  useEffect(() => {
+    if (isMessagesPage && user) {
+      console.log('Entering Messages Page:', {
+        userId: user._id,
+        previousUnreadCount: persistentUnreadCount,
+        previousHasUnread: hasUnreadMessages
+      });
+
+      // Only clear if actually on messages page
+      if (location.pathname === '/messages') {
+        localStorage.removeItem(`unreadMessages_${user._id}`);
+        localStorage.setItem(`hasUnread_${user._id}`, 'false');
+        
+        setPersistentUnreadCount(0);
+        setHasUnreadMessages(false);
+      }
+    }
+  }, [isMessagesPage, user?._id, location.pathname]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Initialize from localStorage with more robust checking
+    const storedUnreadCount = localStorage.getItem(`unreadMessages_${user._id}`) || '0';
+    const storedHasUnread = localStorage.getItem(`hasUnread_${user._id}`);
+    
+    // Prioritize hasUnread flag, fallback to unread count
+    const initialHasUnread = 
+      storedHasUnread === 'true' || 
+      (storedUnreadCount && parseInt(storedUnreadCount, 10) > 0);
+
+    // Set initial states immediately
+    setPersistentUnreadCount(parseInt(storedUnreadCount, 10));
+    setHasUnreadMessages(initialHasUnread);
+
+    // Fetch initial unread count from server to confirm
     const fetchUnreadCount = async () => {
       try {
-        // Skip for real estate companies and agents
         if (isRealEstateCompany || isAgent) return;
 
         const token = 
@@ -124,26 +262,71 @@ export default function Header() {
         }
 
         const data = await res.json();
-        const unreadCount = data.unreadCount || 0;
+        const unreadCount = data.count || 0;
         
-        // Update persistent unread count
+        // Update both states and localStorage
         setPersistentUnreadCount(unreadCount);
+        const serverHasUnread = unreadCount > 0;
+        
+        // Prefer server-side unread status
+        setHasUnreadMessages(serverHasUnread);
         localStorage.setItem(`unreadMessages_${user._id}`, unreadCount.toString());
+        localStorage.setItem(`hasUnread_${user._id}`, serverHasUnread.toString());
       } catch (error) {
         console.error('Comprehensive error in unread count fetch:', error);
+        // Fallback to local storage if server fetch fails
+        setHasUnreadMessages(initialHasUnread);
       }
     };
 
-    fetchUnreadCount();
+    // Delay server fetch to ensure initial state is set
+    const timeoutId = setTimeout(fetchUnreadCount, 100);
 
-    // Cleanup socket on unmount
+    return () => clearTimeout(timeoutId);
+  }, [user?._id, currentUser, isRealEstateCompany, isAgent]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Setup socket connection
+    if (!socket.current) {
+      socket.current = io('http://localhost:3000', {
+        auth: { token: localStorage.getItem('token') },
+        transports: ['websocket', 'polling']
+      });
+    }
+
+    // Listen for new messages
+    socket.current.on('new_message', (data) => {
+      console.log('New message received in header:', data);
+      if (!isMessagesPage) {
+        const newCount = persistentUnreadCount + 1;
+        setPersistentUnreadCount(newCount);
+        setHasUnreadMessages(true);
+        localStorage.setItem(`unreadMessages_${user._id}`, newCount.toString());
+        localStorage.setItem(`hasUnread_${user._id}`, 'true');
+      }
+    });
+
+    // Listen for message read events
+    socket.current.on('messages_read', (data) => {
+      if (data.userId === user._id) {
+        const newCount = Math.max(0, persistentUnreadCount - data.count);
+        setPersistentUnreadCount(newCount);
+        const hasUnread = newCount > 0;
+        setHasUnreadMessages(hasUnread);
+        localStorage.setItem(`unreadMessages_${user._id}`, newCount.toString());
+        localStorage.setItem(`hasUnread_${user._id}`, hasUnread.toString());
+      }
+    });
+
     return () => {
       if (socket.current) {
         socket.current.off('new_message');
         socket.current.off('messages_read');
       }
     };
-  }, [user?._id, isMessagesPage]);
+  }, [user?._id, isMessagesPage, currentUser]);
 
   useEffect(() => {
     if (currentUser && !isRealEstateCompany && !isAgent) {
@@ -169,15 +352,20 @@ export default function Header() {
     }
   };
 
-  // Use persistentUnreadCount for rendering
-  const displayUnreadCount = isMessagesPage ? 0 : persistentUnreadCount;
-
   // Reset unread count when entering messages page
   useEffect(() => {
-    if (isMessagesPage) {
+    if (isMessagesPage && user) {
+      // Instead of resetting to 0, mark as read
+      localStorage.removeItem(`unreadMessages_${user._id}`);
+      localStorage.setItem(`hasUnread_${user._id}`, 'false');
+      
       setPersistentUnreadCount(0);
+      setHasUnreadMessages(false);
     }
-  }, [isMessagesPage]);
+  }, [isMessagesPage, user?._id]);
+
+  // Use persistentUnreadCount for rendering
+  const displayUnreadCount = isMessagesPage ? 0 : persistentUnreadCount;
 
   // Debug log when hasListings changes
   useEffect(() => {
@@ -435,78 +623,76 @@ export default function Header() {
         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
           {user ? (
             <div className='relative flex items-center gap-2' ref={dropdownRef}>
-              <div className="flex items-center gap-4">
-                {/* Profile Image Container with Notification Dot */}
-                <div className="relative">
-                  <img
-                    src={avatarUrl} 
-                    alt='profile' 
-                    className='rounded-md h-12 w-12 object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200'
-                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-                  />
-                  {displayUnreadCount > 0 && (
-                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-white text-xs">
-                      {displayUnreadCount > 99 ? '99+' : displayUnreadCount}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Profile Dropdown */}
-                {isProfileDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50 overflow-hidden transition-all duration-300 ease-in-out">
-                    {user && (
-                      <>
-                        <div className="px-4 py-2 text-sm text-gray-700">
-                          <span className="block font-medium text-gray-900">
-                            {user.username || user.name}
-                          </span>
-                          <span className="block text-gray-500 text-xs">
-                            {user.email}
-                          </span>
-                        </div>
-                        <hr className="border-gray-200" />
-                        
-                        {/* Debug info */}
-                        {!isRealEstateCompany && (
+              {/* Avatar with notification dot */}
+              <div className="relative">
+                <img
+                  src={avatarUrl}
+                  alt="profile"
+                  className="rounded-md h-[3.3rem] w-[3.3rem] object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200"
+                  onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                />
+                {shouldShowNotifications && hasUnreadMessages && (
+                  <div className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white"></div>
+                )}
+              </div>
+
+              {/* Profile Dropdown */}
+              {isProfileDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50 overflow-hidden transition-all duration-300 ease-in-out">
+                  {user && (
+                    <>
+                      <div className="px-4 py-2 text-sm text-gray-700">
+                        <span className="block font-medium text-gray-900">
+                          {user.username || user.name}
+                        </span>
+                        <span className="block text-gray-500 text-xs">
+                          {user.email}
+                        </span>
+                      </div>
+                      <hr className="border-gray-200" />
+                      
+                      {/* Debug info */}
+                      {!isRealEstateCompany && (
                         <div className="px-4 py-1 text-xs text-gray-500">
-                        Status:{hasListings ? 'Has Listings' : 'No Listings'}
+                          Status:{hasListings ? 'Has Listings' : 'No Listings'}
                         </div>
-                        )}
-                        
-                        <Link
-                          to={isRealEstateCompany ? '/real-estate-dashboard' : 
-                              isAgent ? '/agent-dashboard' : 
-                              hasListings ? '/landlord-profile' : '/profile'}
-                          className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          {isRealEstateCompany ? 'Dashboard' : 
-                           isAgent ? 'Agent Dashboard' :
-                           hasListings ? 'Landlord Profile' : 'Profile'}
-                        </Link>
-                        
-                        {!isRealEstateCompany && !isAgent && (
+                      )}
+                      
+                      <Link
+                        to={isRealEstateCompany ? '/real-estate-dashboard' : 
+                            isAgent ? '/agent-dashboard' : 
+                            hasListings ? '/landlord-profile' : '/profile'}
+                        className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                      >
+                        {isRealEstateCompany ? 'Dashboard' : 
+                         isAgent ? 'Agent Dashboard' :
+                         hasListings ? 'Landlord Profile' : 'Profile'}
+                      </Link>
+                      
+                      {!isRealEstateCompany && !isAgent && (
                         <Link
                           to="/messages"
-                          className={`block px-4 py-2 text-sm hover:bg-slate-100 relative ${
-                            shouldShowNotifications && displayUnreadCount > 0 
-                              ? 'font-bold text-[#009688]' 
-                              : 'text-slate-700 hover:text-[#009688]'
+                          className={`block px-4 py-2 text-sm relative ${
+                            location.pathname === '/messages'
+                              ? 'bg-slate-100 text-[#009688]'
+                              : shouldShowNotifications && hasUnreadMessages
+                              ? 'text-[#009688] font-semibold'
+                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
                           } transition-colors duration-200`}
                           onClick={() => setIsProfileDropdownOpen(false)}
                         >
                           <div className="flex items-center justify-between">
                             <span>Messages</span>
-                            {shouldShowNotifications && displayUnreadCount > 0 && (
+                            {shouldShowNotifications && hasUnreadMessages && (
                               <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                {displayUnreadCount > 99 ? '99+' : displayUnreadCount}
+                                {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
                               </span>
                             )}
                           </div>
                         </Link>
-                        )}
-                        
-                        {isAgent && (
+                      )}
+                      {isAgent && (
                         <Link
                           to="/agent-dashboard"
                           className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
@@ -514,32 +700,30 @@ export default function Header() {
                         >
                           Agents Dashboard
                         </Link>
-                        )}
-                        
-                        {currentUser && currentUser.role === 'admin' && (
-                          <Link
-                            to="/admin-center"
-                            className="block px-4 py-2 hover:bg-gray-100 text-slate-700 hover:text-[#009688] transition-colors duration-200"
-                          >
-                            <div className="flex items-center">
-                              Admin Center
-                            </div>
-                          </Link>
-                        )}
-                        
-                        <hr className="border-gray-200" />
-                        
-                        <button
-                          onClick={handleSignOut}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:text-[#009688] hover:bg-gray-100 transition-colors duration-200"
+                      )}
+                      {currentUser && currentUser.role === 'admin' && (
+                        <Link
+                          to="/admin-center"
+                          className="block px-4 py-2 hover:bg-gray-100 text-slate-700 hover:text-[#009688] transition-colors duration-200"
                         >
-                          Sign Out
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+                          <div className="flex items-center">
+                            Admin Center
+                          </div>
+                        </Link>
+                      )}
+                      
+                      <hr className="border-gray-200" />
+                      
+                      <button
+                        onClick={handleSignOut}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:text-[#009688] hover:bg-gray-100 transition-colors duration-200"
+                      >
+                        Sign Out
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <Link to="/sign-in">

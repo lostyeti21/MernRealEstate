@@ -128,14 +128,28 @@ const Landlords = () => {
       ));
     }
 
-    return Array.from({ length: 5 }, (_, i) => (
-      <FaStar 
-        key={i} 
-        className={`inline-block ${
-          i < Math.round(rating) ? 'text-yellow-500' : 'text-gray-300'
-        }`} 
-      />
-    ));
+    return Array.from({ length: 5 }, (_, i) => {
+      // Calculate star fill based on rating
+      // Full star if index is less than floor of rating
+      // Half star if index is less than floor of rating and there's a remainder
+      // Empty star otherwise
+      const starValue = i + 1;
+      const isFilled = starValue <= Math.floor(rating);
+      const isHalfFilled = !isFilled && starValue <= Math.ceil(rating) && rating % 1 >= 0.5;
+
+      return (
+        <FaStar 
+          key={i} 
+          className={`inline-block ${
+            isFilled 
+              ? 'text-yellow-500' 
+              : isHalfFilled 
+                ? 'text-yellow-500 opacity-50' 
+                : 'text-gray-300'
+          }`} 
+        />
+      );
+    });
   };
 
   const formatRating = (rating) => {

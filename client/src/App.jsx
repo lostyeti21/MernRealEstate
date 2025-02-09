@@ -38,6 +38,7 @@ import LandlordProfile from './pages/LandlordProfile';
 import GeneratedCode from './pages/GeneratedCode';
 import VerifyCode from './pages/VerifyCode';
 import ImageCollageManager from './pages/ImageCollageManager';
+import ResetPassword from './pages/ResetPassword';
 
 const App = () => {
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
@@ -106,6 +107,8 @@ const App = () => {
         <Route path="/generated-code" element={<GeneratedCode />} />
         <Route path="/verify-code/:userId/:code" element={<VerifyCode />} />
         <Route path="/image-collage-manager" element={<ImageCollageManager />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

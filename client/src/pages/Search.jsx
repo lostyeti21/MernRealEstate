@@ -286,6 +286,11 @@ export default function Search() {
     };
   }, [showAmenitiesDropdown]);
 
+  useEffect(() => {
+    // Scroll to the top of the page when the component mounts
+    window.scrollTo(0, 0);
+  }, []);
+
   const handleChange = (e) => {
     if (e.target.id === 'searchTerm') {
       setSidebardata({ ...sidebardata, searchTerm: e.target.value });

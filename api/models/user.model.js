@@ -62,8 +62,14 @@ const userSchema = new mongoose.Schema({
     ref: 'User'
   }],
   verificationCode: String,
-  resetToken: String,
-  resetTokenExpiry: Date,
+  resetToken: {
+    type: String,
+    default: null
+  },
+  resetTokenExpiry: {
+    type: Date,
+    default: null
+  },
   isAdmin: {
     type: Boolean,
     default: false,

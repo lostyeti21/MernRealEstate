@@ -1,8 +1,11 @@
 import express from "express";
-import { signin, signup, google, signout } from "../controllers/auth.controller.js";
+import { signin, signup, google, signout, forgotPassword } from "../controllers/auth.controller.js";
 import { sendConfirmationCode } from "../controllers/email.controller.js"; // Import the controller for sending confirmation codes
 import User from "../models/user.model.js"; // Import the User model for email checking
 import { verifyToken } from '../utils/verifyUser.js';
+import bcryptjs from 'bcryptjs';
+import crypto from 'crypto';
+import { errorHandler } from '../utils/error.js';
 
 const router = express.Router();
 
@@ -35,6 +38,95 @@ router.post("/check-email", async (req, res) => {
   } catch (err) {
     console.error("Error checking email:", err);
     res.status(500).json({ success: false, message: "Server error." });
+  }
+});
+
+// Route to handle forgot password
+router.post("/forgot-password", forgotPassword);
+
+// Route to verify reset code
+router.post("/verify-reset-code", async (req, res, next) => {
+  const { email, code } = req.body;
+
+  try {
+    // Validate inputs
+    if (!email || !code) {
+      return next(errorHandler(400, 'Email and verification code are required'));
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(errorHandler(404, 'No account found with this email'));
+    }
+
+    // Hash the provided code
+    const hashedCode = crypto
+      .createHash('sha256')
+      .update(code)
+      .digest('hex');
+
+    // Check if code matches and is not expired
+    if (
+      user.resetToken !== hashedCode || 
+      !user.resetTokenExpiry || 
+      user.resetTokenExpiry < Date.now()
+    ) {
+      return next(errorHandler(400, 'Invalid or expired verification code'));
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Verification code is valid',
+      email: user.email
+    });
+
+  } catch (error) {
+    console.error('Verify reset code error:', error);
+    next(errorHandler(500, 'Error verifying reset code'));
+  }
+});
+
+// Route to handle password reset
+router.post("/reset-password", async (req, res, next) => {
+  const { email, newPassword } = req.body;
+
+  try {
+    // Validate inputs
+    if (!email || !newPassword) {
+      return next(errorHandler(400, 'Email and new password are required'));
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(errorHandler(404, 'No account found with this email'));
+    }
+
+    // Validate reset token still exists and is not expired
+    if (!user.resetToken || !user.resetTokenExpiry || user.resetTokenExpiry < Date.now()) {
+      return next(errorHandler(400, 'Reset session has expired. Please request a new code.'));
+    }
+
+    // Set the new password - it will be hashed by the pre-save middleware
+    user.password = newPassword;
+    user.resetToken = null;
+    user.resetTokenExpiry = null;
+
+    // Save the user to trigger the password hashing middleware
+    await user.save();
+
+    // Log successful password reset
+    console.log('Password reset successful for email:', email);
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Password reset successful' 
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    next(errorHandler(500, 'Error resetting password'));
   }
 });
 
