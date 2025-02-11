@@ -39,6 +39,7 @@ import GeneratedCode from './pages/GeneratedCode';
 import VerifyCode from './pages/VerifyCode';
 import ImageCollageManager from './pages/ImageCollageManager';
 import ResetPassword from './pages/ResetPassword';
+import Landing from "./pages/Landing";
 
 const App = () => {
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
@@ -109,6 +110,7 @@ const App = () => {
         <Route path="/image-collage-manager" element={<ImageCollageManager />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/landing" element={<Landing />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
