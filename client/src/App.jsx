@@ -40,6 +40,7 @@ import VerifyCode from './pages/VerifyCode';
 import ImageCollageManager from './pages/ImageCollageManager';
 import ResetPassword from './pages/ResetPassword';
 import Landing from "./pages/Landing";
+import Agents from './pages/Agents';
 
 const App = () => {
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
@@ -101,6 +102,7 @@ const App = () => {
         <Route path="/real-estate-dashboard" element={<RealEstateDashboard />} />
         <Route path="/update-company" element={<UpdateCompany />} />
         <Route path="/real-estate-agent-login" element={<RealEstateAgentLogin />} />
+        <Route path="/agent/:agentId" element={<AgentProfile />} />
         <Route path="/agent/:agentId/listings" element={<AgentListings />} />
         <Route path="/add-agent" element={<AddAgent />} />
         <Route path="/real-estate-companies" element={<RealEstateCompanies />} />
@@ -111,6 +113,7 @@ const App = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/landing" element={<Landing />} />
+        <Route path="/agents" element={<Agents />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

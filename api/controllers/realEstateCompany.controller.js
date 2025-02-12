@@ -47,4 +47,65 @@ export const addLinkedAccounts = async (req, res, next) => {
   }
 };
 
+export const getCompanyDetails = async (req, res) => {
+  try {
+    const { companyId } = req.params;
 
+    // First try to find by _id
+    const companyById = await RealEstateCompany.findById(companyId).select({
+      companyName: 1,
+      averageRating: 1,
+      totalRatings: 1,
+      categoryRatings: 1,
+      agents: 1,
+      companyEmail: 1,
+      companyPhone: 1,
+      companyAddress: 1,
+      companyLogo: 1,
+      companyDescription: 1
+    });
+
+    if (companyById) {
+      return res.status(200).json({
+        success: true,
+        company: companyById.toObject()
+      });
+    }
+
+    // If not found by _id, try to find by company name
+    const companyByName = await RealEstateCompany.findOne({ 
+      companyName: { $regex: new RegExp(companyId, 'i') } 
+    }).select({
+      companyName: 1,
+      averageRating: 1,
+      totalRatings: 1,
+      categoryRatings: 1,
+      agents: 1,
+      companyEmail: 1,
+      companyPhone: 1,
+      companyAddress: 1,
+      companyLogo: 1,
+      companyDescription: 1
+    });
+
+    if (companyByName) {
+      return res.status(200).json({
+        success: true,
+        company: companyByName.toObject()
+      });
+    }
+
+    // If no company found
+    return res.status(404).json({
+      success: false,
+      message: "Company not found",
+    });
+  } catch (error) {
+    console.error("Error in getCompanyDetails:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};

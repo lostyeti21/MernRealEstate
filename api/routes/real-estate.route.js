@@ -169,6 +169,73 @@ router.post('/signin', async (req, res) => {
   }
 });
 
+// Get all agents from all companies
+router.get('/company/agents', async (req, res) => {
+  try {
+    const { sort = 'rating', order = 'desc' } = req.query;
+
+    console.log('Received query params:', { sort, order });
+
+    // Find all companies and extract their agents
+    const companies = await RealEstateCompany.find({});
+    
+    console.log('Found companies:', companies.map(c => c.companyName));
+
+    // Flatten agents from all companies with proper ID handling
+    let allAgents = [];
+    companies.forEach(company => {
+      // Ensure agents is an array and filter out any non-object entries
+      const validAgents = Array.isArray(company.agents) 
+        ? company.agents.filter(agent => agent && typeof agent === 'object')
+        : [];
+
+      // Transform agents to include company information
+      const companyAgents = validAgents.map(agent => {
+        // Create a new object with spread to ensure we have a clean copy
+        const agentObject = { ...agent.toObject() };
+        
+        // Ensure _id is a string and exists
+        if (agentObject._id) {
+          agentObject._id = agentObject._id.toString();
+        } else {
+          // Generate a new ObjectId if _id is missing
+          agentObject._id = new mongoose.Types.ObjectId().toString();
+        }
+
+        // Add company information
+        agentObject.companyName = company.companyName;
+        
+        return agentObject;
+      });
+
+      allAgents.push(...companyAgents);
+    });
+
+    console.log(`Total valid agents: ${allAgents.length}`);
+
+    // Sort agents based on query parameters
+    if (sort === 'rating') {
+      allAgents.sort((a, b) => {
+        const ratingA = a.averageRating || 0;
+        const ratingB = b.averageRating || 0;
+        return order === 'desc' ? ratingB - ratingA : ratingA - ratingB;
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      agents: allAgents
+    });
+  } catch (error) {
+    console.error('Error fetching agents:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching agents',
+      error: error.message
+    });
+  }
+});
+
 // Get company by ID
 router.get('/company/:id', async (req, res) => {
   try {

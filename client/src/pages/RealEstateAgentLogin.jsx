@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { signInStart, signInSuccess, signInFailure } from '../redux/user/userSlice';
@@ -10,10 +10,50 @@ export default function RealEstateAgentLogin() {
     email: '',
     password: ''
   });
+  const [companies, setCompanies] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
   const { loading, error } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  // Fetch companies on component mount
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        console.log('Attempting to fetch companies...');
+        const res = await fetch('/api/real-estate/companies');
+        console.log('Response status:', res.status);
+        
+        const data = await res.json();
+        console.log('Received data:', data);
+
+        if (data.success) {
+          console.log('Companies fetched:', data.companies);
+          setCompanies(data.companies);
+        } else {
+          console.error('Failed to fetch companies:', data.message);
+          // Fallback to hardcoded companies if fetch fails
+          setCompanies([
+            { _id: '1', companyName: 'Century 21' },
+            { _id: '2', companyName: 'Keller Williams' },
+            { _id: '3', companyName: 'Remax' },
+            { _id: '4', companyName: 'Coldwell Banker' }
+          ]);
+        }
+      } catch (err) {
+        console.error('Error fetching companies:', err);
+        // Fallback to hardcoded companies if fetch fails
+        setCompanies([
+          { _id: '1', companyName: 'Century 21' },
+          { _id: '2', companyName: 'Keller Williams' },
+          { _id: '3', companyName: 'Remax' },
+          { _id: '4', companyName: 'Coldwell Banker' }
+        ]);
+      }
+    };
+
+    fetchCompanies();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -85,15 +125,20 @@ export default function RealEstateAgentLogin() {
     <div className='p-3 max-w-lg mx-auto'>
       <h1 className='text-3xl text-center font-semibold my-7'>Agent Sign In</h1>
       <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-        <input
-          type='text'
-          placeholder='Company Name'
-          className='border p-3 rounded-lg'
+        <select
           id='companyName'
+          className='border p-3 rounded-lg'
           value={formData.companyName}
           onChange={handleChange}
           required
-        />
+        >
+          <option value="">Select Company</option>
+          {companies.map((company) => (
+            <option key={company._id} value={company.companyName}>
+              {company.companyName}
+            </option>
+          ))}
+        </select>
         <input
           type='email'
           placeholder='Email'

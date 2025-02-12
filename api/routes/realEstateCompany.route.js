@@ -14,7 +14,7 @@ router.post("/create", createCompanyAccount);
 // Route to add linked accounts (protected route)
 router.post("/add-linked-accounts", verifyToken, addLinkedAccounts);
 
-// Route to fetch company details (protected route)
-router.get("/:companyId", verifyToken, getCompanyDetails);
+// Public route to fetch company details
+router.get("/:companyId", getCompanyDetails);
 
 export default router;

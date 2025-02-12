@@ -5,3 +5,10 @@
 body {
     background-color: white;
 }
+
+/* Star rating gradient effect for partial stars */
+.text-gradient-star {
+  background: linear-gradient(90deg, #facc15 0%, #facc15 50%, #d1d5db 50%, #d1d5db 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

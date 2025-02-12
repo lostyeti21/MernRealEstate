@@ -63,7 +63,7 @@ export default function Header() {
       console.log(`NOTIFICATION DEBUG [${context}]:`, {
         user: user?._id,
         storedUnreadCount: localStorage.getItem(`unreadMessages_${user?._id}`),
-        storedHasUnread: localStorage.getItem(`hasUnread_${user?._id}`),
+        storedHasUnread: localStorage.getItem(`hasUnread_${user._id}`),
         currentUnreadCount: persistentUnreadCount,
         hasUnreadMessages: hasUnreadMessages,
         isMessagesPage: isMessagesPage
@@ -557,14 +557,12 @@ export default function Header() {
                   Real Estate Company
                 </Link>
               )}
-              {isAgent && (
-                <Link 
-                  to="/agent-dashboard"
-                  className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-                >
-                  Agent Dashboard
-                </Link>
-              )}
+              <Link 
+                to="/agents"
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                Agents
+              </Link>
             </div>
           </div>
           <div 
@@ -692,15 +690,13 @@ export default function Header() {
                           </div>
                         </Link>
                       )}
-                      {isAgent && (
-                        <Link
-                          to="/agent-dashboard"
-                          className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          Agents Dashboard
-                        </Link>
-                      )}
+                      <Link
+                        to="/agents"
+                        className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+                        onClick={() => setIsProfileDropdownOpen(false)}
+                      >
+                        Agents
+                      </Link>
                       {currentUser && currentUser.role === 'admin' && (
                         <Link
                           to="/admin-center"

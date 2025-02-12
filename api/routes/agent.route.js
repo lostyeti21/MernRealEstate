@@ -767,74 +767,51 @@ router.get('/profile', verifyAgent, async (req, res, next) => {
   }
 });
 
-// Add this route to fetch agent details
 router.get('/:agentId', async (req, res) => {
   try {
     const { agentId } = req.params;
-    console.log('Fetching agent details for:', agentId);
-    console.log('Request headers:', req.headers);
-    console.log('Request method:', req.method);
 
-    // Validate agentId
-    if (!mongoose.Types.ObjectId.isValid(agentId)) {
-      console.log('Invalid agent ID format:', agentId);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid agent ID format'
-      });
-    }
-
-    // Find company containing this agent
+    // Find company that has this agent
     const company = await RealEstateCompany.findOne({
-      'agents._id': agentId
+      'agents._id': new mongoose.Types.ObjectId(agentId)
     });
 
     if (!company) {
-      console.log('Company not found for agent:', agentId);
       return res.status(404).json({
         success: false,
-        message: 'Agent not found in any company'
+        message: 'Agent not found'
       });
     }
 
-    // Find the specific agent in the company
-    const agent = company.agents.find(a => 
-      a._id.toString() === agentId
-    );
+    // Find the agent in the company's agents array
+    const agent = company.agents.id(agentId);
 
     if (!agent) {
-      console.log('Agent not found in company:', agentId);
       return res.status(404).json({
         success: false,
-        message: 'Agent details not found'
+        message: 'Agent not found'
       });
     }
 
-    // Return agent data with company info
+    // Return agent data without sensitive information
     res.status(200).json({
       success: true,
       agent: {
         _id: agent._id,
         name: agent.name,
         email: agent.email,
-        phone: agent.phone || '',
-        avatar: agent.avatar || '',
-        companyId: company._id,
+        avatar: agent.avatar,
+        contact: agent.contact,
+        specialization: agent.specialization,
         companyName: company.companyName,
-        companyEmail: company.email || '',
-        companyPhone: company.phone || '',
-        companyAddress: company.address || '',
-        averageRating: agent.averageRating || 0,
-        ratings: agent.ratings || []
+        companyId: company._id
       }
     });
-
   } catch (error) {
-    console.error('Error fetching agent details:', error);
+    console.error('Error fetching agent:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching agent details',
-      errorDetails: error.message
+      message: 'Error fetching agent details'
     });
   }
 });
