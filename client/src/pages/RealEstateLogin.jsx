@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useDispatch } from 'react-redux';
 import { signInStart, signInFailure, realEstateSignInSuccess } from '../redux/user/userSlice';
@@ -13,6 +13,29 @@ export default function RealEstateLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const storedCompany = localStorage.getItem('realEstateCompany');
+    const token = localStorage.getItem('access_token');
+    
+    if (storedCompany && token) {
+      try {
+        const parsedCompany = JSON.parse(storedCompany);
+        
+        // Dispatch sign-in success to update Redux state
+        dispatch(realEstateSignInSuccess(parsedCompany));
+        
+        // Navigate to dashboard
+        navigate('/real-estate-dashboard');
+      } catch (error) {
+        console.error('Error parsing stored company data:', error);
+        // Clear invalid data
+        localStorage.removeItem('realEstateCompany');
+        localStorage.removeItem('access_token');
+      }
+    }
+  }, [dispatch, navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
@@ -41,28 +64,17 @@ export default function RealEstateLogin() {
         throw new Error(data.message || 'Failed to sign in');
       }
 
-      // Store token
-      if (data.token) {
-        localStorage.setItem('realEstateToken', data.token);
+      // Ensure we have token and company data
+      if (!data.token || !data.company) {
+        throw new Error('Invalid login response');
       }
+
+      // Store access token
+      localStorage.setItem('access_token', data.token);
+      localStorage.setItem('realEstateToken', data.token);
       
-      // Store complete company data including banner
-      if (data.company) {
-        const companyToStore = {
-          _id: data.company._id,
-          companyName: data.company.companyName,
-          email: data.company.email,
-          banner: data.company.banner || '',
-          isCloudinaryBanner: data.company.isCloudinaryBanner || false,
-          avatar: data.company.avatar || 'default-company-avatar.png',
-          isCloudinaryAvatar: data.company.isCloudinaryAvatar || false,
-          agents: data.company.agents || []
-        };
-        localStorage.setItem('realEstateCompany', JSON.stringify(companyToStore));
-        console.log('Stored company data:', companyToStore);
-      } else {
-        throw new Error('No company data received');
-      }
+      // Store company data
+      localStorage.setItem('realEstateCompany', JSON.stringify(data.company));
 
       // Update Redux state
       dispatch(realEstateSignInSuccess({
@@ -77,6 +89,11 @@ export default function RealEstateLogin() {
       console.error('Login error:', error);
       dispatch(signInFailure(error.message));
       setError(error.message || 'Something went wrong!');
+      
+      // Clear any partial data on error
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('realEstateToken');
+      localStorage.removeItem('realEstateCompany');
     } finally {
       setLoading(false);
     }

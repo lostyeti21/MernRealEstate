@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from 'react-hot-toast';
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import Home from "./pages/Home";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
@@ -41,9 +42,80 @@ import ImageCollageManager from './pages/ImageCollageManager';
 import ResetPassword from './pages/ResetPassword';
 import Landing from "./pages/Landing";
 import Agents from './pages/Agents';
+import SuperUser from './pages/SuperUser';
+
+function HeaderWrapper() {
+  const location = useLocation();
+  const hideHeaderPaths = ['/superuser'];
+  
+  if (hideHeaderPaths.includes(location.pathname)) {
+    return null;
+  }
+  
+  return <Header />;
+}
 
 const App = () => {
+  const { currentUser } = useSelector((state) => state.user);
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
+
+  useEffect(() => {
+    const startSession = async () => {
+      try {
+        const res = await fetch('/api/session-analytics/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser?._id })
+        });
+        const data = await res.json();
+        sessionStorage.setItem('sessionId', data.sessionId);
+        
+        // Start page view tracking
+        let lastPageViewTime = Date.now();
+        
+        const trackPageView = async () => {
+          const sessionId = sessionStorage.getItem('sessionId');
+          if (sessionId) {
+            const currentTime = Date.now();
+            const timeSpent = Math.round((currentTime - lastPageViewTime) / 1000);
+            lastPageViewTime = currentTime;
+            
+            await fetch('/api/session-analytics/page-view', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sessionId,
+                page: window.location.pathname,
+                timeSpent
+              })
+            });
+          }
+        };
+
+        // Track page views on route changes
+        const observer = new MutationObserver(trackPageView);
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Cleanup function
+        return () => {
+          observer.disconnect();
+          const sessionId = sessionStorage.getItem('sessionId');
+          if (sessionId) {
+            fetch('/api/session-analytics/end', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId })
+            });
+            sessionStorage.removeItem('sessionId');
+          }
+        };
+      } catch (error) {
+        console.error('Error starting session:', error);
+      }
+    };
+
+    startSession();
+  }, [currentUser]);
 
   useEffect(() => {
     if (!isChatbotLoaded) {
@@ -78,7 +150,7 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <Header />
+      <HeaderWrapper />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
@@ -114,6 +186,7 @@ const App = () => {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/landing" element={<Landing />} />
         <Route path="/agents" element={<Agents />} />
+        <Route path="/superuser" element={<SuperUser />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>

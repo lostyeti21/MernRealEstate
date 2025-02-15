@@ -17,10 +17,12 @@ export default function AddAgent() {
   // Check authentication on mount
   useEffect(() => {
     // Check authentication on mount
-    const token = localStorage.getItem('realEstateToken');
+    const token = localStorage.getItem('access_token') || 
+                  localStorage.getItem('realEstateToken');
     const companyData = localStorage.getItem('realEstateCompany');
     
     if (!token || !companyData) {
+      console.error('No authentication token or company data found');
       navigate('/real-estate-login', { replace: true });
       return;
     }
@@ -33,6 +35,7 @@ export default function AddAgent() {
       }
     } catch (error) {
       console.error('Error parsing company data:', error);
+      localStorage.removeItem('access_token');
       localStorage.removeItem('realEstateToken');
       localStorage.removeItem('realEstateCompany');
       navigate('/real-estate-login', { replace: true });
@@ -55,36 +58,37 @@ export default function AddAgent() {
       // Validate all required fields
       if (!formData.name || !formData.email || !formData.contact || !formData.password) {
         setError('All fields are required');
-        setLoading(false);
         return;
       }
       
-      const token = localStorage.getItem('realEstateToken');
+      // Get token from multiple sources
+      const token = localStorage.getItem('access_token') || 
+                    localStorage.getItem('realEstateToken');
       const companyData = JSON.parse(localStorage.getItem('realEstateCompany'));
       
       if (!token || !companyData) {
-        setError('Please login as a real estate company first');
+        setError('Authentication failed. Please login again.');
         navigate('/real-estate-login');
         return;
       }
 
-      // Log the request data
-      console.log('Sending request with:', {
-        token,
-        companyId: companyData._id,
-        agent: {
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          contact: formData.contact
-        }
+      // Comprehensive logging for debugging
+      console.group('Add Agent Request');
+      console.log('Token:', token);
+      console.log('Company ID:', companyData._id);
+      console.log('Agent Data:', {
+        name: formData.name,
+        email: formData.email,
+        contact: formData.contact
       });
+      console.groupEnd();
 
       const res = await fetch('/api/real-estate/add-agent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-Debug-Token': token  // Additional debugging header
         },
         body: JSON.stringify({
           companyId: companyData._id,
@@ -100,23 +104,32 @@ export default function AddAgent() {
       let data;
       try {
         data = await res.json();
-      } catch (error) {
-        console.error('Error parsing response:', error);
-        const text = await res.text();
-        console.error('Raw response:', text);
-        throw new Error('Invalid response from server');
+      } catch (parseError) {
+        console.error('Response parsing error:', parseError);
+        const rawText = await res.text();
+        console.error('Raw server response:', rawText);
+        throw new Error('Failed to parse server response');
       }
 
-      console.log('Response:', data);
-
-      if (!res.ok || data.success === false) {
+      // Detailed error handling
+      if (!res.ok) {
+        console.error('Server error response:', data);
         throw new Error(data.message || 'Failed to add agent');
+      }
+
+      if (data.success === false) {
+        throw new Error(data.message || 'Agent creation unsuccessful');
+      }
+
+      // Verify agent was actually created
+      if (!data.agent) {
+        throw new Error('No agent data returned from server');
       }
 
       // Update company data in localStorage with new agent
       const updatedCompanyData = {
         ...companyData,
-        agents: [...companyData.agents, data.agent]
+        agents: [...(companyData.agents || []), data.agent]
       };
       localStorage.setItem('realEstateCompany', JSON.stringify(updatedCompanyData));
 
@@ -124,7 +137,7 @@ export default function AddAgent() {
       alert('Agent added successfully!');
       navigate('/real-estate-dashboard');
     } catch (error) {
-      console.error('Error adding agent:', error);
+      console.error('Complete error adding agent:', error);
       setError(error.message || 'Failed to add agent. Please try again.');
     } finally {
       setLoading(false);

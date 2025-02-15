@@ -121,9 +121,11 @@ router.post('/signin', async (req, res) => {
     const token = jwt.sign(
       { 
         companyId: company._id,
+        id: company._id,  // For backward compatibility
         isRealEstateCompany: true 
       },
-      process.env.JWT_SECRET
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }  // Add expiration
     );
 
     // Prepare safe company data including banner and avatar info

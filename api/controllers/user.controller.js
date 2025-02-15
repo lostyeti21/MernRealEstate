@@ -91,6 +91,23 @@ export const deleteUser = async (req, res, next) => {
     next(createErrorResponse(500, "An error occurred while deleting the user."));
   }
 };
+
+export const superUserDeleteUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const deletedUser = await User.findByIdAndDelete(userId);
+    
+    if (!deletedUser) {
+      return next(createErrorResponse(404, "User not found."));
+    }
+
+    res.status(200).json({ message: "User has been deleted." });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    next(createErrorResponse(500, "An error occurred while deleting the user."));
+  }
+};
+
 export const getListingById = async (req, res, next) => {
   try {
     const listingId = req.params.id;
@@ -545,5 +562,14 @@ export const getTenants = async (req, res, next) => {
   } catch (error) {
     console.error("Error getting tenants:", error);
     next(errorHandler(500, "An error occurred while fetching tenants."));
+  }
+};
+
+export const getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find({}, { password: 0 }); // Exclude password field
+    res.json(users);
+  } catch (error) {
+    next(error);
   }
 };

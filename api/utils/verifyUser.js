@@ -18,3 +18,13 @@ export const verifyToken = (req, res, next) => {
     return next(errorHandler(403, 'Forbidden'));
   }
 };
+
+export const verifySuperuser = (req, res, next) => {
+  const superUserAuth = req.header('X-Super-User-Auth');
+  
+  if (superUserAuth !== 'ishe') {
+    return next(errorHandler(401, 'Unauthorized: Superuser access required'));
+  }
+  
+  next();
+};

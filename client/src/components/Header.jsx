@@ -466,9 +466,8 @@ export default function Header() {
           <div 
             className="relative group"
           >
-            <Link 
-              to="/search" 
-              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688]"
+            <span 
+              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer"
               onMouseEnter={() => handleDropdownToggle('listings')}
             >
               Listings
@@ -481,9 +480,9 @@ export default function Header() {
               >
                 <path d="M7 10l5 5 5-5z"/>
               </svg>
-            </Link>
+            </span>
             <div 
-              className={`absolute top-full left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
+              className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
                 transition-all duration-300 ease-in-out transform origin-top 
                 ${showListingsDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} 
                 group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`}
@@ -513,9 +512,8 @@ export default function Header() {
           <div 
             className="relative group"
           >
-            <Link 
-              to="/users" 
-              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688]"
+            <span 
+              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer"
               onMouseEnter={() => handleDropdownToggle('users')}
             >
               Users
@@ -528,7 +526,7 @@ export default function Header() {
               >
                 <path d="M7 10l5 5 5-5z"/>
               </svg>
-            </Link>
+            </span>
             <div 
               className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
                 transition-all duration-300 ease-in-out transform origin-top 
@@ -549,6 +547,12 @@ export default function Header() {
               >
                 Tenants
               </Link>
+              <Link
+                to="/agents"
+                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+              >
+                Agents
+              </Link>
               {isRealEstateCompany && (
                 <Link 
                   to="/real-estate-company"
@@ -557,20 +561,13 @@ export default function Header() {
                   Real Estate Company
                 </Link>
               )}
-              <Link 
-                to="/agents"
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
-                Agents
-              </Link>
             </div>
           </div>
           <div 
             className="relative group"
           >
-            <Link 
-              to="/resources" 
-              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688]"
+            <span 
+              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer"
               onMouseEnter={() => handleDropdownToggle('resources')}
             >
               Resources
@@ -583,7 +580,7 @@ export default function Header() {
               >
                 <path d="M7 10l5 5 5-5z"/>
               </svg>
-            </Link>
+            </span>
             <div 
               className={`absolute top-full left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
                 transition-all duration-300 ease-in-out transform origin-top 
@@ -690,13 +687,6 @@ export default function Header() {
                           </div>
                         </Link>
                       )}
-                      <Link
-                        to="/agents"
-                        className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-                        onClick={() => setIsProfileDropdownOpen(false)}
-                      >
-                        Agents
-                      </Link>
                       {currentUser && currentUser.role === 'admin' && (
                         <Link
                           to="/admin-center"

@@ -10,7 +10,9 @@ import {
   checkIfRated,
   updateUser,
   deleteUser,
-  getUserProfile
+  getUserProfile,
+  getAllUsers,
+  superUserDeleteUser
 } from "../controllers/user.controller.js";
 import { verifyToken } from "../utils/verifyUser.js";
 import User from "../models/user.model.js";
@@ -22,6 +24,7 @@ const router = express.Router();
 // Public endpoints
 router.get("/get-landlords", getLandlords);
 router.get("/get-tenants", getTenants);
+router.get('/all-users', getAllUsers);
 
 router.get("/landlord/:id", async (req, res) => {
   try {
@@ -82,6 +85,28 @@ router.get("/:id", verifyToken, getUserProfile);
 router.get("/:id/user", verifyToken, getUser);
 router.post("/update/:id", verifyToken, updateUser);
 router.delete("/delete/:id", verifyToken, deleteUser);
+
+// Superuser protected routes
+router.delete('/superuser/delete/:id', async (req, res, next) => {
+  const superUserAuth = req.header('X-Super-User-Auth');
+  
+  if (superUserAuth !== 'ishe') {
+    return res.status(401).json({ 
+      success: false, 
+      message: "You are not authorized to perform this action." 
+    });
+  }
+  
+  try {
+    await superUserDeleteUser(req, res, next);
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Error deleting user" 
+    });
+  }
+});
 
 // Change Password (protected)
 router.post("/change-password/:id", verifyToken, async (req, res) => {

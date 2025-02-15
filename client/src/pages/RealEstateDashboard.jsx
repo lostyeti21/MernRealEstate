@@ -48,6 +48,61 @@ export default function RealEstateDashboard() {
   const avatarRef = useRef(null);
   const bannerRef = useRef(null);
 
+  // Authentication check
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        setLoading(true);
+        
+        // Get authentication data
+        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        const storedCompany = safeJSONParse(localStorage.getItem('realEstateCompany'));
+        
+        if (!token || !storedCompany || !storedCompany._id) {
+          console.log('No auth data found, redirecting to login');
+          navigate('/real-estate-login');
+          return;
+        }
+
+        // Set initial company data
+        setCompanyData(storedCompany);
+        
+        // Fetch fresh company data
+        const freshDataResponse = await fetch(`/api/real-estate/${storedCompany._id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+
+        if (!freshDataResponse.ok) {
+          throw new Error('Failed to fetch company data');
+        }
+
+        const freshData = await freshDataResponse.json();
+        if (freshData.success && freshData.company) {
+          setCompanyData(freshData.company);
+          localStorage.setItem('realEstateCompany', JSON.stringify(freshData.company));
+        } else {
+          throw new Error('Invalid company data received');
+        }
+
+      } catch (error) {
+        console.error('Authentication error:', error);
+        // Clear stored data and redirect to login
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('realEstateCompany');
+        navigate('/real-estate-login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
   // Redirect if not logged in as real estate company
   useEffect(() => {
     if (!isRealEstateCompany || !realEstateCompany) {
@@ -720,15 +775,15 @@ export default function RealEstateDashboard() {
     }
   };
 
-  // Add delete agent handler
   const handleDeleteAgent = async (agentId, agentName) => {
     if (!window.confirm(`Are you sure you want to delete agent ${agentName}? This action cannot be undone.`)) {
       return;
     }
 
     try {
-      const token = localStorage.getItem('realEstateToken');
-      const companyData = JSON.parse(localStorage.getItem('realEstateCompany'));
+      // Get authentication token from the correct source
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const companyData = safeJSONParse(localStorage.getItem('realEstateCompany'));
       
       if (!token || !companyData) {
         throw new Error('Authentication required');
@@ -739,13 +794,15 @@ export default function RealEstateDashboard() {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'include' // Include credentials for authentication
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Server response:', errorData);
-        throw new Error('Failed to delete agent');
+        console.error('Server error:', data);
+        throw new Error(data.message || 'Failed to delete agent');
       }
 
       // Update local state
@@ -755,12 +812,14 @@ export default function RealEstateDashboard() {
       }));
 
       // Update localStorage
-      const storedCompany = JSON.parse(localStorage.getItem('realEstateCompany'));
-      const updatedCompany = {
-        ...storedCompany,
-        agents: storedCompany.agents.filter(agent => agent._id !== agentId)
-      };
-      localStorage.setItem('realEstateCompany', JSON.stringify(updatedCompany));
+      const storedCompany = safeJSONParse(localStorage.getItem('realEstateCompany'));
+      if (storedCompany) {
+        const updatedCompany = {
+          ...storedCompany,
+          agents: storedCompany.agents.filter(agent => agent._id !== agentId)
+        };
+        localStorage.setItem('realEstateCompany', JSON.stringify(updatedCompany));
+      }
 
       alert('Agent deleted successfully');
     } catch (error) {
@@ -824,7 +883,7 @@ export default function RealEstateDashboard() {
               <img
                 src={getImageUrl(companyData.avatar, 'avatar')}
                 alt="Company Logo"
-                className="w-24 h-24 rounded-full object-cover"
+                className="w-24 h-24 rounded-full mx-auto mb-3 object-cover"
                 onError={(e) => {
                   console.error('Company avatar image error:', {
                     originalSrc: e.target.src

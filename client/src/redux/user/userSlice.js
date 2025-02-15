@@ -122,8 +122,30 @@ const userSlice = createSlice({
       localStorage.removeItem('isLandlord');
     },
     realEstateSignInSuccess: (state, action) => {
-      state.realEstateCompany = action.payload;
+      // Ensure payload is an object
+      const payload = action.payload || {};
+      
+      // Set real estate company data
+      state.realEstateCompany = payload;
       state.isRealEstateCompany = true;
+      
+      // Store token if available
+      const token = payload.token || payload.accessToken;
+      if (token) {
+        localStorage.setItem('access_token', token);
+        localStorage.setItem('realEstateToken', token);
+      }
+      
+      // Store full company data in localStorage
+      try {
+        localStorage.setItem('realEstateCompany', JSON.stringify(payload));
+      } catch (error) {
+        console.error('Error storing real estate company data:', error);
+      }
+      
+      // Reset any previous errors
+      state.error = null;
+      state.loading = false;
     },
   },
 });

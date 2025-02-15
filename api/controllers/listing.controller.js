@@ -508,3 +508,18 @@ export const expressInterest = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getAllListings = async (req, res, next) => {
+  try {
+    console.log('Fetching all listings for superuser...');
+    const listings = await Listing.find()
+      .populate('userRef', 'username email')
+      .sort({ createdAt: -1 });
+
+    console.log(`Found ${listings.length} listings`);
+    res.json(listings);
+  } catch (error) {
+    console.error('Error in getAllListings:', error);
+    next(error);
+  }
+};

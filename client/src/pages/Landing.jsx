@@ -286,14 +286,14 @@ export default function Landing() {
         />
         <div className="hero-content absolute inset-0 flex items-center justify-center bg-black/30 rounded-3xl">
           <div className="text-center space-y-6 px-4">
-            <h1 className="hero-title text-6xl md:text-8xl font-bold">Luxury Living Awaits</h1>
-            <p className="hero-description text-xl md:text-2xl">Step inside your dream home</p>
+            <h1 className="hero-title text-6xl md:text-8xl font-bold">Find your home with us</h1>
+            <p className="hero-description text-xl md:text-2xl">Lets get started</p>
             <div className="hero-buttons flex justify-center space-x-4">
               <Link 
                 to="/contact" 
                 className="bg-white text-black px-8 py-4 rounded-full hover:bg-gray-100 transition-colors"
               >
-                Schedule Tour
+                All Listings
               </Link>
               <Link 
                 to="/gallery" 
