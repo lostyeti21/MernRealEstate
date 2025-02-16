@@ -22,8 +22,13 @@ import {
   FaPhoneAlt,
   FaWater,
   FaEnvelope,
+  FaStar,
+  FaStarHalfAlt,
+  FaRegStar,
+  FaCheckCircle,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
+import Loader from '../components/Loader';
 
 const AgentListing = () => {
   SwiperCore.use([Navigation]);
@@ -44,6 +49,7 @@ const AgentListing = () => {
   const [rating, setRating] = useState(0);
   const [ratingHover, setRatingHover] = useState(0);
   const [hasUserRated, setHasUserRated] = useState(false);
+  const [showMap, setShowMap] = useState(true);
 
   const defaultLat = -1.2921;
   const defaultLng = 36.8219;
@@ -59,7 +65,7 @@ const AgentListing = () => {
         setLoading(true);
         console.log('Fetching listing with ID:', params.listingId);
         
-        const res = await fetch(`/api/listing/get/${params.listingId}`);
+        const res = await fetch(`/api/listing/${params.listingId}`);
         const data = await res.json();
         console.log('Raw listing data:', data);
 
@@ -72,22 +78,31 @@ const AgentListing = () => {
         const listingData = data.listing;
         setListing(listingData);
 
-        // Geocode address
+        // Geocode address using the original implementation
         try {
+          console.log('Attempting to geocode address:', listingData.address);
           const coords = await geocodeAddress(listingData.address);
-          setCoordinates(coords);
+          if (coords) {
+            console.log('Geocoded coordinates:', coords);
+            setCoordinates(coords);
+          } else {
+            console.warn('Geocoding failed, using default coordinates');
+            setCoordinates({ lat: defaultLat, lng: defaultLng }); // Default to Nairobi
+          }
         } catch (geoError) {
-          console.warn('Geocoding failed:', geoError);
+          console.error('Geocoding failed:', geoError);
+          setCoordinates({ lat: defaultLat, lng: defaultLng }); // Default to Nairobi
         }
 
         // Fetch agent data
         if (listingData.userRef && listingData.userModel === 'Agent') {
           try {
-            console.log('Attempting to fetch agent details:', {
+            console.log('Fetching agent details:', {
               url: `/api/agent/${listingData.userRef}`,
               userRef: listingData.userRef
             });
 
+            // First fetch agent details
             const agentRes = await fetch(`/api/agent/${listingData.userRef}`, {
               credentials: 'include',
               headers: {
@@ -107,6 +122,33 @@ const AgentListing = () => {
             
             const agentData = await agentRes.json();
             console.log('Agent Data:', agentData);
+
+            // Get the agent info
+            const agentInfo = agentData.agent || agentData;
+            
+            // Fetch agent ratings
+            const ratingRes = await fetch(`/api/agent-rating/${listingData.userRef}`);
+            const ratingData = await ratingRes.json();
+            console.log('Rating Data:', ratingData);
+
+            // Calculate ratings
+            const preparedAgent = {
+              ...agentInfo,
+              ratings: ratingData.success ? ratingData.ratings : {
+                overall: { 
+                  averageRating: agentInfo.averageRating || 0,
+                  totalRatings: agentInfo.ratedBy?.length || 0
+                },
+                categories: {
+                  knowledge: { averageRating: 0, totalRatings: 0 },
+                  professionalism: { averageRating: 0, totalRatings: 0 },
+                  responsiveness: { averageRating: 0, totalRatings: 0 },
+                  helpfulness: { averageRating: 0, totalRatings: 0 }
+                }
+              }
+            };
+
+            console.log('Prepared agent with ratings:', preparedAgent);
 
             if (agentData.success && agentData.agent) {
               const companyId = agentData.agent.companyId;
@@ -140,28 +182,28 @@ const AgentListing = () => {
                   setListedBy({
                     type: 'agent',
                     data: {
-                      _id: agentData.agent._id,
-                      name: agentData.agent.name,
-                      email: agentData.agent.email,
-                      contact: agentData.agent.phone,
-                      avatar: agentData.agent.avatar,
-                      averageRating: agentData.agent.averageRating || 0,
+                      _id: preparedAgent._id,
+                      name: preparedAgent.name,
+                      email: preparedAgent.email,
+                      contact: preparedAgent.phone,
+                      avatar: preparedAgent.avatar,
+                      ratings: preparedAgent.ratings,
                       companyName: companyData.company.companyName,
                       companyAvatar: companyData.company.avatar,
                       companyRating: companyData.company.companyRating || 0
                     }
                   });
-                  console.log('Listed by agent:', listedBy);
+                  console.log('Listed by agent with ratings:', preparedAgent.ratings);
+
+                  if (currentUser) {
+                    const userHasRated = agentInfo.ratings?.some(r => r.userId === currentUser._id);
+                    setHasUserRated(userHasRated);
+                  }
                 } else {
                   console.error('Failed to fetch company data:', companyData.message);
                 }
               } else {
                 console.warn('No company ID found for agent');
-              }
-
-              if (currentUser) {
-                const userHasRated = checkIfUserHasRated(agentData.agent, currentUser._id);
-                setHasUserRated(userHasRated);
               }
             }
           } catch (error) {
@@ -180,90 +222,74 @@ const AgentListing = () => {
     fetchListing();
   }, [params.listingId, currentUser]);
 
+  // Create custom map icon
   const customIcon = new L.Icon({
-    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
+    iconUrl: 'https://cdn0.iconfinder.com/data/icons/small-n-flat/24/678111-map-marker-512.png',
+    iconSize: [38, 38],
+    iconAnchor: [19, 38],
+    popupAnchor: [0, -38]
   });
+
+  const handleMarkerClick = () => {
+    if (listing && listing.address) {
+      const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(listing.address)}`;
+      window.open(googleMapsUrl, '_blank');
+    }
+  };
 
   const handleImageClick = (index) => {
     setFullscreenIndex(index);
     setShowFullscreen(true);
   };
 
-  const handleMarkerClick = () => {
-    const address = encodeURIComponent(listing.address);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${address}`, '_blank');
-  };
-
-  const renderStars = (averageRating) => {
+  const renderStars = (rating) => {
     const stars = [];
-    for (let i = 1; i <= 5; i++) {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+
+    // Add full stars
+    for (let i = 0; i < fullStars; i++) {
       stars.push(
-        <span
-          key={i}
-          className={`text-xl ${i <= averageRating ? "text-yellow-500" : "text-gray-300"}`}
-        >
-          ★
-        </span>
+        <FaStar key={`full-${i}`} className="text-yellow-400 text-lg" />
       );
     }
+
+    // Add half star if needed
+    if (hasHalfStar) {
+      stars.push(
+        <FaStarHalfAlt key="half" className="text-yellow-400 text-lg" />
+      );
+    }
+
+    // Add empty stars
+    const emptyStars = 5 - Math.ceil(rating);
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(
+        <FaRegStar key={`empty-${i}`} className="text-yellow-400 text-lg" />
+      );
+    }
+
     return stars;
   };
 
-  const handleRatingSubmit = async () => {
-    if (!currentUser) {
-      navigate('/sign-in');
-      return;
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center py-8">
+          <Loader />
+        </div>
+      );
     }
 
-    if (!rating) {
-      alert('Please select a rating');
-      return;
+    if (!listedBy || !listedBy.data) {
+      return null;
     }
-
-    try {
-      const res = await fetch(`/api/agent/${listedBy.data._id}/rate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          rating,
-          userId: currentUser._id
-        }),
-        credentials: 'include'
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setListedBy(prev => ({
-          ...prev,
-          data: {
-            ...prev.data,
-            averageRating: data.newAgentRating
-          }
-        }));
-        setHasUserRated(true);
-        setShowRatingModal(false);
-        setRating(0);
-        alert('Rating submitted successfully!');
-      } else {
-        alert(data.message || 'Failed to submit rating');
-      }
-    } catch (error) {
-      console.error('Error submitting rating:', error);
-      alert('Error submitting rating. Please try again.');
-    }
-  };
-
-  const renderListedBy = () => {
-    if (!listedBy) return null;
 
     const agent = listedBy.data;
+
     return (
       <div className="bg-white rounded-lg shadow-md mb-6 overflow-hidden">
+        {/* Company Banner */}
         {agent.companyName && (
           <div className="w-full h-[120px] relative">
             <img
@@ -286,7 +312,8 @@ const AgentListing = () => {
         )}
 
         <div className="p-6">
-          <div className="flex items-center justify-between">
+          {/* Agent Header with Overall Rating */}
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <img
                 src={agent.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
@@ -297,42 +324,120 @@ const AgentListing = () => {
                 <p className="text-lg font-semibold text-slate-700">
                   Listed by Agent {agent.name}
                 </p>
-                <div className="flex items-center gap-2">
-                  {renderStars(agent.averageRating || 0)}
+                {/* Overall Rating Display */}
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center">
+                    {renderStars(agent.ratings?.overall?.averageRating || 0)}
+                    <span className="text-sm text-gray-500 ml-2">
+                      ({agent.ratings?.overall?.averageRating?.toFixed(1) || 'N/A'})
+                    </span>
+                  </div>
                   <span className="text-sm text-gray-500">
-                    ({agent.averageRating?.toFixed(1) || 'N/A'})
+                    {agent.ratings?.overall?.totalRatings 
+                      ? `${agent.ratings.overall.totalRatings} reviews` 
+                      : 'No reviews yet'}
                   </span>
-                  {currentUser && (
-                    hasUserRated ? (
-                      <span className="ml-2 text-sm text-green-600">
-                        ✓ You have rated this agent
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => setShowRatingModal(true)}
-                        className="ml-2 bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 transition-colors"
-                      >
-                        Rate Agent
-                      </button>
-                    )
-                  )}
                 </div>
-                {agent.contact && (
-                  <div className="mt-2 flex items-center gap-2 text-gray-600">
-                    <FaPhoneAlt className="text-green-600" />
-                    <span>{agent.contact}</span>
-                  </div>
-                )}
-                {agent.email && (
-                  <div className="mt-1 flex items-center gap-2 text-gray-600">
-                    <FaEnvelope className="text-green-600" />
-                    <span>{agent.email}</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
+          {/* Rating Categories */}
+          {agent.ratings?.categories && (
+            <div className="mt-4 space-y-2 border-t pt-4">
+              <h3 className="font-semibold text-gray-700 mb-3">Rating Categories</h3>
+              <div className="flex flex-col space-y-3 w-full">
+                {/* Knowledge Rating */}
+                <div className="flex items-center w-full">
+                  <span className="text-gray-600 w-32">Knowledge</span>
+                  <div className="flex items-center flex-1">
+                    <div className="flex items-center flex-1">
+                      {renderStars(agent.ratings.categories.knowledge?.averageRating || 0)}
+                    </div>
+                    <span className="text-sm text-gray-500 ml-2 w-16 text-right">
+                      ({agent.ratings.categories.knowledge?.averageRating?.toFixed(1) || 'N/A'})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Professionalism Rating */}
+                <div className="flex items-center w-full">
+                  <span className="text-gray-600 w-32">Professionalism</span>
+                  <div className="flex items-center flex-1">
+                    <div className="flex items-center flex-1">
+                      {renderStars(agent.ratings.categories.professionalism?.averageRating || 0)}
+                    </div>
+                    <span className="text-sm text-gray-500 ml-2 w-16 text-right">
+                      ({agent.ratings.categories.professionalism?.averageRating?.toFixed(1) || 'N/A'})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Responsiveness Rating */}
+                <div className="flex items-center w-full">
+                  <span className="text-gray-600 w-32">Responsiveness</span>
+                  <div className="flex items-center flex-1">
+                    <div className="flex items-center flex-1">
+                      {renderStars(agent.ratings.categories.responsiveness?.averageRating || 0)}
+                    </div>
+                    <span className="text-sm text-gray-500 ml-2 w-16 text-right">
+                      ({agent.ratings.categories.responsiveness?.averageRating?.toFixed(1) || 'N/A'})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Helpfulness Rating */}
+                <div className="flex items-center w-full">
+                  <span className="text-gray-600 w-32">Helpfulness</span>
+                  <div className="flex items-center flex-1">
+                    <div className="flex items-center flex-1">
+                      {renderStars(agent.ratings.categories.helpfulness?.averageRating || 0)}
+                    </div>
+                    <span className="text-sm text-gray-500 ml-2 w-16 text-right">
+                      ({agent.ratings.categories.helpfulness?.averageRating?.toFixed(1) || 'N/A'})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Contact Information */}
+          <div className="mt-4 space-y-2">
+            {agent.contact && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <FaPhoneAlt className="text-green-600" />
+                <span>{agent.contact}</span>
+              </div>
+            )}
+            {agent.email && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <FaEnvelope className="text-green-600" />
+                <span>{agent.email}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Rate Agent Button */}
+          {currentUser && (
+            <div className="mt-6">
+              {hasUserRated ? (
+                <span className="text-sm text-green-600 flex items-center gap-2">
+                  <FaCheckCircle />
+                  You have rated this agent
+                </span>
+              ) : (
+                <button
+                  onClick={() => navigate(`/agent-listings/${listing.userRef}`)}
+                  className="w-full bg-blue-500 text-white p-3 rounded-lg uppercase hover:bg-blue-600 transition-colors"
+                >
+                  Rate Agent
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Contact Agent Button */}
           {currentUser && (
             <div className="mt-4">
               <button
@@ -351,7 +456,7 @@ const AgentListing = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <p className="text-center my-7 text-2xl">Loading...</p>
+        <Loader />
       </div>
     );
   }
@@ -439,107 +544,132 @@ const AgentListing = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Left Column */}
               <div className="flex flex-col gap-6">
-                {/* Company and Agent Information */}
-                {renderListedBy()}
-
                 {/* Property Details */}
                 <div className="bg-white rounded-lg shadow-md p-6">
-                  {/* Listing Header */}
-                  <div className="flex flex-col gap-3 mb-6">
-                    <h1 className="text-2xl font-semibold text-gray-900">
-                      {listing.name}
-                    </h1>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <FaMapMarkerAlt className="text-green-600" />
-                      <span>{listing.address}</span>
-                    </div>
-                    <div className="flex gap-4">
-                      <span className="bg-red-900 text-white px-4 py-1 rounded-full text-sm">
-                        {listing.type === 'rent' ? 'For Rent' : 'For Sale'}
-                      </span>
-                      {listing.offer && (
-                        <span className="bg-green-900 text-white px-4 py-1 rounded-full text-sm">
-                          ${+listing.regularPrice - +listing.discountPrice} OFF
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xl font-semibold text-gray-900">
-                      ${listing.offer ? listing.discountPrice.toLocaleString('en-US') : listing.regularPrice.toLocaleString('en-US')}
-                      {listing.type === 'rent' && ' / month'}
-                    </p>
+                  <p className="text-2xl font-semibold mb-1">{listing.name}</p>
+                  <p className="text-gray-500 text-sm mb-4 flex items-center gap-2">
+                    <FaMapMarkerAlt className="text-red-500" />
+                    {listing.address}
+                  </p>
+                  <div className="bg-green-600 text-white text-lg font-semibold px-4 py-2 rounded-full inline-block mb-4">
+                    ${listing.offer
+                      ? listing.discountPrice.toLocaleString("en-US")
+                      : listing.regularPrice.toLocaleString("en-US")}
+                    {listing.type === "rent" && " / month"}
                   </div>
-
-                  <h2 className="text-lg font-semibold mb-4">Property Details</h2>
-                  <p className="text-gray-700 mb-6 text-sm">
+                  <p className="text-slate-800 mb-4">
+                    <span className="font-semibold text-black">Description</span>
+                    <br />
                     {listing.description}
                   </p>
-                  <ul className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                    <li className="flex items-center gap-2 text-gray-600">
-                      <FaBed className="text-lg text-green-600" />
-                      <span>{listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}</span>
+                  <ul className="flex flex-wrap gap-4">
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaBed /> {listing.bedrooms} Beds
                     </li>
-                    <li className="flex items-center gap-2 text-gray-600">
-                      <FaBath className="text-lg text-green-600" />
-                      <span>{listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}</span>
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaBath /> {listing.bathrooms} Baths
                     </li>
-                    <li className="flex items-center gap-2 text-gray-600">
-                      <FaParking className="text-lg text-green-600" />
-                      <span>{listing.parking ? 'Parking' : 'No Parking'}</span>
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaParking /> {listing.parking ? "Parking Spot" : "No Parking"}
                     </li>
-                    <li className="flex items-center gap-2 text-gray-600">
-                      <FaChair className="text-lg text-green-600" />
-                      <span>{listing.furnished ? 'Furnished' : 'Not Furnished'}</span>
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaChair /> {listing.furnished ? "Furnished" : "Unfurnished"}
                     </li>
-                    <li className="flex items-center gap-2 text-gray-600">
-                      <FaRulerCombined className="text-lg text-green-600" />
-                      <span>{listing.sqmeters} sq.m</span>
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaRulerCombined /> {listing.sqmeters} m²
+                    </li>
+                    <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                      <FaChair /> {listing.lounges} {listing.lounges > 1 ? 'Lounges' : 'Lounge'}
                     </li>
                     {listing.backupPower && (
-                      <li className="flex items-center gap-2 text-gray-600">
-                        <FaBolt className="text-lg text-green-600" />
-                        <span>Backup Power</span>
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaBolt /> Backup Power
                       </li>
                     )}
                     {listing.backupWaterSupply && (
-                      <li className="flex items-center gap-2 text-gray-600">
-                        <FaWater className="text-lg text-green-600" />
-                        <span>Backup Water</span>
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaWater /> Backup Water Supply
                       </li>
                     )}
                     {listing.boreholeWater && (
-                      <li className="flex items-center gap-2 text-gray-600">
-                        <FaTint className="text-lg text-green-600" />
-                        <span>Borehole Water</span>
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaTint /> Borehole Water
+                      </li>
+                    )}
+                    {listing.electricFence && (
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaBolt /> Electric Fence
+                      </li>
+                    )}
+                    {listing.walledOrFenced && (
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaMapMarkerAlt /> Walled/Fenced
+                      </li>
+                    )}
+                    {listing.electricGate && (
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaBolt /> Electric Gate
+                      </li>
+                    )}
+                    {listing.builtInCupboards && (
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaChair /> Built-in Cupboards
+                      </li>
+                    )}
+                    {listing.fittedKitchen && (
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaChair /> Fitted Kitchen
+                      </li>
+                    )}
+                    {listing.solarGeyser && (
+                      <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
+                        <FaBolt /> Solar Geyser
                       </li>
                     )}
                   </ul>
                 </div>
+
+                {/* Agent Details */}
+                {renderContent()}
               </div>
 
               {/* Right Column */}
               <div>
                 {/* Map Section - Full height */}
-                {coordinates && (
-                  <div className="bg-white rounded-lg shadow-md overflow-hidden h-full min-h-[calc(100vh-20rem)] sticky top-24">
+                <div className="bg-white rounded-lg shadow-md overflow-hidden h-full min-h-[calc(100vh-20rem)] sticky top-24" style={{ zIndex: 0 }}>
+                  {coordinates ? (
                     <MapContainer
                       center={[coordinates.lat, coordinates.lng]}
-                      zoom={15}
+                      zoom={13}
                       scrollWheelZoom={false}
-                      style={{ height: "100%", width: "100%" }}
+                      className="h-full w-full relative"
+                      style={{ zIndex: 0 }}
                     >
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                       <Marker
                         position={[coordinates.lat, coordinates.lng]}
                         icon={customIcon}
-                        eventHandlers={{
-                          click: handleMarkerClick,
-                        }}
                       >
-                        <Popup>{listing.address}</Popup>
+                        <Popup>
+                          <div>
+                            <p className="font-semibold">{listing.name}</p>
+                            <p>{listing.address}</p>
+                            <button 
+                              onClick={handleMarkerClick}
+                              className="text-blue-500 hover:underline mt-2"
+                            >
+                              Get Directions
+                            </button>
+                          </div>
+                        </Popup>
                       </Marker>
                     </MapContainer>
-                  </div>
-                )}
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <p>Loading map location...</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -179,12 +179,13 @@ export const getUser = async (req, res, next) => {
       return next(createErrorResponse(400, "Invalid user ID."));
     }
 
-    const user = await User.findById(id, "username email avatar phoneNumbers ratings ratedBy");
+    const user = await User.findById(id);
     if (!user) {
       return next(createErrorResponse(404, "User not found."));
     }
 
-    const averageRating = calculateAverageRating(user.ratings);
+    // Get rating details using the model method
+    const ratingDetails = user.getRatingDetails();
 
     res.status(200).json({
       _id: user._id,
@@ -192,8 +193,13 @@ export const getUser = async (req, res, next) => {
       email: user.email,
       avatar: user.avatar,
       phoneNumbers: user.phoneNumbers,
-      averageRating,
-      totalRatings: user.ratedBy.length,
+      ratings: {
+        overall: {
+          averageRating: ratingDetails.overall.averageRating,
+          totalRatings: ratingDetails.overall.totalRatings
+        },
+        categories: ratingDetails.categories
+      }
     });
   } catch (error) {
     console.error("Error getting user:", error);

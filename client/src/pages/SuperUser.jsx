@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { FaUsers, FaHome, FaChartBar, FaStar, FaStarHalfAlt } from 'react-icons/fa';
+import { FaUsers, FaHome, FaChartBar, FaStar, FaStarHalfAlt, FaImage, FaTrash, FaPlus, FaSave, FaTimesCircle, FaListOl, FaBuilding } from 'react-icons/fa';
 import RatingChart from '../components/charts/RatingChart';
 import SessionChart from '../components/charts/SessionChart';
 import ListingChart from '../components/charts/ListingChart';
 import MarketChart from '../components/charts/MarketChart';
 import UserDistributionChart from '../components/charts/UserDistributionChart';
+import ImageCollage from '../components/ImageCollage';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import logo from '../assets/logo.png';
 
@@ -23,7 +24,7 @@ export default function SuperUser() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [activeTab, setActiveTab] = useState('users'); // 'users', 'listings', or 'analytics'
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'listings', 'analytics', or 'companies'
   const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('users');
   const [sessionMetrics, setSessionMetrics] = useState({
     avgSessionDuration: 0,
@@ -36,6 +37,7 @@ export default function SuperUser() {
     unregisteredUsers: 0
   });
   const [listingTypeFilter, setListingTypeFilter] = useState('all'); // 'all', 'rent', or 'sale'
+  const [selectedListings, setSelectedListings] = useState([]);
 
   const navigate = useNavigate();
 
@@ -331,6 +333,156 @@ export default function SuperUser() {
   const blurValue = useTransform(scrollY, [0, 100], [0, 3]);
   const opacityValue = useTransform(scrollY, [0, 100], [1, 0.97]);
 
+  // Normalize listings to ensure consistent structure
+  const normalizeListing = (listing) => {
+    if (listing.listing && listing.occurrences) return listing;
+    return {
+      listing: listing,
+      occurrences: 1
+    };
+  };
+
+  // Prepare image data for ImageCollage with multiple occurrences
+  const prepareImageData = () => {
+    let finalImages = [];
+    selectedListings.forEach(item => {
+      const normalizedItem = normalizeListing(item);
+      for (let i = 0; i < normalizedItem.occurrences; i++) {
+        finalImages.push({
+          src: normalizedItem.listing.imageUrls[0] || 'https://via.placeholder.com/300',
+          alt: `${normalizedItem.listing.name} (${i + 1})`,
+          id: `${normalizedItem.listing._id}-${i}`
+        });
+      }
+    });
+    return finalImages;
+  };
+
+  // Toggle listing selection with occurrence tracking
+  const toggleListingSelection = (listing) => {
+    setSelectedListings(prev => {
+      const normalizedPrev = prev.map(normalizeListing);
+      const existingItemIndex = normalizedPrev.findIndex(
+        item => item.listing._id === listing._id
+      );
+
+      if (existingItemIndex !== -1) {
+        const updatedSelections = [...normalizedPrev];
+        const currentItem = updatedSelections[existingItemIndex];
+        
+        if (currentItem.occurrences < 6) {
+          updatedSelections[existingItemIndex] = {
+            ...currentItem,
+            occurrences: currentItem.occurrences + 1
+          };
+        } else {
+          updatedSelections.splice(existingItemIndex, 1);
+        }
+        return updatedSelections;
+      } else {
+        return [...normalizedPrev, { listing, occurrences: 1 }];
+      }
+    });
+  };
+
+  // Save collage configuration
+  const saveCollageConfiguration = async () => {
+    try {
+      const response = await fetch('/api/collage/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          listings: selectedListings.map(item => ({
+            listingId: normalizeListing(item).listing._id,
+            occurrences: normalizeListing(item).occurrences
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save collage configuration');
+      }
+
+      console.log('Collage configuration saved successfully!');
+    } catch (error) {
+      console.error('Error saving collage:', error);
+    }
+  };
+
+  const renderCompaniesTab = () => {
+    return (
+      <div className="p-6">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold mb-4">Verified Real Estate Companies Collage</h2>
+          <div className="grid grid-cols-1 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold mb-2">Selected Listings Preview</h3>
+                <ImageCollage images={prepareImageData()} />
+              </div>
+
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold mb-2">Available Listings</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {listings.map(listing => {
+                    const isSelected = selectedListings.some(
+                      selected => normalizeListing(selected).listing._id === listing._id
+                    );
+                    const selectedItem = selectedListings.find(
+                      selected => normalizeListing(selected).listing._id === listing._id
+                    );
+                    const occurrences = selectedItem ? normalizeListing(selectedItem).occurrences : 0;
+
+                    return (
+                      <div
+                        key={listing._id}
+                        className={`border rounded-lg p-4 cursor-pointer ${
+                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                        }`}
+                        onClick={() => toggleListingSelection(listing)}
+                      >
+                        <img
+                          src={listing.imageUrls[0] || 'https://via.placeholder.com/300'}
+                          alt={listing.name}
+                          className="w-full h-40 object-cover rounded-lg mb-2"
+                        />
+                        <h4 className="font-semibold">{listing.name}</h4>
+                        {isSelected && (
+                          <div className="mt-2 text-blue-600">
+                            Occurrences: {occurrences}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={() => setSelectedListings([])}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+                >
+                  <FaTrash />
+                  Clear Selection
+                </button>
+                <button
+                  onClick={saveCollageConfiguration}
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+                >
+                  <FaSave />
+                  Save Configuration
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -453,6 +605,17 @@ export default function SuperUser() {
             }`}
           >
             <FaChartBar className="mr-2" /> Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('companies')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+              activeTab === 'companies'
+                ? 'bg-slate-700 text-white'
+                : 'hover:bg-slate-200'
+            }`}
+          >
+            <FaBuilding />
+            <span>Verified Companies</span>
           </button>
         </motion.div>
 
@@ -1010,6 +1173,9 @@ export default function SuperUser() {
             )}
           </motion.div>
         )}
+
+        {/* Verified Real Estate Companies Tab */}
+        {activeTab === 'companies' && renderCompaniesTab()}
       </motion.div>
     </motion.div>
   );

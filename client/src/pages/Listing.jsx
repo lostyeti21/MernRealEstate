@@ -9,6 +9,7 @@ import L from "leaflet";
 import "swiper/css/bundle";
 import { useSelector } from "react-redux";
 import { toast } from 'react-hot-toast';
+import { motion } from "framer-motion";
 import {
   FaBath,
   FaBed,
@@ -25,8 +26,8 @@ import {
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 import RateLandlord from "../components/RateLandlord"; // Import RateLandlord component
+import Loader from "../components/Loader";
 import { geocodeAddress } from "../../../api/utils/geocode";
-import { motion } from 'framer-motion';
 
 export default function Listing() {
   const [listing, setListing] = useState(null);
@@ -34,7 +35,7 @@ export default function Listing() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [contact, setContact] = useState(false);
-  const [listedBy, setListedBy] = useState(null);
+  const [listedBy, setListedBy] = useState({ loading: true, error: null, data: null });
   const [coordinates, setCoordinates] = useState(null);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [fullscreenIndex, setFullscreenIndex] = useState(0);
@@ -53,6 +54,10 @@ export default function Listing() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
     const fetchListing = async () => {
       try {
         setLoading(true);
@@ -64,7 +69,7 @@ export default function Listing() {
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const res = await fetch(`/api/listing/get/${params.listingId}`, {
+        const res = await fetch(`/api/listing/${params.listingId}`, {
           headers
         });
         const data = await res.json();
@@ -115,7 +120,8 @@ export default function Listing() {
             
             if (agentData.success && agentData.agent) {
               setListedBy({
-                type: 'agent',
+                loading: false,
+                error: null,
                 data: {
                   _id: agentData.agent._id,
                   name: agentData.agent.name,
@@ -131,11 +137,26 @@ export default function Listing() {
             const userData = await userRes.json();
             
             if (userData) {
+              console.log('Landlord data:', userData); // Debug log
+              
+              // Extract rating information
+              const overallRating = userData.ratings?.overall?.averageRating;
+              const ratingCategories = userData.ratings?.categories;
+              const totalRatings = userData.ratings?.overall?.totalRatings;
+
               setListedBy({
-                type: 'user',
+                loading: false,
+                error: null,
                 data: {
                   ...userData,
-                  userModel: 'User'
+                  userModel: 'User',
+                  averageRating: overallRating || 0,
+                  totalRatings: totalRatings || 0,
+                  ratingCategories: ratingCategories || {
+                    responseTime: 0,
+                    maintenance: 0,
+                    experience: 0
+                  }
                 }
               });
             }
@@ -365,17 +386,35 @@ export default function Listing() {
     }
   };
 
-  const renderStars = (rating) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <span
-        key={i + 1}
-        className={`text-lg ${
-          i + 1 <= Math.round(rating) ? "text-yellow-500" : "text-gray-300"
-        }`}
-      >
-        ★
-      </span>
-    ));
+  const renderStars = (rating, small = false) => {
+    const stars = [];
+    const roundedRating = Math.round(rating * 2) / 2; // Round to nearest 0.5
+  
+    for (let i = 1; i <= 5; i++) {
+      const starValue = i;
+      const sizeClass = small ? 'text-sm' : 'text-xl';
+    
+      if (roundedRating >= starValue) {
+        // Full star
+        stars.push(
+          <span key={i} className={`text-yellow-500 ${sizeClass}`}>★</span>
+        );
+      } else if (roundedRating === starValue - 0.5) {
+        // Half star
+        stars.push(
+          <div key={i} className={`relative inline-block ${sizeClass}`}>
+            <span className="text-gray-300">★</span>
+            <span className="absolute top-0 left-0 overflow-hidden w-[50%] text-yellow-500">★</span>
+          </div>
+        );
+      } else {
+        // Empty star
+        stars.push(
+          <span key={i} className={`text-gray-300 ${sizeClass}`}>★</span>
+        );
+      }
+    }
+    return stars;
   };
 
   const handleSubmitRating = async () => {
@@ -508,147 +547,174 @@ export default function Listing() {
     setShowMap(true); // Show map when exiting fullscreen
   };
 
+  const handleRatingClick = (landlordId) => {
+    navigate(`/landlord/${landlordId}`);
+  };
+
   const renderListedBy = () => {
-    if (!listedBy) return null;
-
-    if (listedBy.type === 'agent') {
-      const agent = listedBy.data;
+    if (listedBy.loading) {
       return (
-        <div className="bg-white rounded-lg shadow-md mb-6 overflow-hidden">
-          {agent.companyName && (
-            <div className="w-full h-[120px] relative">
-              <img
-                src={agent.companyAvatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
-                alt="Company Banner"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute bottom-2 right-2 bg-white px-3 py-1 rounded-full shadow-md flex items-center gap-1">
-                {renderStars(agent.companyRating || 0)}
-                <span className="text-sm text-gray-500 ml-1">
-                  ({agent.companyRating?.toFixed(1) || 'N/A'})
-                </span>
-              </div>
-              <div className="absolute bottom-2 left-2 bg-white px-3 py-1 rounded-full shadow-md">
-                <span className="text-sm font-semibold">
-                  {agent.companyName}
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <img
-                  src={agent.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
-                  alt="Agent"
-                  className="rounded-full h-16 w-16 object-cover border-2 border-white shadow-lg"
-                />
-                <div>
-                  <p className="text-lg font-semibold text-slate-700">
-                    Listed by Agent {agent.name}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {renderStars(agent.averageRating || 0)}
-                    <span className="text-sm text-gray-500">
-                      ({agent.averageRating?.toFixed(1) || 'N/A'})
-                    </span>
-                    {currentUser && (
-                      hasUserRated ? (
-                        <span className="ml-2 text-sm text-green-600">
-                          ✓ You have rated this agent
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => setShowVerificationModal(true)}
-                          className="ml-2 bg-blue-500 text-white px-3 py-1 rounded-md text-sm hover:bg-blue-600 transition-colors"
-                        >
-                          Rate Agent
-                        </button>
-                      )
-                    )}
-                  </div>
-                  {agent.phone && currentUser && (
-                    <div className="mt-2 flex items-center gap-2 text-gray-600">
-                      <FaPhoneAlt className="text-green-600" />
-                      <span>{agent.phone}</span>
-                    </div>
-                  )}
-                  {agent.email && currentUser && (
-                    <div className="mt-1 flex items-center gap-2 text-gray-600">
-                      <FaEnvelope className="text-green-600" />
-                      <span>{agent.email}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="flex justify-center items-center py-8">
+          <Loader />
         </div>
       );
     }
 
+    if (listedBy.error) {
+      return <p className="text-red-500">Error loading landlord information</p>;
+    }
+
     const landlord = listedBy.data;
     return (
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="bg-white p-6 rounded-lg shadow-md mb-6 max-w-full overflow-x-hidden"
+      >
+        <div className="flex items-start gap-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="flex-shrink-0 mt-8"
+          >
+            <motion.img
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300 }}
               src={landlord?.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
               alt="Landlord"
-              className="rounded-full h-16 w-16 object-cover"
+              className="rounded-full h-20 w-20 object-cover"
             />
-            <div>
-              <p className="text-lg font-semibold text-slate-700">
-                Listed by {landlord?.username || "Unknown Landlord"}
-              </p>
-              <div className="flex items-center">
-                {renderStars(landlord?.averageRating || 0)}
-                <span className="text-sm text-gray-500 ml-2">
-                  ({landlord?.averageRating?.toFixed(1) || 'N/A'})
-                </span>
-              </div>
-              {landlord?.phoneNumbers && currentUser && (
-                <div className="mt-2">
-                  {landlord.phoneNumbers.map((phone, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 text-gray-600 text-sm"
-                    >
-                      <FaPhoneAlt className="text-green-600" />
-                      <span>{phone}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          {currentUser && currentUser._id !== landlord?._id && (
-            <button
-              onClick={() => setShowVerificationModal(true)}
-              className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+          </motion.div>
+          <div className="flex-1 min-w-0">
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="flex justify-between items-center flex-wrap gap-2 mb-3"
             >
-              Rate Landlord
-            </button>
-          )}
+              <div className="flex-shrink">
+                <p className="text-lg font-semibold text-slate-700 truncate">
+                  Listed by {landlord?.username || "Unknown Landlord"}
+                </p>
+              </div>
+              {currentUser && currentUser._id !== landlord?._id && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                  className="flex-shrink-0"
+                >
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleRatingClick(landlord._id)}
+                    className="bg-blue-500 text-white px-5 py-1 rounded-lg text-sm hover:bg-blue-600 transition-colors whitespace-nowrap"
+                  >
+                    Rate this Landlord
+                  </motion.button>
+                </motion.div>
+              )}
+            </motion.div>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+              className="flex flex-col gap-3"
+            >
+              <div className="flex items-center flex-wrap gap-2">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                  className="flex-shrink-0"
+                >
+                  {renderStars(landlord?.ratings?.overall?.averageRating || 0)}
+                </motion.div>
+                <motion.span 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5, delay: 0.7 }}
+                  className="text-sm text-gray-500 flex-shrink-0"
+                >
+                  {landlord?.ratings?.overall?.averageRating > 0 
+                    ? `${landlord.ratings.overall.averageRating.toFixed(1)} Overall Rating` 
+                    : 'No ratings yet'}
+                  {landlord?.ratings?.overall?.totalRatings > 0 && 
+                    ` (${landlord.ratings.overall.totalRatings} ${
+                      landlord.ratings.overall.totalRatings === 1 ? 'review' : 'reviews'
+                    })`}
+                </motion.span>
+              </div>
+              {landlord?.ratings?.categories && (
+                landlord.ratings.categories.responseTime > 0 ||
+                landlord.ratings.categories.maintenance > 0 ||
+                landlord.ratings.categories.experience > 0
+              ) && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.8 }}
+                  className="text-sm text-gray-500"
+                >
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { label: 'Response', value: landlord.ratings.categories.responseTime },
+                      { label: 'Maintenance', value: landlord.ratings.categories.maintenance },
+                      { label: 'Experience', value: landlord.ratings.categories.experience }
+                    ].map((category, index) => (
+                      <motion.div 
+                        key={category.label}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: 0.9 + (index * 0.1) }}
+                        className="flex items-center"
+                      >
+                        <span className="font-medium w-28">{category.label}:</span>
+                        <div className="flex-1 flex items-center justify-end">
+                          <div className="flex items-center gap-1">
+                            {renderStars(category.value, true)}
+                            <span className="ml-2 min-w-[24px]">{category.value.toFixed(1)}</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+            {landlord?.phoneNumbers && currentUser && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 1.1 }}
+                className="mt-1"
+              >
+                {landlord.phoneNumbers.map((phone, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: 1.2 + (index * 0.1) }}
+                    className="flex items-center gap-2 text-gray-600 text-sm"
+                  >
+                    <FaPhoneAlt className="text-green-600 flex-shrink-0" />
+                    <span className="truncate">{phone}</span>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </div>
         </div>
-
-        <div className="mt-4">
-          <button
-            onClick={handleContactClick}
-            className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
-          >
-            Contact Landlord
-          </button>
-        </div>
-      </div>
+      </motion.div>
     );
   };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <p className="text-2xl">Loading...</p>
+        <Loader />
       </div>
     );
   }

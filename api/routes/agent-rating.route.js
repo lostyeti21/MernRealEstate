@@ -97,14 +97,43 @@ router.get('/:agentId', async (req, res) => {
       categories: agent.categoryRatings
     });
 
+    // Calculate category ratings
+    const categoryRatings = {
+      knowledge: { total: 0, count: 0 },
+      professionalism: { total: 0, count: 0 },
+      responsiveness: { total: 0, count: 0 },
+      helpfulness: { total: 0, count: 0 }
+    };
+
+    // Process all ratings
+    if (agent.ratings && Array.isArray(agent.ratings)) {
+      agent.ratings.forEach(rating => {
+        if (rating.category && rating.rating) {
+          if (categoryRatings[rating.category]) {
+            categoryRatings[rating.category].total += rating.rating;
+            categoryRatings[rating.category].count++;
+          }
+        }
+      });
+    }
+
+    // Convert totals to averages
+    const processedCategories = {};
+    Object.entries(categoryRatings).forEach(([category, data]) => {
+      processedCategories[category] = {
+        averageRating: data.count > 0 ? data.total / data.count : 0,
+        totalRatings: data.count
+      };
+    });
+
     res.status(200).json({
       success: true,
       ratings: {
         overall: {
           averageRating: agent.averageRating || 0,
-          totalRatings: agent.ratedBy?.length || 0
+          totalRatings: agent.ratings?.length || 0
         },
-        categories: agent.categoryRatings || {}
+        categories: processedCategories
       }
     });
   } catch (error) {

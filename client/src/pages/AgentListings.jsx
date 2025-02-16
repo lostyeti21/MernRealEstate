@@ -3,6 +3,7 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { FaStar, FaEnvelope, FaPhone } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import ListingItem from '../components/ListingItem';
+import Loader from '../components/Loader';
 
 const AgentListings = () => {
   const { agentId } = useParams();
@@ -289,9 +290,8 @@ const AgentListings = () => {
 
   if (loading) {
     return (
-      <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
-        <div className="spinner animate-spin rounded-full h-12 w-12 border-t-2 border-blue-500"></div>
-        <p className="mt-4">Loading agent details...</p>
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader />
       </div>
     );
   }

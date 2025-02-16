@@ -163,7 +163,7 @@ const ImageCollage = ({ images: propImages = [] }) => {
           to="/image-collage-manager" 
           className="text-[#009688] hover:underline text-sm"
         >
-          Manage Image Collage
+         
         </Link>
         
         <DebugDisplay />
