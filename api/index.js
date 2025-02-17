@@ -24,6 +24,8 @@ import priceAnalyticsRouter from './routes/priceAnalytics.route.js';
 import ctrAnalyticsRouter from './routes/ctrAnalytics.route.js';
 import agentRatingRouter from './routes/agent-rating.route.js';
 import sessionAnalyticsRouter from './routes/sessionAnalytics.route.js';
+import notificationRouter from './routes/notification.route.js';
+import disputeRouter from './routes/dispute.route.js';
 
 // Load environment variables at the very start
 dotenv.config();
@@ -58,6 +60,19 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`, {
+    query: req.query,
+    body: req.body,
+    headers: {
+      authorization: req.headers.authorization ? 'present' : 'missing',
+      contentType: req.headers['content-type']
+    }
+  });
+  next();
+});
+
 // API routes
 app.use('/api/user', userRouter);
 app.use('/api/auth', authRouter);
@@ -76,6 +91,24 @@ app.use('/api/analytics/price', priceAnalyticsRouter);
 app.use('/api/analytics/ctr', ctrAnalyticsRouter);
 app.use('/api/agent-rating', agentRatingRouter);
 app.use('/api/session-analytics', sessionAnalyticsRouter);
+app.use('/api/notifications', notificationRouter);
+app.use('/api/dispute', disputeRouter);
+
+// Add global error handler middleware
+app.use((err, req, res, next) => {
+  console.error('Global Error Handler:', {
+    path: req.path,
+    method: req.method,
+    error: err
+  });
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+  return res.status(statusCode).json({
+    success: false,
+    statusCode,
+    message,
+  });
+});
 
 // Only serve static files in production
 if (process.env.NODE_ENV === 'production') {
@@ -91,18 +124,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-  return res.status(statusCode).json({
-    success: false,
-    statusCode,
-    message,
-  });
-});
-
-const port = process.env.PORT || 3000;
-httpServer.listen(port, () => {
-  console.log(`Server is running on port ${port}!`);
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });

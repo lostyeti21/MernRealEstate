@@ -6,6 +6,7 @@ import { io } from 'socket.io-client';
 import logo from '../assets/logo.png';
 import { FaSearch } from 'react-icons/fa';
 import { FaUserCircle } from 'react-icons/fa';
+import { IoMdNotifications } from 'react-icons/io';
 
 export default function Header() {
   const { currentUser, isRealEstateCompany, realEstateCompany } = useSelector((state) => state.user);
@@ -13,6 +14,7 @@ export default function Header() {
   const [isAgent, setIsAgent] = useState(false);
   const [persistentUnreadCount, setPersistentUnreadCount] = useState(0);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [hasListings, setHasListings] = useState(false);
   const socket = useRef();
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ export default function Header() {
   const location = useLocation();
   const isHomePage = location.pathname === '/';
   const isMessagesPage = location.pathname === '/messages';
+  const isNotificationsPage = location.pathname === '/notifications';
   const [showListingsDropdown, setShowListingsDropdown] = useState(false);
   const [showResourcesDropdown, setShowResourcesDropdown] = useState(false);
   const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
@@ -451,160 +454,113 @@ export default function Header() {
     navigate('/messages');
   };
 
+  // Add effect to check for unread notifications
+  useEffect(() => {
+    const checkUnreadNotifications = async () => {
+      if (!currentUser?.token) {
+        setHasUnreadNotifications(false);
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:3000/api/notifications/unread', {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch notification status');
+        }
+
+        const data = await res.json();
+        setHasUnreadNotifications(data.hasUnread);
+      } catch (error) {
+        console.error('Error checking notifications:', error);
+        setHasUnreadNotifications(false);
+      }
+    };
+
+    // Make the checkUnreadNotifications function available globally
+    window.updateHeaderNotifications = (hasUnread) => {
+      setHasUnreadNotifications(hasUnread);
+    };
+
+    checkUnreadNotifications();
+    
+    // Cleanup
+    return () => {
+      window.updateHeaderNotifications = undefined;
+    };
+  }, [currentUser]);
+
   return (
-    <header 
-      className="bg-white shadow-sm sticky top-0 z-50"
-    >
+    <header className="bg-white shadow-sm sticky top-0 z-50">
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3 relative">
         <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
-          <Link 
-            to="/" 
-            className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1"
-          >
+          <Link to="/" className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1">
             Home
           </Link>
-          <div 
-            className="relative group"
-          >
-            <span 
-              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer"
-              onMouseEnter={() => handleDropdownToggle('listings')}
-            >
+          <div className="relative group">
+            <span className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer" onMouseEnter={() => handleDropdownToggle('listings')}>
               Listings
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24" 
-                width="16" 
-                height="16" 
-                className="fill-current transition-transform group-hover:rotate-180"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" className="fill-current transition-transform group-hover:rotate-180">
                 <path d="M7 10l5 5 5-5z"/>
               </svg>
             </span>
-            <div 
-              className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
-                transition-all duration-300 ease-in-out transform origin-top 
-                ${showListingsDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} 
-                group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`}
-              onMouseEnter={() => handleDropdownToggle('listings')}
-              onMouseLeave={() => handleDropdownToggle(null)}
-            >
-              <Link 
-                to="/search?type=sale" 
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+            <div className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 transition-all duration-300 ease-in-out transform origin-top ${showListingsDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`} onMouseEnter={() => handleDropdownToggle('listings')} onMouseLeave={() => handleDropdownToggle(null)}>
+              <Link to="/search?type=sale" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 For Sale
               </Link>
-              <Link 
-                to="/search?type=rent" 
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+              <Link to="/search?type=rent" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 For Rent
               </Link>
-              <Link 
-                to="/search" 
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+              <Link to="/search" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 All Listings
               </Link>
             </div>
           </div>
-          <div 
-            className="relative group"
-          >
-            <span 
-              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer"
-              onMouseEnter={() => handleDropdownToggle('users')}
-            >
+          <div className="relative group">
+            <span className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer" onMouseEnter={() => handleDropdownToggle('users')}>
               Users
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24" 
-                width="16" 
-                height="16" 
-                className="fill-current transition-transform group-hover:rotate-180"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" className="fill-current transition-transform group-hover:rotate-180">
                 <path d="M7 10l5 5 5-5z"/>
               </svg>
             </span>
-            <div 
-              className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
-                transition-all duration-300 ease-in-out transform origin-top 
-                ${isUsersMenuOpen ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} 
-                group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`}
-              onMouseEnter={() => handleDropdownToggle('users')}
-              onMouseLeave={() => handleDropdownToggle(null)}
-            >
-              <Link
-                to="/landlords"
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+            <div className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 transition-all duration-300 ease-in-out transform origin-top ${isUsersMenuOpen ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`} onMouseEnter={() => handleDropdownToggle('users')} onMouseLeave={() => handleDropdownToggle(null)}>
+              <Link to="/landlords" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Landlords
               </Link>
-              <Link
-                to="/tenants"
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+              <Link to="/tenants" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Tenants
               </Link>
-              <Link
-                to="/agents"
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+              <Link to="/agents" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Agents
               </Link>
               {isRealEstateCompany && (
-                <Link 
-                  to="/real-estate-company"
-                  className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-                >
+                <Link to="/real-estate-company" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                   Real Estate Company
                 </Link>
               )}
             </div>
           </div>
-          <div 
-            className="relative group"
-          >
-            <span 
-              className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer"
-              onMouseEnter={() => handleDropdownToggle('resources')}
-            >
+          <div className="relative group">
+            <span className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1 group-hover:text-[#009688] cursor-pointer" onMouseEnter={() => handleDropdownToggle('resources')}>
               Resources
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24" 
-                width="16" 
-                height="16" 
-                className="fill-current transition-transform group-hover:rotate-180"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" className="fill-current transition-transform group-hover:rotate-180">
                 <path d="M7 10l5 5 5-5z"/>
               </svg>
             </span>
-            <div 
-              className={`absolute top-full left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 
-                transition-all duration-300 ease-in-out transform origin-top 
-                ${showResourcesDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} 
-                group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`}
-              onMouseEnter={() => handleDropdownToggle('resources')}
-              onMouseLeave={() => handleDropdownToggle(null)}
-            >
-              <Link 
-                to="/neighborhood-guides" 
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+            <div className={`absolute top-full left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 transition-all duration-300 ease-in-out transform origin-top ${showResourcesDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`} onMouseEnter={() => handleDropdownToggle('resources')} onMouseLeave={() => handleDropdownToggle(null)}>
+              <Link to="/neighborhood-guides" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Neighborhood Guides
               </Link>
-              <Link 
-                to="/guides" 
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+              <Link to="/guides" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Buying Guides
               </Link>
-              <Link 
-                to="/market-trends" 
-                className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-              >
+              <Link to="/market-trends" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Market Trends
               </Link>
             </div>
@@ -618,7 +574,6 @@ export default function Header() {
         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
           {user ? (
             <div className='relative flex items-center gap-2' ref={dropdownRef}>
-              {/* Avatar with notification dot */}
               <div className="relative">
                 <img
                   src={avatarUrl}
@@ -626,12 +581,11 @@ export default function Header() {
                   className="rounded-md h-[3.3rem] w-[3.3rem] object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200"
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                 />
-                {shouldShowNotifications && hasUnreadMessages && (
+                {shouldShowNotifications && (hasUnreadMessages || hasUnreadNotifications) && (
                   <div className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white"></div>
                 )}
               </div>
 
-              {/* Profile Dropdown */}
               {isProfileDropdownOpen && (
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg py-2 z-50 overflow-hidden transition-all duration-300 ease-in-out">
                   {user && (
@@ -646,10 +600,9 @@ export default function Header() {
                       </div>
                       <hr className="border-gray-200" />
                       
-                      {/* Debug info */}
                       {!isRealEstateCompany && (
                         <div className="px-4 py-1 text-xs text-gray-500">
-                          Status:{hasListings ? 'Has Listings' : 'No Listings'}
+                          Status: {hasListings ? 'Has Listings' : 'No Listings'}
                         </div>
                       )}
                       
@@ -666,26 +619,48 @@ export default function Header() {
                       </Link>
                       
                       {!isRealEstateCompany && !isAgent && (
-                        <Link
-                          to="/messages"
-                          className={`block px-4 py-2 text-sm relative ${
-                            location.pathname === '/messages'
-                              ? 'bg-slate-100 text-[#009688]'
-                              : shouldShowNotifications && hasUnreadMessages
-                              ? 'text-[#009688] font-semibold'
-                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                          } transition-colors duration-200`}
-                          onClick={() => setIsProfileDropdownOpen(false)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span>Messages</span>
-                            {shouldShowNotifications && hasUnreadMessages && (
-                              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
-                              </span>
-                            )}
-                          </div>
-                        </Link>
+                        <>
+                          <Link
+                            to="/messages"
+                            className={`block px-4 py-2 text-sm relative ${
+                              location.pathname === '/messages'
+                                ? 'bg-slate-100 text-[#009688]'
+                                : shouldShowNotifications && hasUnreadMessages
+                                ? 'text-[#009688] font-semibold'
+                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                            } transition-colors duration-200`}
+                            onClick={() => setIsProfileDropdownOpen(false)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>Messages</span>
+                              {shouldShowNotifications && hasUnreadMessages && (
+                                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                  {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
+                                </span>
+                              )}
+                            </div>
+                          </Link>
+                          <Link
+                            to="/notifications"
+                            className={`block px-4 py-2 text-sm ${
+                              location.pathname === '/notifications'
+                                ? 'bg-slate-100 text-[#009688]'
+                                : hasUnreadNotifications
+                                ? 'text-[#009688] font-semibold'
+                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                            } transition-colors duration-200`}
+                            onClick={() => setIsProfileDropdownOpen(false)}
+                          >
+                            <div className="flex items-center">
+                              <span>Notifications</span>
+                              {hasUnreadNotifications && (
+                                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                  New
+                                </span>
+                              )}
+                            </div>
+                          </Link>
+                        </>
                       )}
                       {currentUser && currentUser.role === 'admin' && (
                         <Link
@@ -713,8 +688,8 @@ export default function Header() {
             </div>
           ) : (
             <Link to="/sign-in">
-              <button className={`text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#009688] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100`}>
-                Sign in
+              <button className="text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#009688] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100">
+                Sign In
               </button>
             </Link>
           )}

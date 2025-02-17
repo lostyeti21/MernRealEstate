@@ -42,6 +42,8 @@ import ResetPassword from './pages/ResetPassword';
 import Landing from "./pages/Landing";
 import Agents from './pages/Agents';
 import SuperUser from './pages/SuperUser';
+import Notifications from './pages/Notifications';
+import NotificationPopup from './components/NotificationPopup';
 
 function HeaderWrapper() {
   const location = useLocation();
@@ -57,6 +59,51 @@ function HeaderWrapper() {
 const App = () => {
   const { currentUser } = useSelector((state) => state.user);
   const [isChatbotLoaded, setIsChatbotLoaded] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let intervalId;
+
+    const checkUnreadNotifications = async () => {
+      try {
+        if (!currentUser?.token) return;
+
+        const res = await fetch('http://localhost:3000/api/notifications/unread', {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch unread notifications');
+        }
+
+        const data = await res.json();
+        setUnreadCount(data.unreadCount || 0);
+      } catch (error) {
+        console.error('Error checking unread notifications:', error);
+      }
+    };
+
+    if (currentUser) {
+      // Check immediately
+      checkUnreadNotifications();
+      // Then check every 30 seconds
+      intervalId = setInterval(checkUnreadNotifications, 30000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [currentUser]);
+
+  const handleNotificationClose = () => {
+    setUnreadCount(0);
+  };
 
   useEffect(() => {
     const startSession = async () => {
@@ -149,7 +196,7 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <HeaderWrapper />
+      <HeaderWrapper unreadCount={unreadCount} onNotificationView={handleNotificationClose} />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
@@ -195,8 +242,10 @@ const App = () => {
           <Route path="/agent-create-listing" element={<AgentCreateListing />} />
           <Route path="/update-listing/:listingId" element={<UpdateListing />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
+          <Route path="/notifications" element={<Notifications />} />
         </Route>
       </Routes>
+      <NotificationPopup unreadCount={unreadCount} onClose={handleNotificationClose} />
       <Toaster 
         position="top-center"
         reverseOrder={false}

@@ -10,6 +10,7 @@ import UserDistributionChart from '../components/charts/UserDistributionChart';
 import ImageCollage from '../components/ImageCollage';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import logo from '../assets/logo.png';
+import { toast } from 'react-toastify';
 
 export default function SuperUser() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -38,16 +39,26 @@ export default function SuperUser() {
   });
   const [listingTypeFilter, setListingTypeFilter] = useState('all'); // 'all', 'rent', or 'sale'
   const [selectedListings, setSelectedListings] = useState([]);
+  const [disputes, setDisputes] = useState([]);
+  const [disputeLoading, setDisputeLoading] = useState(false);
+  const [activeDisputeTab, setActiveDisputeTab] = useState('pending');
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('Authenticated, fetching data...');
+      fetchUsers();
+      fetchListings();
+      fetchDisputes();
+    }
+  }, [isAuthenticated]);
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (username === 'admin' && password === 'ishe') {
       setIsAuthenticated(true);
       setError(null);
-      fetchUsers();
-      fetchListings();
     } else {
       setError('Invalid credentials');
     }
@@ -249,6 +260,101 @@ export default function SuperUser() {
       console.error('Error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDisputes = async () => {
+    try {
+      setDisputeLoading(true);
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch('http://localhost:3000/api/dispute', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Super-User-Auth': 'ishe'
+        },
+        credentials: 'include'
+      });
+
+      console.log('Dispute fetch response:', response.status);
+      const data = await response.json();
+      console.log('Disputes data:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch disputes');
+      }
+
+      setDisputes(data);
+    } catch (error) {
+      console.error('Error fetching disputes:', error);
+      toast.error(error.message || 'Failed to fetch disputes');
+    } finally {
+      setDisputeLoading(false);
+    }
+  };
+
+  const handleDisputeAction = async (disputeId, action) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch(`http://localhost:3000/api/dispute/${disputeId}/${action}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Super-User-Auth': 'ishe'
+        },
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to ${action} dispute`);
+      }
+
+      // If rejecting, send a notification to the user
+      if (action === 'reject') {
+        const dispute = disputes.find(d => d._id === disputeId);
+        if (dispute && dispute.disputedBy?._id) {
+          const notificationData = {
+            userId: dispute.disputedBy._id,
+            message: `Your dispute (ID: ${disputeId.slice(-6).toUpperCase()}) has been rejected. Please contact customer care at justlistit@outlook.com if you wish for more information as to why.`,
+            type: 'dispute_rejected'
+          };
+
+          const notificationResponse = await fetch('http://localhost:3000/api/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+              'X-Super-User-Auth': 'ishe'
+            },
+            body: JSON.stringify(notificationData),
+            credentials: 'include'
+          });
+
+          if (!notificationResponse.ok) {
+            console.error('Failed to send rejection notification:', await notificationResponse.json());
+          }
+        }
+      }
+
+      // Update disputes list with the new status
+      setDisputes(prevDisputes => 
+        prevDisputes.map(dispute => 
+          dispute._id === disputeId 
+            ? { ...dispute, status: action === 'approve' ? 'approved' : 'rejected' }
+            : dispute
+        )
+      );
+
+      toast.success(`Dispute ${action}ed successfully`);
+    } catch (error) {
+      console.error(`Error ${action}ing dispute:`, error);
+      toast.error(error.message || `Failed to ${action} dispute`);
     }
   };
 
@@ -463,14 +569,14 @@ export default function SuperUser() {
               <div className="flex justify-end gap-4">
                 <button
                   onClick={() => setSelectedListings([])}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center gap-2"
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
                 >
                   <FaTrash />
                   Clear Selection
                 </button>
                 <button
                   onClick={saveCollageConfiguration}
-                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2"
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                 >
                   <FaSave />
                   Save Configuration
@@ -482,6 +588,307 @@ export default function SuperUser() {
       </div>
     );
   };
+
+  const renderRatingDisputesTab = () => {
+    return (
+      <div className="p-6">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold mb-4">Rating Disputes</h2>
+          <div className="grid grid-cols-1 gap-6">
+            {disputeLoading ? (
+              <p className="text-center text-gray-700">Loading disputes...</p>
+            ) : disputes.length === 0 ? (
+              <p className="text-center text-gray-700">No disputes found</p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {disputes.map((dispute) => (
+                  <div
+                    key={dispute._id}
+                    className='border rounded-lg p-4 flex flex-col gap-3'
+                  >
+                    <div className='flex justify-between items-start'>
+                      <div>
+                        <h3 className='font-semibold'>
+                          Rating from {dispute.rating.ratedBy.username}
+                        </h3>
+                        <p className='text-gray-600 text-sm'>
+                          Disputed by {dispute.disputedBy.username}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded ${
+                        dispute.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : dispute.status === 'approved'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {dispute.status.charAt(0).toUpperCase() + dispute.status.slice(1)}
+                      </span>
+                    </div>
+                    
+                    <div className='grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded'>
+                      <div>
+                        <h4 className='font-medium mb-2'>Rating Details:</h4>
+                        {dispute.rating.categories.map((cat) => (
+                          <p key={cat.category} className='text-sm'>
+                            {cat.category}: {cat.value}/5
+                          </p>
+                        ))}
+                      </div>
+                      <div>
+                        <h4 className='font-medium mb-2'>Dispute Reason:</h4>
+                        <p className='text-sm'>{dispute.reason}</p>
+                      </div>
+                    </div>
+
+                    {dispute.status === 'pending' && (
+                      <div className='flex gap-3 mt-2'>
+                        <button
+                          onClick={() => handleDisputeAction(dispute._id, 'approve')}
+                          className='bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600'
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleDisputeAction(dispute._id, 'reject')}
+                          className='bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600'
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDisputesTab = () => {
+    if (disputeLoading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        </div>
+      );
+    }
+
+    // Filter disputes based on active tab
+    const filteredDisputes = disputes.filter(dispute => dispute.status === activeDisputeTab);
+
+    // Get counts for each status
+    const counts = {
+      pending: disputes.filter(d => d.status === 'pending').length,
+      approved: disputes.filter(d => d.status === 'approved').length,
+      rejected: disputes.filter(d => d.status === 'rejected').length
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Status Tabs */}
+        <div className="flex space-x-4 border-b">
+          {[
+            { id: 'pending', label: 'Pending', color: 'yellow' },
+            { id: 'approved', label: 'Approved', color: 'green' },
+            { id: 'rejected', label: 'Rejected', color: 'red' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveDisputeTab(tab.id)}
+              className={`px-4 py-2 mx-2 rounded flex items-center ${
+                activeDisputeTab === tab.id
+                  ? `border-b-2 border-${tab.color}-500 text-${tab.color}-600`
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs bg-${tab.color}-100 text-${tab.color}-800`}>
+                {counts[tab.id]}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Disputes List */}
+        {filteredDisputes.length === 0 ? (
+          <div className="text-center text-gray-500 py-8">
+            No {activeDisputeTab} disputes found
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredDisputes.map((dispute) => (
+              <div key={dispute._id} className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex -space-x-2">
+                      <img
+                        src={dispute.disputedBy?.avatar || '/default-avatar.png'}
+                        alt={`${dispute.disputedBy?.username || 'User'}'s avatar`}
+                        className="w-10 h-10 rounded-full border-2 border-white"
+                      />
+                      <img
+                        src={dispute.ratedBy?.avatar || '/default-avatar.png'}
+                        alt={`${dispute.ratedBy?.username || 'Rater'}'s avatar`}
+                        className="w-10 h-10 rounded-full border-2 border-white"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          <span className="text-blue-600">{dispute.disputedBy?.username || 'User'}</span>
+                          {' '}disputed rating by{' '}
+                          <span className="text-green-600">{dispute.ratedBy?.username || 'Rater'}</span>
+                        </p>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          ID: {dispute._id.slice(-6).toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        {new Date(dispute.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    dispute.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    dispute.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {dispute.status.charAt(0).toUpperCase() + dispute.status.slice(1)}
+                  </span>
+                </div>
+
+                <div className="pl-14">
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">Disputed Categories:</h4>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(dispute._id);
+                          toast.success('Dispute ID copied to clipboard');
+                        }}
+                        className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                        Copy Full ID
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {dispute.categories.map((cat) => (
+                        <div key={cat.category} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <span className="capitalize">{cat.category}</span>
+                          <div className="flex items-center">
+                            {renderStars(cat.value, 'w-4 h-4')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <h4 className="font-medium mb-1">Reason:</h4>
+                    <p className="text-gray-700">{dispute.reason}</p>
+                  </div>
+
+                  {dispute.status === 'pending' && (
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => handleDisputeAction(dispute._id, 'approve')}
+                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleDisputeAction(dispute._id, 'reject')}
+                        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDisputesTabOld = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-semibold mb-4">Rating Disputes</h2>
+      {disputeLoading ? (
+        <div className="text-center">Loading disputes...</div>
+      ) : disputes.length === 0 ? (
+        <div className="text-center text-gray-600">No disputes found</div>
+      ) : (
+        <div className="grid gap-6">
+          {disputes.map((dispute) => (
+            <div key={dispute._id} className="bg-white p-6 rounded-lg shadow-md">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    Dispute by {dispute.disputedBy?.username || 'Unknown User'}
+                  </h3>
+                  <p className="text-gray-600">
+                    Status: <span className={`font-medium ${
+                      dispute.status === 'pending'
+                        ? 'text-yellow-600' :
+                      dispute.status === 'resolved' ? 'text-green-600' :
+                      'text-red-600'
+                    }`}>{dispute.status}</span>
+                  </p>
+                </div>
+                {dispute.status === 'pending' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleDisputeAction(dispute._id, 'approve')}
+                      className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleDisputeAction(dispute._id, 'reject')}
+                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <p className="text-gray-700"><strong>Reason:</strong> {dispute.reason}</p>
+                <p className="text-gray-700">
+                  <strong>Original Rating:</strong> {dispute.categories.map(cat => 
+                    `${cat.category}: ${cat.value}`
+                  ).join(', ')}
+                </p>
+                {dispute.originalComment && (
+                  <p className="text-gray-700">
+                    <strong>Original Comment:</strong> {dispute.originalComment}
+                  </p>
+                )}
+                <p className="text-gray-600 text-sm">
+                  Submitted on: {new Date(dispute.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   if (!isAuthenticated) {
     return (
@@ -581,7 +988,7 @@ export default function SuperUser() {
             className={`px-4 py-2 mx-2 rounded flex items-center ${
               activeTab === 'users'
                 ? 'bg-slate-700 text-white'
-                : 'bg-gray-200 text-gray-700'
+                : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
             }`}
           >
             <FaUsers className="mr-2" /> Users
@@ -591,7 +998,7 @@ export default function SuperUser() {
             className={`px-4 py-2 mx-2 rounded flex items-center ${
               activeTab === 'listings'
                 ? 'bg-slate-700 text-white'
-                : 'bg-gray-200 text-gray-700'
+                : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
             }`}
           >
             <FaHome className="mr-2" /> Listings
@@ -601,7 +1008,7 @@ export default function SuperUser() {
             className={`px-4 py-2 mx-2 rounded flex items-center ${
               activeTab === 'analytics'
                 ? 'bg-slate-700 text-white'
-                : 'bg-gray-200 text-gray-700'
+                : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
             }`}
           >
             <FaChartBar className="mr-2" /> Analytics
@@ -616,6 +1023,17 @@ export default function SuperUser() {
           >
             <FaBuilding />
             <span>Verified Companies</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('disputes')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+              activeTab === 'disputes'
+                ? 'bg-slate-700 text-white'
+                : 'hover:bg-slate-200'
+            }`}
+          >
+            <FaStar />
+            <span>Rating Disputes</span>
           </button>
         </motion.div>
 
@@ -833,7 +1251,6 @@ export default function SuperUser() {
                   <div className="bg-white p-6 rounded-lg shadow">
                     <h3 className="text-lg font-semibold text-gray-700 mb-2">Total Users</h3>
                     <p className="text-3xl font-bold text-slate-700">{users.length}</p>
-                    <p className="text-sm text-gray-500 mt-2">Active accounts on the platform</p>
                   </div>
                   <div className="bg-white p-6 rounded-lg shadow">
                     <h3 className="text-lg font-semibold text-gray-700 mb-2">User Distribution</h3>
@@ -1176,6 +1593,9 @@ export default function SuperUser() {
 
         {/* Verified Real Estate Companies Tab */}
         {activeTab === 'companies' && renderCompaniesTab()}
+
+        {/* Rating Disputes Tab */}
+        {activeTab === 'disputes' && renderDisputesTab()}
       </motion.div>
     </motion.div>
   );

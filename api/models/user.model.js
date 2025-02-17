@@ -22,6 +22,10 @@ const ratingSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  read: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

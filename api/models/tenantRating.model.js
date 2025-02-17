@@ -21,10 +21,19 @@ const tenantRatingSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  ratedUser: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   tenant: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  read: {
+    type: Boolean,
+    default: false
   },
   createdAt: {
     type: Date,
@@ -94,14 +103,9 @@ tenantRatingSchema.statics.calculateAverageRating = async function(tenantId) {
   return ratings;
 };
 
-// Method to check if a user has already rated a tenant
+// Method to check if a user has rated a tenant - always returns false to allow multiple ratings
 tenantRatingSchema.statics.hasUserRatedTenant = async function(tenantId, userId) {
-  const count = await this.countDocuments({
-    tenant: tenantId,
-    ratedBy: userId,
-    category: { $ne: 'overall' } // Only check category ratings
-  });
-  return count > 0;
+  return false; // Always allow rating
 };
 
 const TenantRating = mongoose.model('TenantRating', tenantRatingSchema);

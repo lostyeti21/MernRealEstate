@@ -31,24 +31,40 @@ const TenantProfile = () => {
   useEffect(() => {
     const fetchTenantDetails = async () => {
       try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          throw new Error('Please log in to view tenant details');
+        }
+
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        };
+
         // Fetch tenant details
-        const resTenant = await fetch(`/api/user/${tenantId}`);
+        const resTenant = await fetch(`http://localhost:3000/api/user/${tenantId}`, {
+          headers
+        });
         const tenantData = await resTenant.json();
-        if (!resTenant.ok) throw new Error("Failed to fetch tenant details");
+        if (!resTenant.ok) throw new Error(tenantData.message || "Failed to fetch tenant details");
 
         // Fetch tenant ratings
-        const resRatings = await fetch(`/api/tenant-rating/${tenantId}`);
+        const resRatings = await fetch(`http://localhost:3000/api/tenant-rating/${tenantId}`, {
+          headers
+        });
         const ratingsData = await resRatings.json();
-        if (!resRatings.ok) throw new Error("Failed to fetch tenant ratings");
+        if (!resRatings.ok) throw new Error(ratingsData.message || "Failed to fetch tenant ratings");
 
         setTenant(tenantData);
         setCurrentRating({
-          averageRating: ratingsData.ratings.overall.averageRating || null,
-          totalRatings: ratingsData.ratings.overall.totalRatings || 0,
-          categories: ratingsData.ratings.categories || {}
+          averageRating: ratingsData.ratings?.overall?.averageRating || null,
+          totalRatings: ratingsData.ratings?.overall?.totalRatings || 0,
+          categories: ratingsData.ratings?.categories || {}
         });
       } catch (err) {
+        console.error('Error fetching tenant details:', err);
         setError(err.message);
+        toast.error(err.message);
       } finally {
         setLoading(false);
       }
@@ -67,13 +83,25 @@ const TenantProfile = () => {
         throw new Error('Please log in to submit a rating');
       }
 
+      // Validate ratings
+      const hasEmptyRatings = Object.values(ratings).some(value => value === 0);
+      if (hasEmptyRatings) {
+        throw new Error('Please provide ratings for all categories');
+      }
+
       // Check if user has already rated
-      const checkRes = await fetch(`/api/tenant-rating/check/${tenantId}`, {
+      const checkRes = await fetch(`http://localhost:3000/api/tenant-rating/check/${tenantId}`, {
+        credentials: 'include',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
       const checkData = await checkRes.json();
+      
+      if (!checkRes.ok) {
+        throw new Error(checkData.message || 'Error checking rating status');
+      }
       
       if (checkData.hasRated) {
         throw new Error('You have already rated this tenant');
@@ -85,17 +113,24 @@ const TenantProfile = () => {
           category,
           value: Number(value),
           comment: ''
-        })),
-        {
+        }))
+      ];
+
+      // Add overall rating if all other ratings are set
+      if (!hasEmptyRatings) {
+        ratingsArray.push({
           category: 'overall',
           value: currentOverallRating,
           comment: ''
-        }
-      ];
+        });
+      }
+
+      console.log('Submitting ratings:', ratingsArray);
 
       // Submit rating
-      const response = await fetch(`/api/tenant-rating/rate/${tenantId}`, {
+      const response = await fetch(`http://localhost:3000/api/tenant-rating/rate/${tenantId}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -106,6 +141,7 @@ const TenantProfile = () => {
       });
 
       const data = await response.json();
+      console.log('Rating submission response:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to submit rating');
@@ -113,14 +149,20 @@ const TenantProfile = () => {
 
       // Update the current rating with the new values
       setCurrentRating({
-        averageRating: data.ratings.overall.averageRating,
-        totalRatings: data.ratings.overall.totalRatings,
-        categories: data.ratings.categories
+        averageRating: data.ratings?.overall?.averageRating,
+        totalRatings: data.ratings?.overall?.totalRatings,
+        categories: data.ratings?.categories
       });
 
       toast.success('Rating submitted successfully!');
       
-      // Reset hover states
+      // Reset ratings and hover states
+      setRatings({
+        communication: 0,
+        cleanliness: 0,
+        reliability: 0
+      });
+      
       setHoveredRating({
         communication: 0,
         cleanliness: 0,

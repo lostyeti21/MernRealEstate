@@ -1,4 +1,5 @@
 import TenantRating from '../models/tenantRating.model.js';
+import User from '../models/user.model.js';
 import { errorHandler } from '../utils/error.js';
 import mongoose from 'mongoose';
 
@@ -14,10 +15,10 @@ export const rateTenant = async (req, res, next) => {
       return next(errorHandler(400, 'Invalid tenant ID'));
     }
 
-    // Check if user has already rated this tenant
-    const hasRated = await TenantRating.hasUserRatedTenant(tenantId, userId);
-    if (hasRated) {
-      return next(errorHandler(400, 'You have already rated this tenant'));
+    // Verify tenant exists
+    const tenant = await User.findById(tenantId);
+    if (!tenant) {
+      return next(errorHandler(404, 'Tenant not found'));
     }
 
     // Create ratings for each category
@@ -25,6 +26,7 @@ export const rateTenant = async (req, res, next) => {
       TenantRating.create({
         tenant: tenantId,
         ratedBy: userId,
+        ratedUser: tenantId,
         category: rating.category,
         value: rating.value,
         comment: rating.comment || ''
@@ -36,15 +38,20 @@ export const rateTenant = async (req, res, next) => {
     // Calculate new average ratings
     const updatedRatings = await TenantRating.calculateAverageRating(tenantId);
 
+    // Get rater's name for the notification
+    const user = await User.findById(userId).select('username');
+    const raterName = user ? user.username : 'A user';
+
     res.status(200).json({
       success: true,
       message: 'Rating submitted successfully',
-      ratings: updatedRatings
+      ratings: updatedRatings,
+      raterName
     });
 
   } catch (error) {
     console.error('Error in rateTenant:', error);
-    next(errorHandler(500, 'Error submitting tenant rating'));
+    next(errorHandler(500, error.message || 'Error submitting tenant rating'));
   }
 };
 

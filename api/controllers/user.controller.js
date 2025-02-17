@@ -273,12 +273,6 @@ export const rateLandlord = async (req, res, next) => {
       return next(errorHandler(400, 'You cannot rate yourself'));
     }
 
-    // Check if user has already rated this landlord
-    const hasRated = landlord.ratedBy && landlord.ratedBy.some(id => id.toString() === userId);
-    if (hasRated) {
-      return next(errorHandler(400, 'You have already rated this landlord'));
-    }
-
     // Category mapping for normalization
     const categoryMap = {
       'responsetime': 'responseTime',
@@ -304,56 +298,46 @@ export const rateLandlord = async (req, res, next) => {
       }
 
       return {
-        value: ratingValue,
         category: normalizedCategory,
-        comment: rating.comment || '',
-        ratedBy: new mongoose.Types.ObjectId(userId),
-        createdAt: new Date()
+        value: ratingValue,
+        ratedBy: userId,
+        date: new Date()
       };
     });
 
-    // Initialize arrays if they don't exist
-    if (!Array.isArray(landlord.ratings)) {
-      landlord.ratings = [];
-    }
-    if (!Array.isArray(landlord.ratedBy)) {
-      landlord.ratedBy = [];
-    }
-
-    // Add new ratings and update ratedBy array
-    landlord.ratings.push(...newRatings);
-    landlord.ratedBy.push(new mongoose.Types.ObjectId(userId));
-
-    // Calculate overall rating
-    const categoryTotals = {};
-    validCategories.forEach(category => {
-      const categoryRatings = landlord.ratings.filter(r => r.category === category);
-      if (categoryRatings.length > 0) {
-        categoryTotals[category] = categoryRatings.reduce((sum, r) => sum + r.value, 0) / categoryRatings.length;
-      }
-    });
-
-    // Save the updated landlord
-    await landlord.save();
-
-    // Get updated rating details
-    const ratingDetails = landlord.getRatingDetails();
-
-    console.log('Successfully saved ratings:', {
+    // Update landlord's ratings
+    const updateResult = await User.findByIdAndUpdate(
       landlordId,
-      newRatings,
-      ratingDetails
-    });
+      {
+        $push: { 
+          ratings: { $each: newRatings },
+          ratedBy: userId
+        }
+      },
+      { new: true }
+    ).select('ratings username');
+
+    if (!updateResult) {
+      return next(errorHandler(500, 'Failed to update landlord ratings'));
+    }
+
+    // Calculate new average rating
+    const averageRating = calculateAverageRating(updateResult.ratings);
+
+    // Get rater's name for the notification
+    const rater = await User.findById(userId).select('username');
+    const raterName = rater ? rater.username : 'A user';
 
     res.status(200).json({
       success: true,
       message: 'Rating submitted successfully',
-      ratings: ratingDetails
+      averageRating,
+      raterName
     });
 
   } catch (error) {
-    console.error('Rating Submission Error:', error);
-    next(errorHandler(500, error.message || 'An error occurred while submitting the rating.'));
+    console.error('Error in rateLandlord:', error);
+    next(errorHandler(500, error.message || 'Error submitting landlord rating'));
   }
 };
 
