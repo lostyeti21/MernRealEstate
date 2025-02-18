@@ -54,8 +54,21 @@ const io = initializeSocket(httpServer);
 
 app.use(cors({
   origin: 'http://localhost:5173',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Super-User-Auth']
 }));
+
+// Add CORS logging middleware
+app.use((req, res, next) => {
+  console.log('CORS Check:', {
+    origin: req.headers.origin,
+    method: req.method,
+    path: req.path,
+    allowedOrigin: res.getHeader('Access-Control-Allow-Origin')
+  });
+  next();
+});
 
 app.use(express.json());
 app.use(cookieParser());

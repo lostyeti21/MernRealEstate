@@ -8,7 +8,13 @@ import Notification from '../models/notification.model.js';
 export const disputeRating = async (req, res, next) => {
   try {
     const { ratingId, ratingType, categories, reason, reasonType } = req.body;
-    console.log('Creating dispute:', { ratingId, ratingType, categories, reason, reasonType });
+    console.log('Creating dispute with data:', {
+      ratingId,
+      ratingType,
+      categories: Array.isArray(categories) ? categories : [categories],
+      reason,
+      reasonType
+    });
 
     // Validate required fields
     if (!ratingId || !ratingType || !categories || !categories.length || !reason || !reasonType) {
@@ -36,7 +42,7 @@ export const disputeRating = async (req, res, next) => {
     const dispute = await Dispute.create({
       rating: ratingId,
       ratingType,
-      categories,
+      categories: Array.isArray(categories) ? categories : [categories],
       reason,
       reasonType,
       disputedBy: req.user.id,
@@ -46,6 +52,55 @@ export const disputeRating = async (req, res, next) => {
     });
 
     await dispute.populate(['disputedBy', 'ratedBy']);
+
+    // Create notification for the rater
+    try {
+      const disputeReference = dispute._id.toString().slice(-6).toUpperCase();
+      
+      // Extract just the category names from the dispute categories
+      const categoryNames = dispute.categories.map(cat => cat.category);
+      
+      console.log('Creating notification with categories:', categoryNames);
+      
+      const notificationData = {
+        to: rating.ratedBy,
+        message: `Your ${ratingType} rating has been disputed by ${dispute.disputedBy.username}. The dispute (ID: ${disputeReference}) is currently under review by our support team.`,
+        type: 'dispute_submitted',
+        systemInfo: {
+          name: 'JustListIt Support',
+          avatar: '/tiny logo.png'
+        },
+        dispute: {
+          id: dispute._id,
+          reason: reason,
+          reasonType: reasonType,
+          categories: categoryNames // Only send the category names
+        },
+        read: false,
+        createdAt: new Date()
+      };
+
+      console.log('Creating dispute notification with data:', JSON.stringify(notificationData, null, 2));
+
+      // Create notification
+      const notification = await Notification.create(notificationData);
+
+      console.log('Created notification:', {
+        id: notification._id,
+        to: notification.to,
+        type: notification.type,
+        message: notification.message,
+        dispute: notification.dispute
+      });
+    } catch (notificationError) {
+      console.error('Error creating notification:', {
+        error: notificationError.message,
+        stack: notificationError.stack,
+        dispute: dispute._id,
+        user: rating.ratedBy
+      });
+      // Don't throw the error as the dispute was still created successfully
+    }
 
     console.log('Created dispute:', {
       id: dispute._id,
@@ -99,6 +154,18 @@ export const getDisputes = async (req, res, next) => {
 
 export const handleDisputeAction = async (req, res, next) => {
   try {
+    // Log full request details
+    console.log('Dispute Action Request:', {
+      params: req.params,
+      body: req.body,
+      headers: {
+        origin: req.headers.origin,
+        host: req.headers.host,
+        authorization: req.headers.authorization ? 'present' : 'missing',
+        superUserAuth: req.headers['x-super-user-auth']
+      }
+    });
+
     const { id: disputeId, action } = req.params;
     console.log('Handling dispute action:', { disputeId, action });
 
@@ -114,7 +181,7 @@ export const handleDisputeAction = async (req, res, next) => {
     console.log('Found dispute:', {
       id: disputeId,
       disputedBy: dispute?.disputedBy,
-      status: dispute?.status
+      currentStatus: dispute?.status
     });
 
     if (!dispute) {
@@ -127,61 +194,227 @@ export const handleDisputeAction = async (req, res, next) => {
       return next(errorHandler(400, 'Can only take action on pending disputes'));
     }
 
-    // Update dispute status
-    dispute.status = action === 'approve' ? 'approved' : 'rejected';
-    await dispute.save();
-    console.log('Updated dispute status:', dispute.status);
+    // Update dispute status with explicit save and logging
+    dispute.status = action === 'approve' ? 'resolved' : 'rejected';
+    
+    try {
+      await dispute.save();
+      console.log('Dispute status saved successfully:', {
+        disputeId,
+        newStatus: dispute.status
+      });
+    } catch (saveError) {
+      console.error('Error saving dispute status:', {
+        error: saveError.message,
+        validationErrors: saveError.errors
+      });
+      return next(errorHandler(500, 'Failed to update dispute status'));
+    }
+
+    // Respond with success and include the updated dispute
+    res.status(200).json({
+      success: true,
+      message: `Dispute ${action}ed successfully`,
+      dispute: {
+        _id: dispute._id,
+        status: dispute.status,
+        createdAt: dispute.createdAt,
+        disputedBy: dispute.disputedBy,
+        ratedBy: dispute.ratedBy
+      }
+    });
+
+    // If approving, remove the disputed rating
+    if (action === 'approve') {
+      try {
+        // Determine the correct rating model based on rating type
+        const RatingModel = dispute.ratingType === 'tenant' ? TenantRating : LandlordRating;
+
+        // Find the specific rating
+        const rating = await RatingModel.findById(dispute.rating);
+
+        if (rating) {
+          console.log('Removing disputed rating:', {
+            ratingId: rating._id,
+            ratedUser: rating.ratedBy,
+            ratingType: dispute.ratingType
+          });
+
+          // Remove the specific rating
+          await RatingModel.findByIdAndDelete(rating._id);
+
+          // Recalculate user's average rating after removing the disputed rating
+          const remainingRatings = await RatingModel.find({ 
+            ratedBy: rating.ratedBy,
+            ratingType: dispute.ratingType
+          });
+
+          // Update user's rating statistics
+          const userModel = dispute.ratingType === 'tenant' ? User : User;
+          const updateFields = {
+            averageRating: remainingRatings.length > 0 
+              ? remainingRatings.reduce((sum, r) => sum + r.rating, 0) / remainingRatings.length 
+              : 0,
+            totalRatings: remainingRatings.length
+          };
+
+          await userModel.findByIdAndUpdate(rating.ratedBy, {
+            $set: updateFields
+          });
+
+          console.log('Updated user rating statistics:', {
+            userId: rating.ratedBy,
+            averageRating: updateFields.averageRating,
+            totalRatings: updateFields.totalRatings
+          });
+        }
+
+        // Create notification for the rater
+        const raterNotificationData = {
+          to: dispute.ratedBy._id,
+          message: `The Dispute (ID: ${disputeId.slice(-6).toUpperCase()}) started against you by ${dispute.disputedBy.username} was approved. The original rating you had made has been revoked. If you feel this is unjustified, please send an email with your dispute ID to justlistit@outlook.com.`,
+          type: 'dispute_resolved',
+          systemInfo: {
+            name: 'JustListIt Support',
+            avatar: '/tiny logo.png'
+          },
+          read: false,
+          createdAt: new Date(),
+          dispute: {
+            id: dispute._id,
+            reason: dispute.reason,
+            reasonType: dispute.reasonType
+          }
+        };
+
+        // Create notification for the disputer
+        const disputerNotificationData = {
+          to: dispute.disputedBy._id,
+          message: `The dispute (ID: ${disputeId.slice(-6).toUpperCase()}) has been approved. The rating will now be revoked and not affect your overall rating.`,
+          type: 'dispute_resolved',
+          systemInfo: {
+            name: 'JustListIt Support',
+            avatar: '/tiny logo.png'
+          },
+          read: false,
+          createdAt: new Date(),
+          dispute: {
+            id: dispute._id,
+            reason: dispute.reason,
+            reasonType: dispute.reasonType
+          }
+        };
+
+        // Log notification creation details
+        console.log('Creating Dispute Resolution Notifications:', {
+          raterNotification: {
+            to: raterNotificationData.to,
+            message: raterNotificationData.message
+          },
+          disputerNotification: {
+            to: disputerNotificationData.to,
+            message: disputerNotificationData.message
+          }
+        });
+
+        try {
+          // Create notifications with error handling
+          const raterNotification = await Notification.create(raterNotificationData);
+          const disputerNotification = await Notification.create(disputerNotificationData);
+
+          console.log('Notifications created successfully:', {
+            raterNotificationId: raterNotification._id,
+            disputerNotificationId: disputerNotification._id
+          });
+        } catch (notificationError) {
+          console.error('Error creating dispute resolution notifications:', {
+            error: notificationError.message,
+            stack: notificationError.stack,
+            raterNotificationData,
+            disputerNotificationData
+          });
+        }
+      } catch (ratingRemovalError) {
+        console.error('Error removing disputed rating:', {
+          error: ratingRemovalError.message,
+          stack: ratingRemovalError.stack,
+          disputeId: disputeId
+        });
+      }
+    }
 
     // Create notification for the user
     if (action === 'reject') {
       try {
-        const notificationData = {
+        // Notification for the disputer
+        const disputerNotificationData = {
           to: dispute.disputedBy._id,
-          message: `Your dispute (ID: ${disputeId.slice(-6).toUpperCase()}) has been rejected. Please contact customer care at justlistit@outlook.com if you wish for more information as to why.`,
+          message: `Your dispute (ID: ${disputeId.slice(-6).toUpperCase()}) has been rejected. The rating will remain unchanged. If you feel there is a mistake or want to dispute the judgement please email justlistit@outlook.com with your dispute ID.`,
           type: 'dispute_rejected',
           systemInfo: {
             name: 'JustListIt Support',
-            avatar: logo
+            avatar: '/tiny logo.png'
           },
           read: false,
           createdAt: new Date()
         };
 
-        console.log('Creating rejection notification:', notificationData);
+        // Notification for the rater
+        const raterNotificationData = {
+          to: dispute.ratedBy._id,
+          message: `The Dispute (ID: ${disputeId.slice(-6).toUpperCase()}) filed against your rating to ${dispute.disputedBy.username} has been rejected. Our team has deemed your rating was justified. The rating you submitted before will not be affected.`,
+          type: 'dispute_rejected',
+          systemInfo: {
+            name: 'JustListIt Support',
+            avatar: '/tiny logo.png'
+          },
+          read: false,
+          createdAt: new Date()
+        };
 
-        // Create notification directly using the model
-        const notification = await Notification.create(notificationData);
+        console.log('Creating rejection notifications:', {
+          disputerNotification: disputerNotificationData,
+          raterNotification: raterNotificationData
+        });
 
-        console.log('Created notification:', {
-          id: notification._id,
-          to: notification.to,
-          type: notification.type,
-          message: notification.message
+        // Create notifications directly using the model
+        const [disputerNotification, raterNotification] = await Promise.all([
+          Notification.create(disputerNotificationData),
+          Notification.create(raterNotificationData)
+        ]);
+
+        console.log('Created notifications:', {
+          disputerNotification: {
+            id: disputerNotification._id,
+            to: disputerNotification.to,
+            type: disputerNotification.type,
+            message: disputerNotification.message
+          },
+          raterNotification: {
+            id: raterNotification._id,
+            to: raterNotification.to,
+            type: raterNotification.type,
+            message: raterNotification.message
+          }
         });
       } catch (notificationError) {
-        console.error('Error creating notification:', {
+        console.error('Error creating notifications:', {
           error: notificationError.message,
           stack: notificationError.stack,
           dispute: disputeId,
-          user: dispute.disputedBy._id
+          disputedBy: dispute.disputedBy._id,
+          ratedBy: dispute.ratedBy._id
         });
       }
     }
-
-    res.status(200).json({
-      success: true,
-      message: `Dispute ${action}ed successfully`,
-      dispute
-    });
 
   } catch (error) {
     console.error('Error in handleDisputeAction:', {
       error: error.message,
       stack: error.stack,
-      disputeId,
-      action
+      params: req.params
     });
-    next(errorHandler(500, error.message || `Error ${action}ing dispute`));
+    next(errorHandler(500, error.message || `Error processing dispute action`));
   }
 };
 

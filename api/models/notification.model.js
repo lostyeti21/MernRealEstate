@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['rating', 'dispute_rejected', 'dispute_approved', 'system']
+    enum: ['rating', 'dispute_rejected', 'dispute_approved', 'dispute_submitted', 'dispute_resolved', 'system']
   },
   read: {
     type: Boolean,
@@ -33,6 +33,18 @@ const notificationSchema = new mongoose.Schema({
       default: '/default-avatar.png'
     }
   },
+  dispute: {
+    id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Dispute'
+    },
+    reason: String,
+    reasonType: String,
+    categories: [{
+      type: String,
+      required: true
+    }]
+  },
   rating: {
     type: mongoose.Schema.Types.ObjectId,
     refPath: 'ratingType',
@@ -49,7 +61,9 @@ const notificationSchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
-  strict: false
+  timestamps: true,
+  toJSON: { getters: true, virtuals: true },
+  toObject: { getters: true, virtuals: true }
 });
 
 // Index for faster queries
@@ -65,17 +79,6 @@ notificationSchema.virtual('formattedDate').get(function() {
     hour: '2-digit',
     minute: '2-digit'
   });
-});
-
-// Ensure virtuals are included in JSON
-notificationSchema.set('toJSON', {
-  virtuals: true,
-  transform: function(doc, ret) {
-    ret.id = ret._id;
-    delete ret._id;
-    delete ret.__v;
-    return ret;
-  }
 });
 
 const Notification = mongoose.model('Notification', notificationSchema);

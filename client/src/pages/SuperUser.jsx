@@ -265,33 +265,60 @@ export default function SuperUser() {
 
   const fetchDisputes = async () => {
     try {
-      setDisputeLoading(true);
       const token = localStorage.getItem('access_token');
-      
       const response = await fetch('http://localhost:3000/api/dispute', {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
           'X-Super-User-Auth': 'ishe'
         },
         credentials: 'include'
       });
 
-      console.log('Dispute fetch response:', response.status);
-      const data = await response.json();
-      console.log('Disputes data:', data);
-
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch disputes');
+        throw new Error('Failed to fetch disputes');
       }
 
-      setDisputes(data);
+      const data = await response.json();
+      
+      // Log the fetched disputes for debugging
+      console.log('Fetched Disputes:', {
+        total: data.length,
+        statuses: data.map(d => d.status)
+      });
+
+      // Sort disputes by most recent first
+      const sortedDisputes = data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // Merge new disputes with existing disputes
+      setDisputes(prevDisputes => {
+        // Create a map of existing disputes to avoid duplicates
+        const existingDisputesMap = new Map(prevDisputes.map(d => [d._id, d]));
+        
+        // Add or update disputes from the new fetch
+        sortedDisputes.forEach(newDispute => {
+          existingDisputesMap.set(newDispute._id, {
+            ...existingDisputesMap.get(newDispute._id),
+            ...newDispute
+          });
+        });
+
+        // Convert back to array and sort
+        return Array.from(existingDisputesMap.values())
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      });
+
+      // Ensure the current tab is updated if needed
+      const currentStatus = activeDisputeTab;
+      const availableStatuses = ['pending', 'resolved', 'rejected'];
+      
+      if (!availableStatuses.includes(currentStatus)) {
+        setActiveDisputeTab('pending');
+      }
+
     } catch (error) {
       console.error('Error fetching disputes:', error);
-      toast.error(error.message || 'Failed to fetch disputes');
-    } finally {
-      setDisputeLoading(false);
+      toast.error('Failed to load disputes');
     }
   };
 
@@ -309,49 +336,36 @@ export default function SuperUser() {
         credentials: 'include'
       });
 
+      // Log the full response for debugging
+      console.log('Dispute Action Response:', {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       const data = await response.json();
       
       if (!response.ok) {
         throw new Error(data.message || `Failed to ${action} dispute`);
       }
 
-      // If rejecting, send a notification to the user
-      if (action === 'reject') {
-        const dispute = disputes.find(d => d._id === disputeId);
-        if (dispute && dispute.disputedBy?._id) {
-          const notificationData = {
-            userId: dispute.disputedBy._id,
-            message: `Your dispute (ID: ${disputeId.slice(-6).toUpperCase()}) has been rejected. Please contact customer care at justlistit@outlook.com if you wish for more information as to why.`,
-            type: 'dispute_rejected'
-          };
+      // Log the updated dispute data
+      console.log('Updated Dispute Data:', {
+        disputeId,
+        action,
+        status: data.dispute.status
+      });
 
-          const notificationResponse = await fetch('http://localhost:3000/api/notifications', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'X-Super-User-Auth': 'ishe'
-            },
-            body: JSON.stringify(notificationData),
-            credentials: 'include'
-          });
+      // Immediately fetch updated disputes to ensure correct status persistence
+      await fetchDisputes();
 
-          if (!notificationResponse.ok) {
-            console.error('Failed to send rejection notification:', await notificationResponse.json());
-          }
-        }
-      }
-
-      // Update disputes list with the new status
-      setDisputes(prevDisputes => 
-        prevDisputes.map(dispute => 
-          dispute._id === disputeId 
-            ? { ...dispute, status: action === 'approve' ? 'approved' : 'rejected' }
-            : dispute
-        )
-      );
-
+      // Show success toast
       toast.success(`Dispute ${action}ed successfully`);
+
+      // Automatically switch to the resolved tab if approved
+      if (action === 'approve') {
+        console.log('Switching to resolved tab');
+        setActiveDisputeTab('resolved');
+      }
     } catch (error) {
       console.error(`Error ${action}ing dispute:`, error);
       toast.error(error.message || `Failed to ${action} dispute`);
@@ -618,7 +632,7 @@ export default function SuperUser() {
                       <span className={`px-2 py-1 rounded ${
                         dispute.status === 'pending'
                           ? 'bg-yellow-100 text-yellow-700'
-                          : dispute.status === 'approved'
+                          : dispute.status === 'resolved'
                           ? 'bg-green-100 text-green-700'
                           : 'bg-red-100 text-red-700'
                       }`}>
@@ -682,9 +696,16 @@ export default function SuperUser() {
     // Get counts for each status
     const counts = {
       pending: disputes.filter(d => d.status === 'pending').length,
-      approved: disputes.filter(d => d.status === 'approved').length,
+      resolved: disputes.filter(d => d.status === 'resolved').length,
       rejected: disputes.filter(d => d.status === 'rejected').length
     };
+
+    console.log('Dispute Rendering Debug:', {
+      activeTab: activeDisputeTab,
+      totalDisputes: disputes.length,
+      filteredDisputesCount: filteredDisputes.length,
+      disputeStatuses: disputes.map(d => d.status)
+    });
 
     return (
       <div className="space-y-6">
@@ -692,7 +713,7 @@ export default function SuperUser() {
         <div className="flex space-x-4 border-b">
           {[
             { id: 'pending', label: 'Pending', color: 'yellow' },
-            { id: 'approved', label: 'Approved', color: 'green' },
+            { id: 'resolved', label: 'Resolved', color: 'green' },
             { id: 'rejected', label: 'Rejected', color: 'red' }
           ].map(tab => (
             <button
@@ -759,7 +780,7 @@ export default function SuperUser() {
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     dispute.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    dispute.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    dispute.status === 'resolved' ? 'bg-green-100 text-green-800' :
                     'bg-red-100 text-red-800'
                   }`}>
                     {dispute.status.charAt(0).toUpperCase() + dispute.status.slice(1)}

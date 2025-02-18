@@ -4,6 +4,8 @@ import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import logo from '../assets/tiny logo.png';
 import DisputeRatingPopup from '../components/DisputeRatingPopup';
+import Loader from '../components/Loader';
+import { motion } from 'framer-motion';
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState({ unseen: [], seen: [] });
@@ -26,6 +28,8 @@ export default function Notifications() {
   const [disputeDetails, setDisputeDetails] = useState(null);
   const [showAlreadyDisputedPopup, setShowAlreadyDisputedPopup] = useState(false);
   const [alreadyDisputedDetails, setAlreadyDisputedDetails] = useState(null);
+  const [showDisputeSubmittedPopup, setShowDisputeSubmittedPopup] = useState(false);
+  const [disputeSubmittedDetails, setDisputeSubmittedDetails] = useState(null);
   const { currentUser } = useSelector((state) => state.user);
 
   const fetchNotifications = async () => {
@@ -127,7 +131,7 @@ export default function Notifications() {
   useEffect(() => {
     if (!currentUser?.token) return;
 
-    const intervalId = setInterval(fetchNotifications, 30000); // Refresh every 30 seconds
+    const intervalId = setInterval(fetchNotifications, 300000); // Refresh every 30 seconds
 
     return () => clearInterval(intervalId);
   }, [currentUser]);
@@ -179,6 +183,34 @@ export default function Notifications() {
         newSet.delete(notification.id);
         return newSet;
       });
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/notifications/mark-read/${notificationId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${currentUser.token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to mark notification as read');
+      }
+
+      // Update the notifications state
+      setNotifications(prev => ({
+        unseen: prev.unseen.filter(n => n.id !== notificationId),
+        seen: [...prev.seen, ...prev.unseen.filter(n => n.id === notificationId)]
+      }));
+
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      toast.error('Failed to mark notification as read');
     }
   };
 
@@ -403,8 +435,82 @@ export default function Notifications() {
     }
   };
 
+  const handleNotificationClick = (notification) => {
+    console.log('Notification clicked - Full data:', JSON.stringify(notification, null, 2));
+    
+    if (notification.type === 'dispute_rejected' || notification.type === 'dispute_resolved') {
+      setDisputeDetails({
+        id: notification.message.match(/ID: ([A-Z0-9]+)/)?.[1] || '',
+        message: notification.message
+      });
+      setShowConfirmation(true);
+    } else if (notification.type === 'dispute_submitted') {
+      // Extract dispute ID from the message
+      const disputeIdMatch = notification.message.match(/ID: ([A-Z0-9]+)/);
+      const disputeId = disputeIdMatch ? disputeIdMatch[1] : notification.id.slice(-6).toUpperCase();
+      
+      // Extract username from message
+      const disputedByMatch = notification.message.match(/disputed by ([^.]+)/);
+      const disputedBy = disputedByMatch ? disputedByMatch[1].trim() : 'Unknown user';
+
+      // Get dispute data and ensure categories is an array
+      const disputeData = notification.dispute || {};
+      const categories = disputeData.categories || [];
+      
+      // Format the categories with proper capitalization
+      const formattedCategories = categories.map(category => {
+        // Split by camelCase and capitalize each word
+        return category
+          .split(/(?=[A-Z])/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+      }).join(', ');
+
+      // Log the categories data for debugging
+      console.log('Categories data:', {
+        rawCategories: categories,
+        formattedCategories,
+        fullDisputeData: disputeData
+      });
+
+      // Format the reason based on type
+      let formattedReason = 'No reason provided';
+      if (disputeData.reason) {
+        formattedReason = disputeData.reasonType === 'Other' 
+          ? disputeData.reason
+          : `${disputeData.reasonType}: ${disputeData.reason}`;
+      }
+
+      console.log('Dispute data:', {
+        dispute: disputeData,
+        formattedReason,
+        formattedCategories
+      });
+
+      const details = {
+        id: disputeId,
+        message: notification.message,
+        categories: formattedCategories || 'Categories not specified',
+        reason: formattedReason,
+        disputedBy: disputedBy,
+        date: new Date(notification.date).toLocaleString()
+      };
+      
+      console.log('Setting dispute details:', details);
+      setDisputeSubmittedDetails(details);
+      setShowDisputeSubmittedPopup(true);
+    }
+  };
+
+  const handleCopyId = (e, id) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id);
+    toast.success('Dispute ID copied to clipboard');
+  };
+
   const renderDisputePopup = () => {
-    // Check if form is valid
+    if (!disputePopup.show) return null;
+    
     const selectedCategories = disputePopup.categories.filter(cat => cat.selected);
     const hasSelectedCategories = selectedCategories.length > 0;
     const hasValidReason = disputePopup.selectedReason && 
@@ -413,8 +519,13 @@ export default function Notifications() {
     const isFormValid = hasSelectedCategories && hasValidReason;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center transition-all duration-300"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(5px)' }}
+      >
+        <div 
+          className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-popup"
+        >
           <h2 className="text-2xl font-semibold mb-4">Dispute Rating</h2>
           
           <div className="mb-4">
@@ -520,28 +631,15 @@ export default function Notifications() {
     );
   };
 
-  const handleNotificationClick = (notification) => {
-    if (notification.type === 'dispute_rejected') {
-      setDisputeDetails({
-        id: notification.message.match(/ID: ([A-Z0-9]+)/)?.[1] || '',
-        message: notification.message
-      });
-      setShowConfirmation(true);
-    }
-    // ... rest of existing handleNotificationClick logic ...
-  };
-
-  const handleCopyId = (e, id) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(id);
-    toast.success('Dispute ID copied to clipboard');
-  };
-
   const renderNotification = (notification) => {
     console.log('Rendering notification:', notification);
 
     const getNotificationIcon = () => {
-      if (notification.type === 'dispute_rejected') {
+      // For all system notifications (disputes and others)
+      if (notification.type === 'dispute_rejected' || 
+          notification.type === 'dispute_submitted' || 
+          notification.type === 'dispute_approved' || 
+          notification.type === 'system') {
         return (
           <img
             src={logo}
@@ -562,18 +660,18 @@ export default function Notifications() {
         );
       }
 
-      // Default icon
+      // Default icon (should never reach here since all types are covered above)
       return (
         <img
-          src="/default-avatar.png"
-          alt="System"
-          className="w-10 h-10 rounded-full"
+          src={logo}
+          alt="JustListIt Support"
+          className="w-10 h-10 rounded-full object-contain bg-white"
         />
       );
     };
 
     const getNotificationTitle = () => {
-      if (notification.type === 'dispute_rejected') {
+      if (notification.type === 'dispute_rejected' || notification.type === 'dispute_submitted' || notification.type === 'dispute_approved') {
         return (
           <span className="font-medium">
             <span className="text-blue-600">{notification.systemInfo?.name || 'JustListIt Support'}</span>
@@ -590,7 +688,12 @@ export default function Notifications() {
         );
       }
 
-      return 'System Notification';
+      // For any other system notifications
+      return (
+        <span className="font-medium">
+          <span className="text-blue-600">{notification.systemInfo?.name || 'JustListIt Support'}</span>
+        </span>
+      );
     };
 
     const getDisputeButton = (notification) => {
@@ -764,11 +867,251 @@ export default function Notifications() {
     );
   };
 
+  const formatCategoryName = (category) => {
+    return category
+      .split(/(?=[A-Z])/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  const renderConfirmationPopup = () => {
+    if (!showConfirmation) return null;
+    
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center transition-all duration-300"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(5px)' }}
+      >
+        <div 
+          className="bg-white rounded-lg p-6 max-w-md w-full mx-4 transform transition-all duration-300 ease-out animate-popup"
+          style={{ 
+            opacity: 1,
+            transform: 'scale(1)',
+            animation: 'popup 0.3s ease-out'
+          }}
+        >
+          <div className="text-center">
+            <h3 className="text-lg font-semibold mb-2">Dispute {disputeDetails?.id}</h3>
+            <p className="text-gray-600 mb-4">{disputeDetails?.message}</p>
+            <button
+              onClick={() => setShowConfirmation(false)}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors duration-200"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAlreadyDisputedPopup = () => {
+    if (!showAlreadyDisputedPopup) return null;
+    
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center transition-all duration-300"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(5px)' }}
+      >
+        <div 
+          className="bg-white rounded-lg p-6 max-w-md w-full mx-4 transform transition-all duration-300 ease-out animate-popup"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <img src={logo} alt="JustListIt Support" className="w-12 h-12 object-contain" />
+            <h2 className="text-xl font-semibold">Dispute Status</h2>
+          </div>
+          
+          <p className="mb-4 text-gray-700">{alreadyDisputedDetails.message}</p>
+          
+          <div className="flex items-center gap-2 mb-4 bg-gray-50 p-3 rounded">
+            <span className="text-gray-600">Dispute ID:</span>
+            <code className="bg-gray-100 px-2 py-1 rounded">{alreadyDisputedDetails.id}</code>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCopyId(e, alreadyDisputedDetails.id);
+              }}
+              className="ml-2 text-blue-600 hover:text-blue-800 transition-colors duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="mb-6 bg-gray-50 p-3 rounded-lg">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600">Status:</span>
+              <span className={`px-2 py-1 rounded text-sm font-medium ${
+                alreadyDisputedDetails.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                alreadyDisputedDetails.status === 'approved' ? 'bg-green-100 text-green-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {alreadyDisputedDetails.status.charAt(0).toUpperCase() + alreadyDisputedDetails.status.slice(1)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-gray-600">Submitted:</span>
+              <span className="text-gray-800">{alreadyDisputedDetails.date}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowAlreadyDisputedPopup(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-200"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDisputeSubmittedPopup = () => {
+    if (!showDisputeSubmittedPopup) return null;
+    
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center transition-all duration-300"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(5px)' }}
+      >
+        <div 
+          className="bg-white rounded-lg p-6 max-w-md w-full mx-4 transform transition-all duration-300 ease-out animate-popup"
+        >
+          <div className="flex items-center gap-4 mb-4">
+            <img src={logo} alt="JustListIt Support" className="w-12 h-12 object-contain" />
+            <h2 className="text-xl font-semibold">Dispute Details</h2>
+          </div>
+
+          <div className="mb-4">
+            <p className="text-gray-700">{disputeSubmittedDetails.message}</p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Dispute ID:</span>
+                <div className="flex items-center">
+                  <code className="bg-gray-100 px-2 py-1 rounded mr-2">{disputeSubmittedDetails.id}</code>
+                  <button
+                    onClick={(e) => handleCopyId(e, disputeSubmittedDetails.id)}
+                    className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {disputeSubmittedDetails.categories && (
+              <div className="bg-gray-50 p-3 rounded">
+                <span className="text-gray-600">Disputed Categories:</span>
+                <p className="mt-1 text-gray-800">{disputeSubmittedDetails.categories}</p>
+              </div>
+            )}
+
+            {disputeSubmittedDetails.reason && (
+              <div className="bg-gray-50 p-3 rounded">
+                <span className="text-gray-600">Reason:</span>
+                <p className="mt-1 text-gray-800">{disputeSubmittedDetails.reason}</p>
+              </div>
+            )}
+
+            <div className="bg-gray-50 p-3 rounded">
+              <span className="text-gray-600">Submitted:</span>
+              <p className="mt-1 text-gray-800">{disputeSubmittedDetails.date}</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={() => setShowDisputeSubmittedPopup(false)}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-200"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes popup {
+      0% {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .animate-popup {
+      animation: popup 0.3s ease-out;
+    }
+
+    .backdrop-blur {
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+    }
+
+    /* Smooth Scrolling Enhancements */
+    .notifications-container {
+      scroll-behavior: smooth;
+      overscroll-behavior: contain;
+    }
+
+    .notifications-section {
+      scroll-snap-type: y mandatory;
+      overflow-y: scroll;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,0,0,0.2) transparent;
+    }
+
+    .notifications-section::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .notifications-section::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .notifications-section::-webkit-scrollbar-thumb {
+      background-color: rgba(0,0,0,0.2);
+      border-radius: 10px;
+    }
+
+    .notification-item {
+      scroll-snap-align: start;
+      transition: all 0.3s ease-in-out;
+      will-change: transform, box-shadow;
+    }
+
+    .notification-item:hover {
+      transform: scale(1.02);
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    }
+  `;
+  document.head.appendChild(style);
+
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div 
+      className="container mx-auto px-4 py-8 notifications-container"
+      style={{ 
+        scrollBehavior: 'smooth',
+        overscrollBehavior: 'contain'
+      }}
+    >
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="flex justify-center items-center h-full min-h-[300px]">
+          <Loader />
         </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
@@ -777,11 +1120,45 @@ export default function Notifications() {
       ) : (
         <div>
           {notifications.unseen.length > 0 && (
-            <div className="mb-8" key="unseen-section">
-              <h2 className="text-xl font-semibold mb-4">New</h2>
+            <div 
+              className="mb-8 notifications-section unseen-notifications"
+              style={{ 
+                scrollSnapType: 'y mandatory',
+                overflowY: 'scroll',
+                position: 'relative',
+                paddingTop: '60px'
+              }}
+            >
+              <div className="relative h-[120px] mb-8 overflow-visible">
+                <motion.h1 
+                  initial={{ opacity: 0, x: -100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+                  className="text-[150px] font-bold text-gray-100 uppercase absolute -top-20 left-0 w-full text-left whitespace-nowrap overflow-visible"
+                  style={{ color: '#d2d1e6', opacity: 0.1 }}
+                >
+                  UNSEEN
+                </motion.h1>
+                <motion.h2 
+                  initial={{ opacity: 0, x: 100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+                  className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'
+                >
+                  Notifications
+                </motion.h2>
+              </div>
+              <h2 className="text-2xl font-bold mb-4 text-gray-800"></h2>
               <div className="space-y-4">
-                {notifications.unseen.map(notification => (
-                  <div key={notification._id || `unseen-${notification.id}`}>
+                {notifications.unseen.map((notification, index) => (
+                  <div 
+                    key={notification.id || index} 
+                    className="notification-item transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg"
+                    style={{
+                      scrollSnapAlign: 'start',
+                      willChange: 'transform, box-shadow'
+                    }}
+                  >
                     {renderNotification(notification)}
                   </div>
                 ))}
@@ -790,11 +1167,45 @@ export default function Notifications() {
           )}
 
           {notifications.seen.length > 0 && (
-            <div key="seen-section">
-              <h2 className="text-xl font-semibold mb-4">Earlier</h2>
+            <div 
+              className="notifications-section seen-notifications"
+              style={{ 
+                scrollSnapType: 'y mandatory',
+                overflowY: 'scroll',
+                position: 'relative',
+                paddingTop: '60px'
+              }}
+            >
+              <div className="relative h-[120px] mb-8 overflow-visible">
+                <motion.h1 
+                  initial={{ opacity: 0, x: -100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+                  className="text-[150px] font-bold text-gray-100 uppercase absolute -top-20 left-0 w-full text-left whitespace-nowrap overflow-visible"
+                  style={{ color: '#C9F2AC', opacity: 0.6 }}
+                >
+                  SEEN
+                </motion.h1>
+                <motion.h2 
+                  initial={{ opacity: 0, x: 100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+                  className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'
+                >
+                  Notifications
+                </motion.h2>
+              </div>
+              <h2 className="text-2xl font-bold mb-4 text-gray-800"></h2>
               <div className="space-y-4">
-                {notifications.seen.map(notification => (
-                  <div key={notification._id || `seen-${notification.id}`}>
+                {notifications.seen.map((notification, index) => (
+                  <div 
+                    key={notification.id || index} 
+                    className="notification-item transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg"
+                    style={{
+                      scrollSnapAlign: 'start',
+                      willChange: 'transform, box-shadow'
+                    }}
+                  >
                     {renderNotification(notification)}
                   </div>
                 ))}
@@ -806,82 +1217,11 @@ export default function Notifications() {
 
       {disputePopup.show && renderDisputePopup()}
 
-      {showConfirmation && disputeDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="flex items-center gap-4 mb-4">
-              <img src={logo} alt="JustListIt Support" className="w-12 h-12 object-contain" />
-              <h2 className="text-xl font-semibold">Dispute Submitted</h2>
-            </div>
-            
-            <p className="mb-6 text-gray-700">{disputeDetails.message}</p>
+      {showConfirmation && disputeDetails && renderConfirmationPopup()}
 
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowConfirmation(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showAlreadyDisputedPopup && alreadyDisputedDetails && renderAlreadyDisputedPopup()}
 
-      {showAlreadyDisputedPopup && alreadyDisputedDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="flex items-center gap-4 mb-4">
-              <img src={logo} alt="JustListIt Support" className="w-12 h-12 object-contain" />
-              <h2 className="text-xl font-semibold">Dispute Status</h2>
-            </div>
-            
-            <p className="mb-4 text-gray-700">{alreadyDisputedDetails.message}</p>
-            
-            <div className="flex items-center gap-2 mb-4 bg-gray-50 p-3 rounded">
-              <span className="text-gray-600">Dispute ID:</span>
-              <code className="bg-gray-100 px-2 py-1 rounded">{alreadyDisputedDetails.id}</code>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCopyId(e, alreadyDisputedDetails.id);
-                }}
-                className="ml-2 text-blue-600 hover:text-blue-800"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="mb-6 bg-gray-50 p-3 rounded">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-600">Status:</span>
-                <span className={`px-2 py-1 rounded text-sm font-medium ${
-                  alreadyDisputedDetails.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  alreadyDisputedDetails.status === 'approved' ? 'bg-green-100 text-green-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
-                  {alreadyDisputedDetails.status.charAt(0).toUpperCase() + alreadyDisputedDetails.status.slice(1)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-gray-600">Submitted:</span>
-                <span className="text-gray-800">{alreadyDisputedDetails.date}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowAlreadyDisputedPopup(false)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showDisputeSubmittedPopup && disputeSubmittedDetails && renderDisputeSubmittedPopup()}
     </div>
   );
 }

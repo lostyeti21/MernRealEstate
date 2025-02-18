@@ -20,11 +20,17 @@ export const getUserNotifications = async (req, res, next) => {
     const notifications = await Notification.find({ to: userId })
       .populate('to', 'username avatar')
       .populate('from', 'username avatar')
+      .populate('dispute.id')
       .sort({ createdAt: -1 });
 
     console.log('Found direct notifications:', {
       count: notifications.length,
-      sample: notifications[0]
+      sample: notifications[0] ? {
+        id: notifications[0]._id,
+        type: notifications[0].type,
+        dispute: notifications[0].dispute,
+        categories: notifications[0].dispute?.categories
+      } : null
     });
 
     // Get tenant ratings grouped by ratedBy and date
@@ -152,24 +158,30 @@ export const getUserNotifications = async (req, res, next) => {
       read: rating.read || false
     }));
 
-    // Format direct notifications
+    // Format notifications
     const formattedNotifications = notifications.map(notification => ({
-      id: notification._id.toString(),
-      type: notification.type,
+      id: notification._id,
       message: notification.message,
+      type: notification.type,
+      systemInfo: notification.systemInfo,
       from: notification.from ? {
-        id: notification.from._id.toString(),
-        username: notification.from.username || 'System',
+        id: notification.from._id,
+        username: notification.from.username,
         avatar: notification.from.avatar || ''
       } : null,
       date: notification.createdAt,
-      read: notification.read
+      read: notification.read,
+      dispute: notification.dispute ? {
+        ...notification.dispute,
+        categories: Array.isArray(notification.dispute.categories) 
+          ? notification.dispute.categories 
+          : []
+      } : null
     }));
 
     console.log('Formatted notifications:', {
-      directCount: formattedNotifications.length,
-      tenantCount: formattedTenantRatings.length,
-      landlordCount: formattedLandlordRatings.length
+      count: formattedNotifications.length,
+      sample: formattedNotifications[0]
     });
 
     // Combine all notifications and sort by date
@@ -215,45 +227,52 @@ export const deleteNotification = async (req, res, next) => {
       return next(errorHandler(400, 'Invalid rating ID'));
     }
 
-    if (!['tenant', 'landlord'].includes(type)) {
-      console.log('Invalid notification type:', type);
-      return next(errorHandler(400, 'Invalid notification type'));
+    // First try to find and delete a direct notification
+    if (type === 'notification') {
+      const result = await Notification.deleteOne({
+        _id: ratingId,
+        to: userId
+      });
+
+      if (result.deletedCount > 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'Notification deleted successfully'
+        });
+      }
     }
 
-    if (type === 'landlord') {
-      // Delete landlord rating
-      console.log('Deleting landlord rating...');
-      const result = await User.updateOne(
-        { _id: userId },
-        { $pull: { ratings: { _id: mongoose.Types.ObjectId(ratingId) } } }
-      );
-
-      if (result.modifiedCount === 0) {
-        console.log('Rating not found or not modified:', ratingId);
-        return next(errorHandler(404, 'Rating not found'));
-      }
-
-      console.log('Landlord rating deleted successfully');
-    } else {
-      // Delete tenant rating
-      console.log('Deleting tenant rating...');
-      const result = await TenantRating.deleteOne({
+    // If type is 'rating', try both tenant and landlord ratings
+    if (type === 'rating') {
+      // Try deleting tenant rating
+      const tenantResult = await TenantRating.deleteOne({
         _id: ratingId,
         tenant: userId
       });
 
-      if (result.deletedCount === 0) {
-        console.log('Rating not found:', ratingId);
-        return next(errorHandler(404, 'Rating not found'));
+      if (tenantResult.deletedCount > 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'Tenant rating notification deleted successfully'
+        });
       }
 
-      console.log('Tenant rating deleted successfully');
+      // Try deleting landlord rating
+      const landlordResult = await LandlordRating.deleteOne({
+        _id: ratingId,
+        landlord: userId
+      });
+
+      if (landlordResult.deletedCount > 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'Landlord rating notification deleted successfully'
+        });
+      }
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Notification deleted successfully'
-    });
+    // If we get here, no notification was found to delete
+    return next(errorHandler(404, 'Rating not found'));
   } catch (error) {
     console.error('Error in deleteNotification:', error);
     next(errorHandler(500, error.message || 'Error deleting notification'));
@@ -363,5 +382,62 @@ export const createNotification = async (req, res, next) => {
   } catch (error) {
     console.error('Error creating notification:', error);
     next(errorHandler(500, error.message || 'Error creating notification'));
+  }
+};
+
+export const markNotificationAsRead = async (req, res, next) => {
+  try {
+    const notificationId = req.params.id;
+    const userId = req.user.id;
+
+    // First try to find and update a direct notification
+    const notification = await Notification.findOne({
+      _id: notificationId,
+      to: userId
+    });
+
+    if (notification) {
+      notification.read = true;
+      await notification.save();
+      return res.status(200).json({
+        success: true,
+        message: 'Notification marked as read'
+      });
+    }
+
+    // If not a direct notification, try to find and update a tenant rating
+    const tenantRating = await TenantRating.findOne({
+      _id: notificationId,
+      tenant: userId
+    });
+
+    if (tenantRating) {
+      tenantRating.read = true;
+      await tenantRating.save();
+      return res.status(200).json({
+        success: true,
+        message: 'Tenant rating notification marked as read'
+      });
+    }
+
+    // If not a tenant rating, try to find and update a landlord rating
+    const landlordRating = await LandlordRating.findOne({
+      _id: notificationId,
+      landlord: userId
+    });
+
+    if (landlordRating) {
+      landlordRating.read = true;
+      await landlordRating.save();
+      return res.status(200).json({
+        success: true,
+        message: 'Landlord rating notification marked as read'
+      });
+    }
+
+    // If we get here, no notification was found
+    return next(errorHandler(404, 'Notification not found'));
+  } catch (error) {
+    next(error);
   }
 };
