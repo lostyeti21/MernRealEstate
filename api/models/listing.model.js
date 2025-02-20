@@ -1,5 +1,20 @@
 import mongoose from 'mongoose';
 
+const viewingTimeSchema = new mongoose.Schema({
+  available: {
+    type: Boolean,
+    default: false
+  },
+  start: {
+    type: String,
+    default: "09:00"
+  },
+  end: {
+    type: String,
+    default: "17:00"
+  }
+}, { _id: false });
+
 const listingSchema = new mongoose.Schema(
   {
     name: {
@@ -130,6 +145,19 @@ const listingSchema = new mongoose.Schema(
       required: true,
       default: false
     },
+    viewingSchedule: {
+      monday: viewingTimeSchema,
+      tuesday: viewingTimeSchema,
+      wednesday: viewingTimeSchema,
+      thursday: viewingTimeSchema,
+      friday: viewingTimeSchema,
+      saturday: viewingTimeSchema,
+      sunday: viewingTimeSchema
+    },
+    flexibleViewingTime: {
+      type: Boolean,
+      default: false
+    }
   },
   { timestamps: true }
 );

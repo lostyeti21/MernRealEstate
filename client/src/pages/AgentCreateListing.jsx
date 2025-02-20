@@ -45,6 +45,16 @@ export default function AgentCreateListing() {
     balcony: false,
     airConditioning: false,
     wifi: false,
+    viewingSchedule: {
+      monday: { available: false, start: "09:00", end: "17:00" },
+      tuesday: { available: false, start: "09:00", end: "17:00" },
+      wednesday: { available: false, start: "09:00", end: "17:00" },
+      thursday: { available: false, start: "09:00", end: "17:00" },
+      friday: { available: false, start: "09:00", end: "17:00" },
+      saturday: { available: false, start: "09:00", end: "17:00" },
+      sunday: { available: false, start: "09:00", end: "17:00" }
+    },
+    flexibleViewingTime: false
   });
   const [imageUploadError, setImageUploadError] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -212,6 +222,82 @@ export default function AgentCreateListing() {
         apartmentType: e.target.value,
       });
     }
+  };
+
+  const handleViewingScheduleChange = (day, field, value) => {
+    setFormData({
+      ...formData,
+      viewingSchedule: {
+        ...formData.viewingSchedule,
+        [day]: {
+          ...formData.viewingSchedule[day],
+          [field]: value
+        }
+      }
+    });
+  };
+
+  const renderViewingSchedule = () => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    return (
+      <div className="flex flex-col gap-4 mb-4">
+        <h2 className="text-lg font-semibold text-slate-700">Viewing Schedule</h2>
+        <p className="text-sm text-gray-500 mb-2">Set the times when this property is available for viewing</p>
+        
+        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
+          <input
+            type="checkbox"
+            id="flexibleViewingTime"
+            checked={formData.flexibleViewingTime}
+            onChange={(e) => setFormData({ ...formData, flexibleViewingTime: e.target.checked })}
+            className="w-4 h-4 text-blue-600"
+          />
+          <label htmlFor="flexibleViewingTime" className="text-sm font-medium text-gray-700">
+            Schedule viewing times dependent on my availability
+          </label>
+        </div>
+
+        {!formData.flexibleViewingTime && (
+          <div className="grid gap-4">
+            {days.map((day) => (
+              <div key={day} className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
+                <div className="flex items-center gap-2 min-w-[120px]">
+                  <input
+                    type="checkbox"
+                    id={`${day}-available`}
+                    checked={formData.viewingSchedule[day].available}
+                    onChange={(e) => handleViewingScheduleChange(day, 'available', e.target.checked)}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <label htmlFor={`${day}-available`} className="capitalize font-medium">
+                    {day}
+                  </label>
+                </div>
+                
+                {formData.viewingSchedule[day].available && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="time"
+                      value={formData.viewingSchedule[day].start}
+                      onChange={(e) => handleViewingScheduleChange(day, 'start', e.target.value)}
+                      className="p-2 border border-gray-300 rounded-lg"
+                    />
+                    <span className="text-gray-500">to</span>
+                    <input
+                      type="time"
+                      value={formData.viewingSchedule[day].end}
+                      onChange={(e) => handleViewingScheduleChange(day, 'end', e.target.value)}
+                      className="p-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -670,6 +756,7 @@ export default function AgentCreateListing() {
               <span>WiFi</span>
             </div>
           </div>
+          {renderViewingSchedule()}
         </div>
         <div className='flex flex-col flex-1 gap-4'>
           <p className='font-semibold'>

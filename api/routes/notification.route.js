@@ -1,5 +1,5 @@
 import express from 'express';
-import { verifyToken } from '../utils/verifyUser.js';
+import { verifyToken } from '../middleware/verifyToken.js';
 import { 
   getUserNotifications, 
   deleteNotification,
@@ -19,10 +19,9 @@ const verifySuperUser = (req, res, next) => {
     return res.status(401).json({
       success: false,
       statusCode: 401,
-      message: 'Unauthorized'
+      message: 'Unauthorized super user access'
     });
   }
-  
   next();
 };
 
@@ -30,7 +29,8 @@ router.get('/', verifyToken, getUserNotifications);
 router.get('/unread/count', verifyToken, getUnreadCount);
 router.get('/unread', verifyToken, getUnreadStatus);
 router.delete('/:type/:ratingId', verifyToken, deleteNotification);
+router.post('/create', verifyToken, createNotification);
 router.post('/', verifySuperUser, createNotification);
-router.put('/mark-read/:id', verifyToken, markNotificationAsRead);
+router.patch('/:notificationId/read', verifyToken, markNotificationAsRead);
 
 export default router;

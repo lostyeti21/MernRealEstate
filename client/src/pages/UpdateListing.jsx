@@ -44,7 +44,17 @@ export default function UpdateListing() {
     balcony: false,
     airConditioning: false,
     wifi: false,
-    leaseAgreementUrl: '', 
+    leaseAgreementUrl: '',
+    viewingSchedule: {
+      monday: { available: false, start: "09:00", end: "17:00" },
+      tuesday: { available: false, start: "09:00", end: "17:00" },
+      wednesday: { available: false, start: "09:00", end: "17:00" },
+      thursday: { available: false, start: "09:00", end: "17:00" },
+      friday: { available: false, start: "09:00", end: "17:00" },
+      saturday: { available: false, start: "09:00", end: "17:00" },
+      sunday: { available: false, start: "09:00", end: "17:00" }
+    },
+    flexibleViewingTime: false
   });
   const [imageUploadError, setImageUploadError] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -58,7 +68,7 @@ export default function UpdateListing() {
         setLoading(true);
         console.log('Fetching listing:', listingId);
 
-        const res = await fetch(`/api/listing/get/${listingId}`);
+        const res = await fetch(`/api/listing/${listingId}`);
         const data = await res.json();
 
         if (!data.success) {
@@ -102,6 +112,16 @@ export default function UpdateListing() {
           airConditioning: listing.airConditioning || false,
           wifi: listing.wifi || false,
           leaseAgreementUrl: listing.leaseAgreementUrl || '',
+          viewingSchedule: listing.viewingSchedule || {
+            monday: { available: false, start: "09:00", end: "17:00" },
+            tuesday: { available: false, start: "09:00", end: "17:00" },
+            wednesday: { available: false, start: "09:00", end: "17:00" },
+            thursday: { available: false, start: "09:00", end: "17:00" },
+            friday: { available: false, start: "09:00", end: "17:00" },
+            saturday: { available: false, start: "09:00", end: "17:00" },
+            sunday: { available: false, start: "09:00", end: "17:00" }
+          },
+          flexibleViewingTime: listing.flexibleViewingTime || false
         });
       } catch (error) {
         console.error('Error fetching listing:', error);
@@ -348,7 +368,7 @@ export default function UpdateListing() {
       setLoading(true);
       setError(false);
 
-      const getListingRes = await fetch(`/api/listing/get/${params.listingId}`);
+      const getListingRes = await fetch(`/api/listing/${params.listingId}`);
       const listingData = await getListingRes.json();
 
       const updateData = {
@@ -406,6 +426,82 @@ export default function UpdateListing() {
     }
   };
 
+  const handleViewingScheduleChange = (day, field, value) => {
+    setFormData({
+      ...formData,
+      viewingSchedule: {
+        ...formData.viewingSchedule,
+        [day]: {
+          ...formData.viewingSchedule[day],
+          [field]: value
+        }
+      }
+    });
+  };
+
+  const renderViewingSchedule = () => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    return (
+      <div className="flex flex-col gap-4 mb-4">
+        <h2 className="text-lg font-semibold text-slate-700">Viewing Schedule</h2>
+        <p className="text-sm text-gray-500 mb-2">Set the times when this property is available for viewing</p>
+        
+        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
+          <input
+            type="checkbox"
+            id="flexibleViewingTime"
+            checked={formData.flexibleViewingTime}
+            onChange={(e) => setFormData({ ...formData, flexibleViewingTime: e.target.checked })}
+            className="w-4 h-4 text-blue-600"
+          />
+          <label htmlFor="flexibleViewingTime" className="text-sm font-medium text-gray-700">
+            Schedule viewing times dependent on my availability
+          </label>
+        </div>
+
+        {!formData.flexibleViewingTime && (
+          <div className="grid gap-4">
+            {days.map((day) => (
+              <div key={day} className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
+                <div className="flex items-center gap-2 min-w-[120px]">
+                  <input
+                    type="checkbox"
+                    id={`${day}-available`}
+                    checked={formData.viewingSchedule[day].available}
+                    onChange={(e) => handleViewingScheduleChange(day, 'available', e.target.checked)}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <label htmlFor={`${day}-available`} className="capitalize font-medium">
+                    {day}
+                  </label>
+                </div>
+                
+                {formData.viewingSchedule[day].available && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="time"
+                      value={formData.viewingSchedule[day].start}
+                      onChange={(e) => handleViewingScheduleChange(day, 'start', e.target.value)}
+                      className="p-2 border border-gray-300 rounded-lg"
+                    />
+                    <span className="text-gray-500">to</span>
+                    <input
+                      type="time"
+                      value={formData.viewingSchedule[day].end}
+                      onChange={(e) => handleViewingScheduleChange(day, 'end', e.target.value)}
+                      className="p-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <main className='p-3 max-w-4xl mx-auto'>
       <h1 className='text-3xl font-semibold text-center my-7'>
@@ -418,410 +514,437 @@ export default function UpdateListing() {
       ) : (
         <form onSubmit={handleSubmit} className='flex flex-col sm:flex-row gap-4'>
           <div className='flex flex-col gap-4 flex-1'>
-            <input
-              type='text'
-              placeholder='Name'
-              className='border p-3 rounded-lg'
-              id='name'
-              maxLength='62'
-              minLength='10'
-              required
-              onChange={handleChange}
-              value={formData.name}
-            />
-            <textarea
-              type='text'
-              placeholder='Description'
-              className='border p-3 rounded-lg'
-              id='description'
-              required
-              onChange={handleChange}
-              value={formData.description}
-            />
-            <input
-              type='text'
-              placeholder='Address'
-              className='border p-3 rounded-lg'
-              id='address'
-              required
-              onChange={handleChange}
-              value={formData.address}
-            />
-            <div className='flex gap-6 flex-wrap'>
-              <div className='flex gap-2'>
+            <div className='flex flex-col gap-2'>
+              <h2 className='text-lg font-semibold text-slate-700'>Property Details</h2>
+              
+              <div className='flex flex-col gap-1'>
+                <label htmlFor='name' className='text-sm font-medium text-gray-700'>
+                  Title
+                </label>
                 <input
-                  type='checkbox'
-                  id='sale'
-                  className='w-5'
+                  type='text'
+                  placeholder='Property Title'
+                  className='border p-3 rounded-lg'
+                  id='name'
+                  maxLength='62'
+                  minLength='10'
+                  required
                   onChange={handleChange}
-                  checked={formData.type === 'sale'}
+                  value={formData.name}
                 />
-                <span>Sell</span>
               </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='rent'
-                  className='w-5'
+
+              <div className='flex flex-col gap-1'>
+                <label htmlFor='description' className='text-sm font-medium text-gray-700'>
+                  Details
+                </label>
+                <textarea
+                  type='text'
+                  placeholder='Property Description'
+                  className='border p-3 rounded-lg'
+                  id='description'
+                  required
                   onChange={handleChange}
-                  checked={formData.type === 'rent'}
+                  value={formData.description}
                 />
-                <span>Rent</span>
               </div>
-              <div className='flex gap-2'>
+
+              <div className='flex flex-col gap-1'>
+                <label htmlFor='address' className='text-sm font-medium text-gray-700'>
+                  Address
+                </label>
                 <input
-                  type='checkbox'
-                  id='parking'
-                  className='w-5'
+                  type='text'
+                  placeholder='Property Address'
+                  className='border p-3 rounded-lg'
+                  id='address'
+                  required
                   onChange={handleChange}
-                  checked={formData.parking}
+                  value={formData.address}
                 />
-                <span>Parking spot</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='furnished'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.furnished}
-                />
-                <span>Furnished</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='offer'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.offer}
-                />
-                <span>Offer</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='backupPower'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.backupPower}
-                />
-                <span>Backup Power</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='backupWaterSupply'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.backupWaterSupply}
-                />
-                <span>Backup Water Supply</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='boreholeWater'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.boreholeWater}
-                />
-                <span>Borehole Water</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='electricFence'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.electricFence}
-                />
-                <span>Electric Fence</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='walledOrFenced'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.walledOrFenced}
-                />
-                <span>Walled or Fenced</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='electricGate'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.electricGate}
-                />
-                <span>Electric Gate</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='builtInCupboards'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.builtInCupboards}
-                />
-                <span>Built-in Cupboards</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='fittedKitchen'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.fittedKitchen}
-                />
-                <span>Fitted Kitchen</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='solarGeyser'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.solarGeyser}
-                />
-                <span>Solar Geyser</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='gym'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.gym}
-                />
-                <span>Gym</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='pool'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.pool}
-                />
-                <span>Pool</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='garden'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.garden}
-                />
-                <span>Garden</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='balcony'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.balcony}
-                />
-                <span>Balcony</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='airConditioning'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.airConditioning}
-                />
-                <span>Air Conditioning</span>
-              </div>
-              <div className='flex gap-2'>
-                <input
-                  type='checkbox'
-                  id='wifi'
-                  className='w-5'
-                  onChange={handleChange}
-                  checked={formData.wifi}
-                />
-                <span>Wifi</span>
               </div>
             </div>
-            <div className='flex flex-wrap gap-6'>
-              <div className='flex items-center gap-2'>
-                <input
-                  type='number'
-                  id='bedrooms'
-                  min='1'
-                  max='10'
-                  required
-                  className='p-3 border border-gray-300 rounded-lg'
-                  onChange={handleChange}
-                  value={formData.bedrooms}
-                />
-                <p>Beds</p>
-              </div>
-              <div className='flex items-center gap-2'>
-                <input
-                  type='number'
-                  id='bathrooms'
-                  min='1'
-                  max='10'
-                  required
-                  className='p-3 border border-gray-300 rounded-lg'
-                  onChange={handleChange}
-                  value={formData.bathrooms}
-                />
-                <p>Baths</p>
-              </div>
-              <div className='flex items-center gap-2'>
-                <input
-                  type='number'
-                  id='regularPrice'
-                  min='50'
-                  max='10000000'
-                  required
-                  className='p-3 border border-gray-300 rounded-lg'
-                  onChange={handleChange}
-                  value={formData.regularPrice}
-                />
-                <div className='flex flex-col items-center'>
-                  <p>Regular price</p>
-                  <span className='text-xs'>($ / month)</span>
+
+            <div className='flex flex-col gap-2'>
+              <h2 className='text-lg font-semibold text-slate-700'>Property Type & Size</h2>
+              <div className='flex gap-6 flex-wrap'>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='sale'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.type === 'sale'}
+                  />
+                  <span>Sell</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='rent'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.type === 'rent'}
+                  />
+                  <span>Rent</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='offer'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.offer}
+                  />
+                  <span>Offer</span>
                 </div>
               </div>
-              {formData.offer && (
+
+              <div className='flex flex-wrap gap-6'>
                 <div className='flex items-center gap-2'>
                   <input
                     type='number'
-                    id='discountPrice'
+                    id='bedrooms'
+                    min='1'
+                    max='10'
+                    required
+                    className='p-3 border border-gray-300 rounded-lg'
+                    onChange={handleChange}
+                    value={formData.bedrooms}
+                  />
+                  <p>Bedrooms</p>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <input
+                    type='number'
+                    id='bathrooms'
+                    min='1'
+                    max='10'
+                    required
+                    className='p-3 border border-gray-300 rounded-lg'
+                    onChange={handleChange}
+                    value={formData.bathrooms}
+                  />
+                  <p>Bathrooms</p>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <input
+                    type='number'
+                    id='lounges'
                     min='0'
+                    max='10'
+                    required
+                    className='p-3 border border-gray-300 rounded-lg'
+                    onChange={handleChange}
+                    value={formData.lounges}
+                  />
+                  <p>Lounges</p>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <input
+                    type='number'
+                    id='m2'
+                    min='0'
+                    required
+                    className='p-3 border border-gray-300 rounded-lg'
+                    onChange={handleChange}
+                    value={formData.m2}
+                  />
+                  <p>Square Meters</p>
+                </div>
+              </div>
+            </div>
+
+            <div className='flex flex-col gap-2'>
+              <h2 className='text-lg font-semibold text-slate-700'>Pricing</h2>
+              <div className='flex flex-wrap gap-6'>
+                <div className='flex items-center gap-2'>
+                  <input
+                    type='number'
+                    id='regularPrice'
+                    min='50'
                     max='10000000'
                     required
                     className='p-3 border border-gray-300 rounded-lg'
                     onChange={handleChange}
-                    value={formData.discountPrice}
+                    value={formData.regularPrice}
                   />
                   <div className='flex flex-col items-center'>
-                    <p>Discounted price</p>
+                    <p>Regular price</p>
                     <span className='text-xs'>($ / month)</span>
                   </div>
                 </div>
-              )}
-              <div className='flex items-center gap-2'>
-                <input
-                  type='number'
-                  id='m2'
-                  min='20'
-                  max='10000'
-                  required
-                  className='p-3 border border-gray-300 rounded-lg'
-                  onChange={handleChange}
-                  value={formData.m2}
-                />
-                <div className='flex flex-col items-center'>
-                  <p>Size</p>
-                  <span className='text-xs'>(m²)</span>
-                </div>
-              </div>
-              <div className='flex items-center gap-2'>
-                <input
-                  type='number'
-                  id='lounges'
-                  min='1'
-                  max='10'
-                  required
-                  className='p-3 border border-gray-300 rounded-lg'
-                  onChange={handleChange}
-                  value={formData.lounges}
-                />
-                <p>Lounges</p>
+                {formData.offer && (
+                  <div className='flex items-center gap-2'>
+                    <input
+                      type='number'
+                      id='discountPrice'
+                      min='0'
+                      max='10000000'
+                      required
+                      className='p-3 border border-gray-300 rounded-lg'
+                      onChange={handleChange}
+                      value={formData.discountPrice}
+                    />
+                    <div className='flex flex-col items-center'>
+                      <p>Discounted price</p>
+                      <span className='text-xs'>($ / month)</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-          <div className='flex flex-col flex-1 gap-4'>
-            <p className='font-semibold'>
-              Images:
-              <span className='font-normal text-gray-600 ml-2'>
-                The first image will be the cover (max 6)
-              </span>
-            </p>
-            <div className='flex gap-4'>
-              <input
-                onChange={(e) => setFiles(e.target.files)}
-                className='p-3 border border-gray-300 rounded w-full'
-                type='file'
-                id='images'
-                accept='image/*'
-                multiple
-              />
-              <button
-                type='button'
-                disabled={uploading}
-                onClick={handleImageSubmit}
-                className='p-3 text-green-700 border border-green-700 rounded uppercase hover:shadow-lg disabled:opacity-80'
-              >
-                {uploading ? 'Uploading...' : 'Upload'}
-              </button>
-            </div>
-            <p className='text-red-700 text-sm'>
-              {imageUploadError && imageUploadError}
-            </p>
-            {formData.imageUrls.length > 0 &&
-              formData.imageUrls.map((url, index) => (
-                <div
-                  key={url}
-                  className='flex justify-between p-3 border items-center'
-                >
-                  <img
-                    src={url}
-                    alt='listing image'
-                    className='w-20 h-20 object-contain rounded-lg'
+
+            <div className='flex flex-col gap-2'>
+              <h2 className='text-lg font-semibold text-slate-700'>Amenities & Features</h2>
+              <div className='flex gap-2 flex-wrap items-center'>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='parking'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.parking}
                   />
-                  <button
-                    type='button'
-                    onClick={() => handleRemoveImage(index)}
-                    className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75'
-                  >
-                    Delete
-                  </button>
+                  <span>Parking spot</span>
                 </div>
-              ))}
-            <div className='flex flex-col gap-4'>
-              <p className='font-semibold'>
-                Lease Agreement:
-              </p>
-              <input
-                type='file'
-                id='leaseAgreement'
-                accept='application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                onChange={handleLeaseAgreementUpload}
-              />
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='furnished'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.furnished}
+                  />
+                  <span>Furnished</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='backupPower'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.backupPower}
+                  />
+                  <span>Backup Power</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='backupWaterSupply'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.backupWaterSupply}
+                  />
+                  <span>Backup Water</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='boreholeWater'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.boreholeWater}
+                  />
+                  <span>Borehole</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='electricFence'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.electricFence}
+                  />
+                  <span>Electric Fence</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='walledOrFenced'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.walledOrFenced}
+                  />
+                  <span>Walled/Fenced</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='electricGate'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.electricGate}
+                  />
+                  <span>Electric Gate</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='builtInCupboards'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.builtInCupboards}
+                  />
+                  <span>Built-in Cupboards</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='fittedKitchen'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.fittedKitchen}
+                  />
+                  <span>Fitted Kitchen</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='solarGeyser'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.solarGeyser}
+                  />
+                  <span>Solar Geyser</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='gym'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.gym}
+                  />
+                  <span>Gym</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='pool'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.pool}
+                  />
+                  <span>Pool</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='garden'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.garden}
+                  />
+                  <span>Garden</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='balcony'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.balcony}
+                  />
+                  <span>Balcony</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='airConditioning'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.airConditioning}
+                  />
+                  <span>Air Conditioning</span>
+                </div>
+                <div className='flex gap-2'>
+                  <input
+                    type='checkbox'
+                    id='wifi'
+                    className='w-5'
+                    onChange={handleChange}
+                    checked={formData.wifi}
+                  />
+                  <span>WiFi</span>
+                </div>
+              </div>
+            </div>
+
+            <div className='flex flex-col gap-2'>
+              <h2 className='text-lg font-semibold text-slate-700'>Lease Agreement</h2>
+              <div className='flex items-center gap-4'>
+                <input
+                  type='file'
+                  id='leaseAgreement'
+                  accept='.pdf,.docx'
+                  onChange={handleLeaseAgreementUpload}
+                  className='p-3 border border-gray-300 rounded-lg w-full'
+                />
+                {uploadingLeaseAgreement && <Loader />}
+              </div>
               {leaseAgreementError && (
                 <p className='text-red-700 text-sm'>{leaseAgreementError}</p>
               )}
               {formData.leaseAgreementUrl && (
-                <div className='flex justify-between p-3 border items-center'>
-                  <p>Lease Agreement:</p>
-                  <a
-                    href={formData.leaseAgreementUrl}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                  >
-                    View
-                  </a>
-                  <button
-                    type='button'
-                    onClick={handleRemoveLeaseAgreement}
-                    className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75'
-                  >
-                    Remove
-                  </button>
+                <div className='flex items-center gap-2 text-green-700'>
+                  <FaFileContract className='text-2xl' />
+                  <span>Lease agreement uploaded</span>
                 </div>
               )}
             </div>
+
+            {renderViewingSchedule()}
+
+            <div className='flex flex-col gap-2'>
+              <h2 className='text-lg font-semibold text-slate-700'>Property Images</h2>
+              <p className='text-gray-600 text-sm'>
+                The first image will be the cover (max 6)
+              </p>
+              <div className='flex gap-4'>
+                <input
+                  onChange={(e) => setFiles(e.target.files)}
+                  className='p-3 border border-gray-300 rounded w-full'
+                  type='file'
+                  id='images'
+                  accept='image/*'
+                  multiple
+                />
+                <button
+                  type='button'
+                  disabled={uploading}
+                  onClick={handleImageSubmit}
+                  className='p-3 text-green-700 border border-green-700 rounded uppercase hover:shadow-lg disabled:opacity-80'
+                >
+                  {uploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+              <p className='text-red-700 text-sm'>
+                {imageUploadError && imageUploadError}
+              </p>
+              {formData.imageUrls.length > 0 &&
+                formData.imageUrls.map((url, index) => (
+                  <div
+                    key={url}
+                    className='flex justify-between p-3 border items-center'
+                  >
+                    <img
+                      src={url}
+                      alt='listing image'
+                      className='w-20 h-20 object-contain rounded-lg'
+                    />
+                    <button
+                      type='button'
+                      onClick={() => handleRemoveImage(index)}
+                      className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75'
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </div>
+          <div className='flex flex-col flex-1 gap-4'>
             <button
               disabled={loading || uploading}
               className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80'

@@ -39,6 +39,16 @@ const CreateListing = () => {
     balcony: false,
     airConditioning: false,
     wifi: false,
+    viewingSchedule: {
+      monday: { available: false, start: "09:00", end: "17:00" },
+      tuesday: { available: false, start: "09:00", end: "17:00" },
+      wednesday: { available: false, start: "09:00", end: "17:00" },
+      thursday: { available: false, start: "09:00", end: "17:00" },
+      friday: { available: false, start: "09:00", end: "17:00" },
+      saturday: { available: false, start: "09:00", end: "17:00" },
+      sunday: { available: false, start: "09:00", end: "17:00" }
+    },
+    flexibleViewingTime: false
   });
 
   const [imageUploadError, setImageUploadError] = useState(false);
@@ -177,22 +187,33 @@ const CreateListing = () => {
     if (["sale", "rent"].includes(id)) {
       setFormData({ ...formData, type: id });
     } else if (
-      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply", "boreholeWater", "electricFence", "walledOrFenced", "electricGate", "builtInCupboards", "fittedKitchen", "solarGeyser", "gym", "pool", "garden", "balcony", "airConditioning", "wifi"].includes(id)
+      ["parking", "furnished", "offer", "backupPower", "backupWaterSupply", "boreholeWater", "electricFence", "walledOrFenced", "electricGate", "builtInCupboards", "fittedKitchen", "solarGeyser", "gym", "pool", "garden", "balcony", "airConditioning", "wifi", "flexibleViewingTime"].includes(id)
     ) {
       setFormData({ ...formData, [id]: checked });
     } else if (["number", "text", "textarea"].includes(type)) {
       if (id === 'title') {
-        // When title changes, update both title and name
         setFormData({ ...formData, title: value, name: value });
       } else {
         setFormData({ ...formData, [id]: value });
       }
     }
     
-    // Add apartment type handling
     if (id === 'apartmentType') {
       setFormData({ ...formData, apartmentType: value });
     }
+  };
+
+  const handleViewingScheduleChange = (day, field, value) => {
+    setFormData({
+      ...formData,
+      viewingSchedule: {
+        ...formData.viewingSchedule,
+        [day]: {
+          ...formData.viewingSchedule[day],
+          [field]: value
+        }
+      }
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -203,16 +224,9 @@ const CreateListing = () => {
         return;
       }
       
-      // Validate apartment type
-      if (!formData.apartmentType) {
-        setError('Please select an apartment type');
-        return;
-      }
-      
       setLoading(true);
       setError(false);
 
-      // Check authentication first
       const authRes = await fetch('/api/auth/check-auth', {
         method: 'GET',
         credentials: 'include'
@@ -232,7 +246,6 @@ const CreateListing = () => {
         return;
       }
 
-      // Get the current user's ID
       const userId = currentUser?._id || (currentUser?.rest && currentUser.rest._id);
       if (!userId) {
         setError('You must be logged in to create a listing');
@@ -240,7 +253,6 @@ const CreateListing = () => {
         return;
       }
 
-      // Prepare listing data
       const listingData = {
         ...formData,
         title: formData.title || formData.name,
@@ -249,7 +261,6 @@ const CreateListing = () => {
         imageUrls: Array.isArray(formData.imageUrls) ? formData.imageUrls : []
       };
 
-      // Make the API request
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
@@ -287,6 +298,69 @@ const CreateListing = () => {
       setFiles(selectedFiles);
       setImageUploadError(false);
     }
+  };
+
+  const renderViewingSchedule = () => {
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    return (
+      <div className="flex flex-col gap-4 mb-4">
+        <h2 className="text-lg font-semibold text-slate-700">Viewing Schedule</h2>
+        <p className="text-sm text-gray-500 mb-2">Set the times when this property is available for viewing</p>
+        
+        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
+          <input
+            type="checkbox"
+            id="flexibleViewingTime"
+            checked={formData.flexibleViewingTime}
+            onChange={(e) => setFormData({ ...formData, flexibleViewingTime: e.target.checked })}
+            className="w-4 h-4 text-blue-600"
+          />
+          <label htmlFor="flexibleViewingTime" className="text-sm font-medium text-gray-700">
+            Schedule viewing times dependent on my availability
+          </label>
+        </div>
+
+        {!formData.flexibleViewingTime && (
+          <div className="grid gap-4">
+            {days.map((day) => (
+              <div key={day} className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
+                <div className="flex items-center gap-2 min-w-[120px]">
+                  <input
+                    type="checkbox"
+                    id={`${day}-available`}
+                    checked={formData.viewingSchedule[day].available}
+                    onChange={(e) => handleViewingScheduleChange(day, 'available', e.target.checked)}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <label htmlFor={`${day}-available`} className="capitalize font-medium">
+                    {day}
+                  </label>
+                </div>
+                
+                {formData.viewingSchedule[day].available && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="time"
+                      value={formData.viewingSchedule[day].start}
+                      onChange={(e) => handleViewingScheduleChange(day, 'start', e.target.value)}
+                      className="p-2 border border-gray-300 rounded-lg"
+                    />
+                    <span className="text-gray-500">to</span>
+                    <input
+                      type="time"
+                      value={formData.viewingSchedule[day].end}
+                      onChange={(e) => handleViewingScheduleChange(day, 'end', e.target.value)}
+                      className="p-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (!isAuthenticated) {
@@ -568,6 +642,16 @@ const CreateListing = () => {
                 />
                 <span>Wifi</span>
               </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="checkbox"
+                  id="flexibleViewingTime"
+                  className="w-5 h-5"
+                  onChange={handleChange}
+                  checked={formData.flexibleViewingTime}
+                />
+                <span>Flexible Viewing Time</span>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-4">
@@ -716,6 +800,8 @@ const CreateListing = () => {
                 </div>
               ))}
             </div>
+
+            {renderViewingSchedule()}
 
             <button
               disabled={loading || uploading}

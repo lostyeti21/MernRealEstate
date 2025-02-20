@@ -403,20 +403,54 @@ const AgentListing = () => {
           )}
 
           {/* Contact Information */}
-          <div className="mt-4 space-y-2">
-            {agent.contact && (
-              <div className="flex items-center gap-2 text-gray-600">
-                <FaPhoneAlt className="text-green-600" />
-                <span>{agent.contact}</span>
-              </div>
-            )}
-            {agent.email && (
-              <div className="flex items-center gap-2 text-gray-600">
-                <FaEnvelope className="text-green-600" />
-                <span>{agent.email}</span>
-              </div>
-            )}
+          <div className="flex flex-col gap-4 mt-6">
+            <div className="flex items-center gap-2">
+              <FaPhoneAlt className="text-green-700" />
+              <span>{agent.phone}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <FaEnvelope className="text-green-700" />
+              <span>{agent.email}</span>
+            </div>
           </div>
+
+          {/* Viewing Schedule */}
+          {listing.viewingSchedule && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="mt-6 bg-slate-50 rounded-lg p-4"
+            >
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Available Viewing Times</h3>
+              {listing.flexibleViewingTime ? (
+                <p className="text-sm text-gray-600 py-2">
+                  Viewing times are flexible and will be scheduled based on the agent's availability.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(listing.viewingSchedule)
+                    .filter(([_, schedule]) => schedule.available)
+                    .map(([day, schedule]) => (
+                      <div 
+                        key={day}
+                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                      >
+                        <span className="capitalize text-sm text-gray-600">{day}</span>
+                        <span className="text-sm text-gray-800">
+                          {schedule.start} - {schedule.end}
+                        </span>
+                      </div>
+                    ))}
+                  {!Object.values(listing.viewingSchedule).some(schedule => schedule.available) && (
+                    <p className="text-sm text-gray-500 text-center py-2">
+                      No viewing times currently available
+                    </p>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* Rate Agent Button */}
           {currentUser && (

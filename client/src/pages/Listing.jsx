@@ -8,8 +8,8 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "swiper/css/bundle";
 import { useSelector } from "react-redux";
-import { toast } from 'react-hot-toast';
 import { motion } from "framer-motion";
+import { toast } from 'react-hot-toast';
 import {
   FaBath,
   FaBed,
@@ -23,6 +23,7 @@ import {
   FaPhoneAlt,
   FaWater,
   FaEnvelope,
+  FaCheckCircle,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 import RateLandlord from "../components/RateLandlord"; // Import RateLandlord component
@@ -32,9 +33,11 @@ import { geocodeAddress } from "../../../api/utils/geocode";
 export default function Listing() {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [contact, setContact] = useState(false);
+  const [showReservationModal, setShowReservationModal] = useState(false);
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
   const [listedBy, setListedBy] = useState({ loading: true, error: null, data: null });
   const [coordinates, setCoordinates] = useState(null);
   const [showFullscreen, setShowFullscreen] = useState(false);
@@ -49,6 +52,8 @@ export default function Listing() {
   const [verificationCode, setVerificationCode] = useState('');
   const [verifyingCode, setVerifyingCode] = useState(false);
   const [verificationError, setVerificationError] = useState('');
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+  const [hasShownDisclaimer, setHasShownDisclaimer] = useState(false);
   const params = useParams();
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
@@ -707,6 +712,72 @@ export default function Listing() {
             )}
           </div>
         </div>
+        {currentUser && (
+          <motion.button
+            initial={{ opacity: 0, y: 10, scale: 1 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            whileHover={{ scale: 1.02 }}
+            transition={{ 
+              duration: 0.3, 
+              delay: 1.3,
+              scale: {
+                type: "spring",
+                damping: 15,
+                stiffness: 300
+              }
+            }}
+            onClick={handleReservationClick}
+            className="mt-4 w-full bg-[#C9F2AC] text-black py-3 hover:opacity-90 transition-all duration-200 text-center font-medium"
+          >
+            Schedule a time to physically view the listing
+          </motion.button>
+        )}
+        {listing.viewingSchedule && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 1.4 }}
+            className="mt-4 bg-slate-50 rounded-lg p-4"
+          >
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-medium text-gray-700">Available Viewing Times</h3>
+              <div 
+                className="text-gray-500 hover:text-gray-700 cursor-pointer"
+                onClick={() => setShowDisclaimerModal(true)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            {listing.flexibleViewingTime ? (
+              <p className="text-sm text-gray-600 py-2">
+                Viewing times are flexible and will be scheduled based on the landlord's availability.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2">
+                {Object.entries(listing.viewingSchedule)
+                  .filter(([_, schedule]) => schedule.available)
+                  .map(([day, schedule]) => (
+                    <div 
+                      key={day}
+                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                    >
+                      <span className="capitalize text-sm text-gray-600">{day}</span>
+                      <span className="text-sm text-gray-800">
+                        {schedule.start} - {schedule.end}
+                      </span>
+                    </div>
+                  ))}
+                {!Object.values(listing.viewingSchedule).some(schedule => schedule.available) && (
+                  <p className="text-sm text-gray-500 text-center py-2">
+                    No viewing times currently available
+                  </p>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
       </motion.div>
     );
   };
@@ -739,6 +810,207 @@ export default function Listing() {
 
   const defaultLat = -1.2921;
   const defaultLng = 36.8219;
+
+  const handleReservationClick = () => {
+    if (!currentUser) {
+      navigate('/sign-in');
+      return;
+    }
+    // Always show disclaimer first
+    setShowDisclaimerModal(true);
+  };
+
+  const handleDisclaimerConfirm = () => {
+    setShowDisclaimerModal(false);
+    setShowReservationModal(true);
+  };
+
+  const handleTimeSelection = (day, time) => {
+    // Get the end time from the listing's viewing schedule
+    const endTime = listing.viewingSchedule && 
+                    listing.viewingSchedule[day] && 
+                    listing.viewingSchedule[day].end 
+                    ? listing.viewingSchedule[day].end 
+                    : '17:00';
+
+    const timeSlot = { 
+      day, 
+      time, 
+      end: endTime 
+    };
+
+    setSelectedTimeSlots(prev => {
+      const exists = prev.some(slot => 
+        slot.day === day && slot.time === time
+      );
+      
+      if (exists) {
+        return prev.filter(slot => 
+          !(slot.day === day && slot.time === time)
+        );
+      } else {
+        return [...prev, timeSlot];
+      }
+    });
+  };
+
+  const handleSubmitReservation = async () => {
+    if (selectedTimeSlots.length === 0) {
+      toast.error('Please select at least one viewing time');
+      return;
+    }
+
+    try {
+      // Get the authentication token with multiple fallback methods
+      const token = 
+        localStorage.getItem('access_token') || 
+        localStorage.getItem('token') || 
+        localStorage.getItem('realEstateToken') || 
+        (currentUser && currentUser.access_token) || 
+        (currentUser && currentUser.token);
+
+      if (!token) {
+        toast.error('Authentication token is missing. Please log in again.');
+        navigate('/sign-in');
+        return;
+      }
+
+      console.log('Using token for reservation:', token); // Debug log
+
+      // Prepare reservation request body
+      const reservationRequestBody = {
+        listingId: listing._id,
+        userId: currentUser._id,
+        timeSlots: selectedTimeSlots.map(slot => ({
+          day: slot.day,
+          time: slot.time,
+          end: slot.end || '17:00'
+        })),
+      };
+
+      console.log('Reservation Request Body:', JSON.stringify(reservationRequestBody)); // Log request body
+
+      // Create the reservation
+      const reservationRes = await fetch('/api/reservation/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`, // Add authorization header
+        },
+        body: JSON.stringify(reservationRequestBody),
+      });
+
+      // Log full reservation response details
+      console.log('Reservation Response Status:', reservationRes.status);
+      console.log('Reservation Response Headers:', Object.fromEntries(reservationRes.headers.entries()));
+
+      // Log the raw response text for debugging
+      const reservationResText = await reservationRes.text();
+      console.log('Reservation Response Raw Text:', reservationResText);
+
+      let reservationData;
+      try {
+        reservationData = JSON.parse(reservationResText);
+      } catch (parseError) {
+        console.error('JSON Parsing Error for Reservation:', parseError);
+        console.error('Problematic Reservation Response Text:', reservationResText);
+        toast.error(`Reservation submission failed: Invalid server response`);
+        return;
+      }
+      
+      if (reservationData.success) {
+        // Format time slots with proper capitalization and structure
+        const formatTimeSlot = (slot) => {
+          const capitalizedDay = slot.day.charAt(0).toUpperCase() + slot.day.slice(1);
+          return `${capitalizedDay} ${slot.time} - ${slot.end || '17:00'}`;
+        };
+
+        // Prepare notification request body
+        const notificationRequestBody = {
+          userId: listing.userRef,
+          message: `${currentUser.username} has requested to view your listing "${listing.name}" at the following times: ${selectedTimeSlots.map(formatTimeSlot).join(', ')}`,
+          type: 'system',
+          from: currentUser._id,
+          systemInfo: {
+            name: 'Viewing Request',
+            avatar: '/default-avatar.png',
+            listingId: listing._id,
+            requesterId: currentUser._id,
+            timeSlots: selectedTimeSlots.map(slot => ({
+              day: slot.day,
+              time: slot.time,
+              end: slot.end || '17:00'
+            }))
+          }
+        };
+
+        console.log('Notification Request Body:', JSON.stringify(notificationRequestBody)); // Log request body
+
+        // Send notification to listing owner
+        const notificationRes = await fetch('/api/notifications/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`, // Add authorization header
+          },
+          body: JSON.stringify(notificationRequestBody),
+        });
+
+        // Log full notification response details
+        console.log('Notification Response Status:', notificationRes.status);
+        console.log('Notification Response Headers:', Object.fromEntries(notificationRes.headers.entries()));
+
+        // Check if the response is JSON or HTML
+        const contentType = notificationRes.headers.get('content-type');
+        let notificationResText;
+        
+        if (contentType && contentType.includes('application/json')) {
+          // If it's JSON, parse it directly
+          notificationResText = await notificationRes.text();
+        } else {
+          // If it's not JSON (e.g., HTML error), try to get the text
+          notificationResText = await notificationRes.text();
+          console.warn('Notification response is not JSON. Content:', notificationResText);
+          
+          // Optional: Show a toast message about the notification creation issue
+          toast.error('Could not send notification to listing owner. Please contact support.');
+          
+          // Continue with the rest of the flow since the reservation was successful
+          return;
+        }
+
+        console.log('Notification Response Raw Text:', notificationResText);
+
+        let notificationData;
+        try {
+          notificationData = JSON.parse(notificationResText);
+        } catch (parseError) {
+          console.error('JSON Parsing Error for Notification:', parseError);
+          console.error('Problematic Notification Response Text:', notificationResText);
+          
+          // Optional: Show a toast message about the parsing issue
+          toast.error('Could not process notification response. Please contact support.');
+          
+          // Continue with the rest of the flow since the reservation was successful
+          return;
+        }
+        
+        if (!notificationData.success) {
+          console.error('Failed to send notification:', notificationData.message);
+          toast.error('Could not send notification to listing owner.');
+        }
+        
+        toast.success('Viewing reservations submitted successfully!');
+        setShowReservationModal(false);
+        setSelectedTimeSlots([]);
+      } else {
+        toast.error(reservationData.message || 'Something went wrong with reservation');
+      }
+    } catch (error) {
+      console.error('Reservation error:', error);
+      toast.error('Error submitting reservations');
+    }
+  };
 
   return (
     <div 
@@ -909,7 +1181,7 @@ export default function Listing() {
               )}
             </ul>
 
-            {currentUser && currentUser._id !== listing.userRef && (
+            {currentUser && (
               <div className="mt-4">
                 <button
                   onClick={handleContactClick}
@@ -991,98 +1263,181 @@ export default function Listing() {
         />
       )}
 
-      {showRatingModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h3 className="text-xl font-semibold mb-4">Rate {listedBy.data.name}</h3>
-            <div className="flex flex-col gap-4 mb-6">
-              <div className="flex items-center gap-2">
-                <p className="text-lg font-medium">Response Time:</p>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    className="text-3xl focus:outline-none"
-                    onMouseEnter={() => setResponseTimeRating(star)}
-                    onMouseLeave={() => setResponseTimeRating(responseTimeRating)}
-                    onClick={() => setResponseTimeRating(star)}
-                  >
-                    <span className={`${
-                      responseTimeRating >= star ? 'text-yellow-400' : 'text-gray-300'
-                    }`}>
-                      ★
-                    </span>
-                  </button>
-                ))}
+      {/* Reservation Modal */}
+      {showReservationModal && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="flex justify-between items-center mb-4"
+            >
+              <div>
+                <h3 className="text-xl font-semibold text-gray-800">Schedule a Viewing</h3>
+                <p className="text-sm text-gray-500 mt-1">Select multiple time slots if needed</p>
               </div>
-              <div className="flex items-center gap-2">
-                <p className="text-lg font-medium">Maintenance:</p>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    className="text-3xl focus:outline-none"
-                    onMouseEnter={() => setMaintenanceRating(star)}
-                    onMouseLeave={() => setMaintenanceRating(maintenanceRating)}
-                    onClick={() => setMaintenanceRating(star)}
-                  >
-                    <span className={`${
-                      maintenanceRating >= star ? 'text-yellow-400' : 'text-gray-300'
-                    }`}>
-                      ★
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <p className="text-lg font-medium">Experience:</p>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    className="text-3xl focus:outline-none"
-                    onMouseEnter={() => setExperienceRating(star)}
-                    onMouseLeave={() => setExperienceRating(experienceRating)}
-                    onClick={() => setExperienceRating(star)}
-                  >
-                    <span className={`${
-                      experienceRating >= star ? 'text-yellow-400' : 'text-gray-300'
-                    }`}>
-                      ★
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
                 onClick={() => {
-                  setShowRatingModal(false);
-                  setResponseTimeRating(0);
-                  setMaintenanceRating(0);
-                  setExperienceRating(0);
+                  setShowReservationModal(false);
+                  setSelectedTimeSlots([]);
                 }}
-                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                className="text-gray-500 hover:text-gray-700"
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmitRating}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-              >
-                Submit Rating
-              </button>
-            </div>
-          </div>
-        </div>
+                <FaTimes />
+              </motion.button>
+            </motion.div>
+            {listing.flexibleViewingTime ? (
+              <div className="mb-4">
+                <p className="text-gray-600 mb-2">
+                  This property has flexible viewing times. We'll contact you to arrange suitable times.
+                </p>
+                <button
+                  onClick={handleSubmitReservation}
+                  className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Request Viewing
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {selectedTimeSlots.length > 0 && (
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Selected Time Slots:</p>
+                    <div className="space-y-2">
+                      {selectedTimeSlots.map((slot, index) => (
+                        <div key={index} className="flex items-center justify-between text-sm">
+                          <span className="capitalize">{slot.day}</span>
+                          <div className="flex items-center gap-2">
+                            <span>{slot.time} - {slot.end || '17:00'}</span>
+                            <button
+                              onClick={() => handleTimeSelection(slot.day, slot.time)}
+                              className="text-red-500 hover:text-red-600"
+                            >
+                              <FaTimes />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid gap-3">
+                  {Object.entries(listing.viewingSchedule)
+                    .filter(([_, schedule]) => schedule.available)
+                    .map(([day, schedule]) => (
+                      <div
+                        key={day}
+                        className={`p-3 rounded-lg cursor-pointer transition-all duration-200
+                          ${selectedTimeSlots.some(slot => slot.day === day)
+                            ? 'bg-green-800 text-white'
+                            : 'bg-green-100 text-green-800 hover:bg-green-200'
+                          }
+                        `}
+                        onClick={() => handleTimeSelection(day, schedule.start)}
+                      >
+                        <div className="font-medium">
+                          {day.charAt(0).toUpperCase() + day.slice(1)}
+                        </div>
+                        <div className="text-sm">
+                          {schedule.start} - {schedule.end}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                {Object.values(listing.viewingSchedule).some(schedule => schedule.available) ? (
+                  <button
+                    onClick={handleSubmitReservation}
+                    className={`w-full py-2 rounded-lg transition-colors ${
+                      selectedTimeSlots.length > 0
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }`}
+                    disabled={selectedTimeSlots.length === 0}
+                  >
+                    Confirm {selectedTimeSlots.length} Viewing{selectedTimeSlots.length !== 1 ? 's' : ''}
+                  </button>
+                ) : (
+                  <p className="text-center text-gray-500 py-2">
+                    No viewing times currently available
+                  </p>
+                )}
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
       )}
 
       {/* Verification Code Modal */}
       {showVerificationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1000]">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Enter Verification Code</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Please enter the verification code provided by the landlord to proceed.
-            </p>
-            <input
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="flex justify-between items-center mb-4"
+            >
+              <h3 className="text-lg font-semibold text-gray-800">Enter Verification Code</h3>
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                onClick={() => {
+                  setShowVerificationModal(false);
+                  setVerificationCode('');
+                  setVerificationError('');
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <FaTimes />
+              </motion.button>
+            </motion.div>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="mb-4"
+            >
+              <p className="text-sm text-gray-600">
+                Please enter the verification code provided by the landlord to proceed.
+              </p>
+            </motion.div>
+            <motion.input
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
               type="text"
               value={verificationCode}
               onChange={(e) => setVerificationCode(e.target.value)}
@@ -1091,10 +1446,25 @@ export default function Listing() {
               disabled={verifyingCode}
             />
             {verificationError && (
-              <p className="text-red-600 text-sm mb-4">{verificationError}</p>
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-red-600 text-sm mb-4"
+              >
+                {verificationError}
+              </motion.p>
             )}
-            <div className="flex justify-end gap-2">
-              <button
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="flex justify-end gap-2"
+            >
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
                 onClick={() => {
                   setShowVerificationModal(false);
                   setVerificationCode('');
@@ -1104,17 +1474,85 @@ export default function Listing() {
                 disabled={verifyingCode}
               >
                 Cancel
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
                 onClick={handleVerifyCode}
                 className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
                 disabled={verifyingCode}
               >
                 {verifyingCode ? "Verifying..." : "Proceed"}
-              </button>
-            </div>
-          </div>
-        </div>
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Disclaimer Modal */}
+      {showDisclaimerModal && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center"
+        >
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            transition={{ 
+              duration: 0.3,
+              ease: [0.4, 0, 0.2, 1] // Custom easing for smoother animation
+            }}
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              onClick={() => setShowDisclaimerModal(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </motion.button>
+
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="mb-6"
+            >
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Disclaimer</h2>
+              <p className="text-gray-600 leading-relaxed">
+                Specific dates may be discussed on when the listing viewing can be done either via phone, 
+                email or our in app messaging. The days and times selected may not always be the times 
+                that you will actually view the listing. Be sure to always confirm with the lister before 
+                going to the listing's location.
+              </p>
+            </motion.div>
+
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ 
+                duration: 0.2,
+                ease: "easeOut"
+              }}
+              onClick={handleDisclaimerConfirm}
+              className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              I Understand
+            </motion.button>
+          </motion.div>
+        </motion.div>
       )}
     </div>
   );

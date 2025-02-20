@@ -30,7 +30,65 @@ export default function Notifications() {
   const [alreadyDisputedDetails, setAlreadyDisputedDetails] = useState(null);
   const [showDisputeSubmittedPopup, setShowDisputeSubmittedPopup] = useState(false);
   const [disputeSubmittedDetails, setDisputeSubmittedDetails] = useState(null);
+  const [viewingRequestPopup, setViewingRequestPopup] = useState({
+    show: false,
+    notification: null,
+  });
   const { currentUser } = useSelector((state) => state.user);
+
+  const formatDate = (dateString) => {
+    // Add more detailed logging
+    console.log('Formatting date:', dateString);
+
+    try {
+      // Check if dateString is undefined, null, or an empty string
+      if (!dateString) {
+        console.warn('No date string provided');
+        return 'Unknown date';
+      }
+
+      // Attempt to parse the date with multiple strategies
+      let date;
+      
+      // Try parsing as ISO string or standard date string
+      date = new Date(dateString);
+      
+      // If parsing fails, try alternative parsing
+      if (isNaN(date.getTime())) {
+        console.warn('Failed to parse date:', dateString);
+        return 'Invalid date';
+      }
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+      
+      // Check if the date is today
+      if (date >= today) {
+        return format(date, 'h:mm a');
+      } 
+      
+      // Check if the date is yesterday
+      if (date >= yesterday && date < today) {
+        return `Yesterday, ${format(date, 'h:mm a')}`;
+      }
+
+      // Calculate days difference more precisely
+      const diffInDays = Math.floor((today - date) / (1000 * 60 * 60 * 24));
+
+      // For dates within the last week, show the day name and time
+      if (diffInDays < 7) {
+        return `${format(date, 'EEEE')}, ${format(date, 'h:mm a')}`;
+      } 
+      
+      // For older dates, show full date and time
+      return format(date, 'MMM d, yyyy, h:mm a');
+    } catch (error) {
+      console.error('Unexpected error formatting date:', error, 'Input:', dateString);
+      return 'Date error';
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -438,7 +496,7 @@ export default function Notifications() {
   const handleNotificationClick = (notification) => {
     console.log('Notification clicked - Full data:', JSON.stringify(notification, null, 2));
     
-    if (notification.type === 'dispute_rejected' || notification.type === 'dispute_resolved') {
+    if (notification.type === 'dispute_rejected' || notification.type === 'dispute_submitted' || notification.type === 'dispute_approved') {
       setDisputeDetails({
         id: notification.message.match(/ID: ([A-Z0-9]+)/)?.[1] || '',
         message: notification.message
@@ -602,7 +660,7 @@ export default function Notifications() {
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setDisputePopup(prev => ({ ...prev, show: false }))}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 bg-gray-100 rounded"
               disabled={disputePopup.loading}
             >
               Cancel
@@ -631,36 +689,327 @@ export default function Notifications() {
     );
   };
 
-  const renderNotification = (notification) => {
-    console.log('Rendering notification:', notification);
+  const ViewingRequestPopup = () => {
+    const { notification } = viewingRequestPopup;
+    const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
+    const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+    
+    // Log the full notification for debugging
+    console.log('Viewing Request Notification:', JSON.stringify(notification, null, 2));
 
-    const getNotificationIcon = () => {
-      // For all system notifications (disputes and others)
-      if (notification.type === 'dispute_rejected' || 
-          notification.type === 'dispute_submitted' || 
-          notification.type === 'dispute_approved' || 
-          notification.type === 'system') {
-        return (
-          <img
-            src={logo}
-            alt="JustListIt Support"
-            className="w-10 h-10 rounded-full object-contain bg-white"
-          />
+    const extractTimeSlotsFromReservation = () => {
+      try {
+        // First, check systemInfo for time slots
+        if (notification.systemInfo && notification.systemInfo.timeSlots) {
+          // If listing is available, use its viewing schedule for end times
+          if (notification.listing && notification.listing.viewingSchedule) {
+            return notification.systemInfo.timeSlots.map(slot => {
+              const daySchedule = notification.listing.viewingSchedule[slot.day];
+              return {
+                day: slot.day.toLowerCase(),
+                start: slot.time,
+                end: daySchedule && daySchedule.available && daySchedule.end 
+                  ? daySchedule.end 
+                  : '17:00'
+              };
+            });
+          }
+
+          // If no listing schedule, use default end time
+          return notification.systemInfo.timeSlots.map(slot => ({
+            day: slot.day.toLowerCase(),
+            start: slot.time,
+            end: '17:00'
+          }));
+        }
+
+        // Check for viewing schedule in notification itself
+        if (notification.viewingSchedule) {
+          return Object.entries(notification.viewingSchedule)
+            .filter(([_, schedule]) => schedule.available)
+            .map(([day, schedule]) => ({
+              day: day.toLowerCase(),
+              start: schedule.start,
+              end: schedule.end || '17:00'
+            }));
+        }
+
+        // Check for viewing schedule in listing
+        if (notification.listing && notification.listing.viewingSchedule) {
+          return Object.entries(notification.listing.viewingSchedule)
+            .filter(([_, schedule]) => schedule.available)
+            .map(([day, schedule]) => ({
+              day: day.toLowerCase(),
+              start: schedule.start,
+              end: schedule.end || '17:00'
+            }));
+        }
+
+        // Parse from message as a last resort
+        const dayTimePatterns = [
+          // Pattern like: "Monday 09:00-17:00"
+          {
+            regex: /(\w+)\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/gi,
+            extract: (match) => ({
+              day: match[1].toLowerCase(),
+              start: match[2],
+              end: match[3]
+            })
+          },
+          // Pattern like: "Monday at 10:00"
+          {
+            regex: /(\w+)\s*at\s*(\d{1,2}:\d{2})/gi,
+            extract: (match) => ({
+              day: match[1].toLowerCase(),
+              start: match[2],
+              end: '17:00'
+            })
+          }
+        ];
+
+        const extractedSlots = [];
+        
+        dayTimePatterns.forEach(pattern => {
+          const matches = [...notification.message.matchAll(new RegExp(pattern.regex))];
+          matches.forEach(match => {
+            const slot = pattern.extract(match);
+            extractedSlots.push(slot);
+          });
+        });
+
+        // Fallback to default viewing schedule
+        if (extractedSlots.length === 0) {
+          return [
+            { day: 'monday', start: '09:00', end: '17:00' },
+            { day: 'tuesday', start: '09:00', end: '17:00' },
+            { day: 'wednesday', start: '09:00', end: '17:00' },
+            { day: 'thursday', start: '09:00', end: '17:00' },
+            { day: 'friday', start: '09:00', end: '17:00' },
+            { day: 'saturday', start: '09:00', end: '17:00' },
+            { day: 'sunday', start: '09:00', end: '17:00' }
+          ];
+        }
+
+        return extractedSlots;
+      } catch (error) {
+        console.error('Error extracting time slots:', error);
+        return [
+          { day: 'monday', start: '09:00', end: '17:00' },
+          { day: 'tuesday', start: '09:00', end: '17:00' },
+          { day: 'wednesday', start: '09:00', end: '17:00' },
+          { day: 'thursday', start: '09:00', end: '17:00' },
+          { day: 'friday', start: '09:00', end: '17:00' },
+          { day: 'saturday', start: '09:00', end: '17:00' },
+          { day: 'sunday', start: '09:00', end: '17:00' }
+        ];
+      }
+    };
+
+    // Initialize available time slots on component mount
+    useEffect(() => {
+      const initialTimeSlots = extractTimeSlotsFromReservation();
+      setAvailableTimeSlots(initialTimeSlots);
+    }, [notification]);
+
+    // Format time slots with proper capitalization and structure
+    const formatTimeSlot = (slot) => {
+      const capitalizedDay = slot.day.charAt(0).toUpperCase() + slot.day.slice(1);
+      // Handle both time formats (time/end and start/end)
+      const startTime = slot.time || slot.start;
+      const endTime = slot.end || '17:00';
+      return `${capitalizedDay} ${startTime} - ${endTime}`;
+    };
+
+    // Clean message for display
+    const cleanMessage = (message) => {
+      // Remove the time slots part from the message
+      return message.replace(/\s*at the following times:.*$/i, '');
+    };
+    const cleanedMessage = cleanMessage(notification.message);
+
+    // Format time slots from systemInfo
+    const formatTimeSlots = () => {
+      if (notification.systemInfo && notification.systemInfo.timeSlots) {
+        const slots = notification.systemInfo.timeSlots.map(slot => {
+          const endTime = notification.listing && 
+                          notification.listing.viewingSchedule && 
+                          notification.listing.viewingSchedule[slot.day] &&
+                          notification.listing.viewingSchedule[slot.day].end
+                          ? notification.listing.viewingSchedule[slot.day].end 
+                          : '17:00';
+          
+          return {
+            day: slot.day,
+            time: slot.time,
+            end: endTime
+          };
+        });
+        return slots.map(formatTimeSlot).join(', ');
+      }
+      return '';
+    };
+
+    // Modify the original message to include formatted time slots
+    const formattedMessage = `${cleanedMessage} at the following times: ${formatTimeSlots()}`;
+
+    // Extract requester information
+    const requesterName = notification.from?.username || 
+                          notification.systemInfo?.name || 
+                          'Anonymous';
+    
+    const requesterEmail = notification.from?.email || '';
+    const requesterPhone = notification.from?.phone || '';
+
+    const requesterAvatar = notification.from?.avatar || 
+                            notification.systemInfo?.avatar || 
+                            '/default-avatar.png';
+    
+    // Handle time slot selection
+    const handleTimeSlotSelect = (timeSlot) => {
+      setSelectedTimeSlots(prev => {
+        const exists = prev.some(slot => 
+          slot.day === timeSlot.day && 
+          slot.start === timeSlot.start && 
+          slot.end === timeSlot.end
         );
+        
+        if (exists) {
+          return prev.filter(slot => 
+            !(slot.day === timeSlot.day && 
+              slot.start === timeSlot.start && 
+              slot.end === timeSlot.end)
+          );
+        } else {
+          return [...prev, timeSlot];
+        }
+      });
+    };
+
+    // Handle accept viewing request
+    const handleAccept = () => {
+      if (selectedTimeSlots.length === 0) {
+        alert('Please select at least one viewing time');
+        return;
       }
       
-      // For rating notifications
-      if (notification.type === 'rating') {
-        return (
-          <img
-            src={notification.rater?.avatar || '/default-avatar.png'}
-            alt={notification.rater?.username || 'User'}
-            className="w-10 h-10 rounded-full"
-          />
-        );
-      }
+      // Call the existing accept function with selected times
+      handleAcceptViewingRequest({
+        ...notification,
+        selectedTimes: selectedTimeSlots
+      });
+    };
 
-      // Default icon (should never reach here since all types are covered above)
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm animate-popup"
+        onClick={() => setViewingRequestPopup({ show: false, notification: null })}
+      >
+        <div 
+          className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            onClick={() => setViewingRequestPopup({ show: false, notification: null })}
+            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Viewing Request Details
+            </h2>
+            <p className="text-gray-600">
+              {formattedMessage}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">Requester</h3>
+              <div className="flex items-center space-x-3">
+                <img 
+                  src={requesterAvatar} 
+                  alt="Requester" 
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+                <div>
+                  <p className="font-medium text-gray-800">
+                    {requesterName}
+                  </p>
+                  {requesterEmail && (
+                    <p className="text-sm text-gray-500">
+                      {requesterEmail}
+                    </p>
+                  )}
+                  {requesterPhone && (
+                    <p className="text-sm text-gray-500">
+                      {requesterPhone}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">Available Viewing Times</h3>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {availableTimeSlots && availableTimeSlots.length > 0 ? (
+                  availableTimeSlots.map((timeSlot, index) => (
+                    <div 
+                      key={index} 
+                      onClick={() => handleTimeSlotSelect(timeSlot)}
+                      className={`
+                        px-4 py-2 rounded-full cursor-pointer transition-all duration-200
+                        ${selectedTimeSlots.some(slot => 
+                          slot.day === timeSlot.day && 
+                          ((slot.time === timeSlot.time && slot.end === timeSlot.end) ||
+                           (slot.start === timeSlot.start && slot.end === timeSlot.end))
+                        ) 
+                          ? 'bg-green-800 text-white' 
+                          : 'bg-green-100 text-green-800 hover:bg-green-200'}
+                      `}
+                    >
+                      {timeSlot.day.charAt(0).toUpperCase() + timeSlot.day.slice(1)} {timeSlot.time || timeSlot.start} - {timeSlot.end}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 italic">No times available</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-between space-x-4 mt-6">
+              <button
+                onClick={handleAccept}
+                className="flex-1 bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition-colors"
+              >
+                Accept ({selectedTimeSlots.length})
+              </button>
+              <button
+                onClick={() => {
+                  // Handle reject viewing request
+                  handleRejectViewingRequest(notification);
+                }}
+                className="flex-1 bg-red-500 text-white py-2 rounded-md hover:bg-red-600 transition-colors"
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const getNotificationIcon = (notification) => {
+    // For all system notifications (disputes and others)
+    if (notification.type === 'dispute_rejected' || 
+        notification.type === 'dispute_submitted' || 
+        notification.type === 'dispute_approved' || 
+        notification.type === 'system') {
       return (
         <img
           src={logo}
@@ -668,102 +1017,107 @@ export default function Notifications() {
           className="w-10 h-10 rounded-full object-contain bg-white"
         />
       );
-    };
+    }
+    
+    // For rating notifications
+    if (notification.type === 'rating') {
+      return (
+        <img
+          src={notification.rater?.avatar || '/default-avatar.png'}
+          alt={notification.rater?.username || 'User'}
+          className="w-10 h-10 rounded-full"
+        />
+      );
+    }
 
-    const getNotificationTitle = () => {
-      if (notification.type === 'dispute_rejected' || notification.type === 'dispute_submitted' || notification.type === 'dispute_approved') {
-        return (
-          <span className="font-medium">
-            <span className="text-blue-600">{notification.systemInfo?.name || 'JustListIt Support'}</span>
-          </span>
-        );
-      }
-      
-      if (notification.type === 'rating') {
-        return (
-          <span className="font-medium">
-            <span className="text-blue-600">{notification.rater?.username || 'Anonymous'}</span>
-            {' rated you'}
-          </span>
-        );
-      }
+    // Default icon (should never reach here since all types are covered above)
+    return (
+      <img
+        src={logo}
+        alt="JustListIt Support"
+        className="w-10 h-10 rounded-full object-contain bg-white"
+      />
+    );
+  };
 
-      // For any other system notifications
+  const getNotificationTitle = (notification) => {
+    if (notification.type === 'dispute_rejected' || notification.type === 'dispute_submitted' || notification.type === 'dispute_approved') {
       return (
         <span className="font-medium">
           <span className="text-blue-600">{notification.systemInfo?.name || 'JustListIt Support'}</span>
         </span>
       );
-    };
+    }
+    
+    if (notification.type === 'rating') {
+      return (
+        <span className="font-medium">
+          <span className="text-blue-600">{notification.rater?.username || 'Anonymous'}</span>
+          {' rated you'}
+        </span>
+      );
+    }
 
-    const getDisputeButton = (notification) => {
-      // If the notification is already disputed
-      if (notification.disputed) {
-        return (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDisputeClick(notification);
-            }}
-            className="text-gray-500 hover:text-gray-700 transition-colors bg-gray-100 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Dispute Submitted
-          </button>
-        );
-      }
+    // For any other system notifications
+    return (
+      <span className="font-medium">
+        <span className="text-blue-600">{notification.systemInfo?.name || 'JustListIt Support'}</span>
+      </span>
+    );
+  };
 
-      // If it's a rating notification that can be disputed
-      if (notification.type === 'rating') {
-        return (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDisputeClick(notification);
-            }}
-            className="text-red-500 hover:text-red-700 transition-colors bg-red-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            Dispute Rating
-          </button>
-        );
-      }
+  const getDisputeButton = (notification) => {
+    // If the notification is already disputed
+    if (notification.disputed) {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDisputeClick(notification);
+          }}
+          className="text-gray-500 hover:text-gray-700 transition-colors bg-gray-100 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Dispute Submitted
+        </button>
+      );
+    }
 
-      return null;
-    };
+    // If it's a rating notification that can be disputed
+    if (notification.type === 'rating') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDisputeClick(notification);
+          }}
+          className="text-red-500 hover:text-red-700 transition-colors bg-red-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          </svg>
+          Dispute Rating
+        </button>
+      );
+    }
 
-    const isRatingNotification = notification.type === 'rating';
-    const ratings = notification.ratings || [];
-    const sortedRatings = isRatingNotification 
-      ? ratings
-          .filter(r => r.category !== 'overall')
-          .sort((a, b) => a.category.localeCompare(b.category))
-      : [];
+    return null;
+  };
 
-    console.log('Sorted ratings:', sortedRatings);
+  const renderNotification = (notification) => {
+    // Log full notification object for debugging
+    console.log('Full Notification Object:', JSON.stringify(notification, null, 2));
 
-    const formatDate = (dateString) => {
-      try {
-        if (!dateString) {
-          console.warn('No date string provided');
-          return 'Date not available';
-        }
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) {
-          console.warn('Invalid date:', dateString);
-          return 'Invalid date';
-        }
-        return format(date, 'MMM d, yyyy h:mm a');
-      } catch (error) {
-        console.error('Error formatting date:', error);
-        return 'Date not available';
-      }
-    };
+    // Determine the date to use, with multiple fallback options
+    const notificationDate = 
+      notification.createdAt || 
+      notification.date || 
+      notification.timestamp || 
+      new Date().toISOString();
 
+    // Restore renderStars function for rating notifications
     const renderStars = (value) => {
       return (
         <div className="flex items-center">
@@ -778,7 +1132,7 @@ export default function Notifications() {
               fill="currentColor"
             >
               <path
-                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292z"
               />
             </svg>
           ))}
@@ -787,11 +1141,72 @@ export default function Notifications() {
       );
     };
 
+    if (notification.type === 'system') {
+      return (
+        <div 
+          key={notification.id}
+          className="bg-white p-4 rounded-lg shadow-md relative cursor-pointer hover:bg-gray-50"
+          onClick={() => setViewingRequestPopup({ show: true, notification })}
+        >
+          <div className="flex items-start gap-4">
+            {getNotificationIcon(notification)}
+            <div className="flex-1">
+              <div>
+                {getNotificationTitle(notification)}
+                <p className="text-sm text-gray-400 mt-1">
+                  {formatDate(notificationDate)}
+                </p>
+                <p className="text-sm text-gray-500 line-clamp-2 mt-2">{notification.message}</p>
+              </div>
+              <div className="flex justify-between items-center mt-2">
+                <div className="flex items-center gap-2">
+                  {!notification.read && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkAsRead(notification.id);
+                      }}
+                      className="text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Mark as Read
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteNotification(notification);
+                    }}
+                    className="text-red-500 hover:text-red-700 transition-colors bg-red-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // For other notification types, specifically rating notifications
+    const isRatingNotification = notification.type === 'rating';
+    const ratings = notification.ratings || [];
+    const sortedRatings = isRatingNotification 
+      ? ratings
+          .filter(r => r.category !== 'overall')
+          .sort((a, b) => a.category.localeCompare(b.category))
+      : [];
+
     // Extract user info from rater or from fields
     const rater = notification.rater || {};
     const username = rater.username || 'Anonymous';
     const avatar = rater.avatar || '/default-avatar.png';
-    const createdAt = notification.date || new Date().toISOString();
 
     return (
       <div 
@@ -800,13 +1215,13 @@ export default function Notifications() {
         onClick={() => handleNotificationClick(notification)}
       >
         <div className="flex items-start gap-4">
-          {getNotificationIcon()}
+          {getNotificationIcon(notification)}
           <div className="flex-1">
             <div className="flex justify-between items-start">
               <div>
-                {getNotificationTitle()}
+                {getNotificationTitle(notification)}
                 <p className="text-gray-600 text-sm">
-                  {formatDate(createdAt)}
+                  {formatDate(notificationDate)}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -847,7 +1262,7 @@ export default function Notifications() {
               </div>
             </div>
 
-            <p className="mt-2">{notification.message || `${notification.rater?.username || 'Anonymous'} rated you`}</p>
+            <p className="mt-2">{notification.message || `${username} rated you`}</p>
             
             {isRatingNotification && (
               <div className="mt-4 space-y-2">
@@ -883,12 +1298,7 @@ export default function Notifications() {
         style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(5px)' }}
       >
         <div 
-          className="bg-white rounded-lg p-6 max-w-md w-full mx-4 transform transition-all duration-300 ease-out animate-popup"
-          style={{ 
-            opacity: 1,
-            transform: 'scale(1)',
-            animation: 'popup 0.3s ease-out'
-          }}
+          className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-popup"
         >
           <div className="text-center">
             <h3 className="text-lg font-semibold mb-2">Dispute {disputeDetails?.id}</h3>
@@ -985,10 +1395,8 @@ export default function Notifications() {
             <h2 className="text-xl font-semibold">Dispute Details</h2>
           </div>
 
-          <div className="mb-4">
-            <p className="text-gray-700">{disputeSubmittedDetails.message}</p>
-          </div>
-
+          <p className="mb-4 text-gray-700">{disputeSubmittedDetails.message}</p>
+          
           <div className="space-y-4">
             <div className="bg-gray-50 p-3 rounded">
               <div className="flex items-center justify-between">
@@ -1216,11 +1624,9 @@ export default function Notifications() {
       )}
 
       {disputePopup.show && renderDisputePopup()}
-
+      {viewingRequestPopup.show && <ViewingRequestPopup />}
       {showConfirmation && disputeDetails && renderConfirmationPopup()}
-
       {showAlreadyDisputedPopup && alreadyDisputedDetails && renderAlreadyDisputedPopup()}
-
       {showDisputeSubmittedPopup && disputeSubmittedDetails && renderDisputeSubmittedPopup()}
     </div>
   );
