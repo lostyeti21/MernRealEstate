@@ -454,47 +454,51 @@ export default function Header() {
     navigate('/messages');
   };
 
-  // Add effect to check for unread notifications
-  useEffect(() => {
-    const checkUnreadNotifications = async () => {
-      if (!currentUser?.token) {
-        setHasUnreadNotifications(false);
-        return;
-      }
+  // Function to fetch unread notifications count
+  const fetchUnreadNotifications = async () => {
+    try {
+      if (!currentUser?.token) return;
 
-      try {
-        const res = await fetch('http://localhost:3000/api/notifications/unread', {
-          headers: {
-            'Authorization': `Bearer ${currentUser.token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-
-        if (!res.ok) {
-          throw new Error('Failed to fetch notification status');
+      const res = await fetch('/api/notifications/unread-count', {
+        headers: {
+          'Authorization': `Bearer ${currentUser.token}`,
+          'Content-Type': 'application/json'
         }
+      });
 
-        const data = await res.json();
-        setHasUnreadNotifications(data.hasUnread);
-      } catch (error) {
-        console.error('Error checking notifications:', error);
-        setHasUnreadNotifications(false);
+      if (!res.ok) {
+        throw new Error('Failed to fetch unread notifications');
       }
-    };
 
-    // Make the checkUnreadNotifications function available globally
-    window.updateHeaderNotifications = (hasUnread) => {
-      setHasUnreadNotifications(hasUnread);
-    };
+      const data = await res.json();
+      setHasUnreadNotifications(data.count > 0);
+      setPersistentUnreadCount(data.count);
 
-    checkUnreadNotifications();
-    
-    // Cleanup
-    return () => {
-      window.updateHeaderNotifications = undefined;
-    };
+      console.log('Unread notifications count:', data.count);
+    } catch (error) {
+      console.error('Error fetching unread notifications:', error);
+    }
+  };
+
+  // Effect to fetch unread notifications count
+  useEffect(() => {
+    if (!currentUser) return;
+
+    fetchUnreadNotifications();
+
+    // Set up interval to periodically check for new notifications
+    const interval = setInterval(fetchUnreadNotifications, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
   }, [currentUser]);
+
+  // Effect to clear notification count when visiting notifications page
+  useEffect(() => {
+    if (isNotificationsPage && hasUnreadNotifications) {
+      setHasUnreadNotifications(false);
+      setPersistentUnreadCount(0);
+    }
+  }, [isNotificationsPage]);
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -658,6 +662,19 @@ export default function Header() {
                                   New
                                 </span>
                               )}
+                            </div>
+                          </Link>
+                          <Link
+                            to="/schedule"
+                            className={`block px-4 py-2 text-sm ${
+                              location.pathname === '/schedule'
+                                ? 'bg-slate-100 text-[#009688]'
+                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                            } transition-colors duration-200`}
+                            onClick={() => setIsProfileDropdownOpen(false)}
+                          >
+                            <div className="flex items-center">
+                              <span>Schedule</span>
                             </div>
                           </Link>
                         </>

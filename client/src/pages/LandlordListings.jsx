@@ -158,37 +158,20 @@ const LandlordListings = () => {
 
   const handleRating = async () => {
     try {
-      setError(null);
-
-      // Check if user is verified first
-      if (!isVerified) {
-        throw new Error('Please verify your code before submitting a rating');
-      }
-
-      // Get current user token
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Please log in to submit a rating');
-      }
-
-      // Validate that all ratings are set and valid
-      const hasInvalidRating = Object.values(ratings).some(rating => !rating || rating < 1 || rating > 5);
-      if (hasInvalidRating) {
-        throw new Error('Please provide a rating (1-5 stars) for all categories');
-      }
-
-      // Prepare ratings array with correct category names
+      // Convert ratings to array format expected by backend
       const ratingsArray = Object.entries(ratings).map(([category, value]) => ({
-        category: category.toLowerCase(),  // Ensure category names match backend expectations
+        category: category.toLowerCase(),
         value: Number(value),
         comment: ''
       }));
+
+      console.log('Submitting ratings:', ratingsArray);
 
       const response = await fetch('/api/user/rate-landlord', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -198,34 +181,34 @@ const LandlordListings = () => {
       });
 
       const data = await response.json();
+      console.log('Rating submission response:', data);
 
-      if (!response.ok || !data.success) {
-        const errorMessage = data.message || 'Failed to submit rating';
-        console.error('Rating submission error:', { status: response.status, data });
-        throw new Error(errorMessage);
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to submit rating');
+      }
+
+      if (!data.success || !data.ratings?.overall) {
+        console.error('Invalid response format:', data);
+        throw new Error('Invalid response from server');
       }
 
       // Update the current rating with the new values
-      if (data.ratings?.overall) {
-        setCurrentRating({
-          averageRating: data.ratings.overall.averageRating,
-          totalRatings: data.ratings.overall.totalRatings
-        });
+      setCurrentRating({
+        averageRating: data.ratings.overall.averageRating,
+        totalRatings: data.ratings.overall.totalRatings
+      });
 
-        // Reset all rating states after successful submission
-        setRatings(initialRatingState);
-        setHoveredRating(initialRatingState);
-        setRated(true);
-        setIsVerified(false);
-        setVerificationCode("");
+      // Reset all rating states after successful submission
+      setRatings(initialRatingState);
+      setHoveredRating(initialRatingState);
+      setRated(true);
+      setIsVerified(false);
+      setVerificationCode("");
 
-        // Fetch updated landlord data to refresh the displayed ratings
-        await fetchUpdatedLandlord();
-        
-        toast.success('Rating submitted successfully!');
-      } else {
-        throw new Error('Invalid response from server');
-      }
+      // Fetch updated landlord data to refresh the displayed ratings
+      await fetchUpdatedLandlord();
+      
+      toast.success('Rating submitted successfully!');
 
     } catch (err) {
       console.error('Rating submission error:', err);

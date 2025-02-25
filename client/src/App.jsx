@@ -44,6 +44,7 @@ import Agents from './pages/Agents';
 import SuperUser from './pages/SuperUser';
 import Notifications from './pages/Notifications';
 import NotificationPopup from './components/NotificationPopup';
+import Schedule from './pages/Schedule';
 
 function HeaderWrapper() {
   const location = useLocation();
@@ -65,15 +66,13 @@ const App = () => {
     let intervalId;
 
     const checkUnreadNotifications = async () => {
-      try {
-        if (!currentUser?.token) return;
+      if (!currentUser) return;
 
-        const res = await fetch('http://localhost:3000/api/notifications/unread', {
+      try {
+        const res = await fetch('/api/notifications/unread/count', {
           headers: {
-            'Authorization': `Bearer ${currentUser.token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
+            'Authorization': `Bearer ${currentUser.token}`
+          }
         });
 
         if (!res.ok) {
@@ -81,7 +80,7 @@ const App = () => {
         }
 
         const data = await res.json();
-        setUnreadCount(data.unreadCount || 0);
+        setUnreadCount(data.count);
       } catch (error) {
         console.error('Error checking unread notifications:', error);
       }
@@ -243,6 +242,7 @@ const App = () => {
           <Route path="/update-listing/:listingId" element={<UpdateListing />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/schedule" element={<Schedule />} />
         </Route>
       </Routes>
       <NotificationPopup unreadCount={unreadCount} onClose={handleNotificationClose} />

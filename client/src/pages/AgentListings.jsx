@@ -34,7 +34,7 @@ const AgentListings = () => {
       try {
         setLoading(true);
         setError(null);
-
+        
         // Fetch agent data
         const agentRes = await fetch(`/api/agent/${agentId}`);
         if (!agentRes.ok) {
@@ -100,10 +100,10 @@ const AgentListings = () => {
         // Fetch agent listings
         try {
           const listingsRes = await fetch(`/api/listing/agent/${agentId}`);
-          const listingsData = await listingsRes.json();
+        const listingsData = await listingsRes.json();
 
           if (listingsRes.ok) {
-            setListings(listingsData.listings || []); 
+        setListings(listingsData.listings || []);
           }
         } catch (listingsError) {
           console.error('Error fetching listings:', listingsError);
@@ -338,9 +338,9 @@ const AgentListings = () => {
                     <span className="text-sm font-semibold">
                       {agent.companyName}
                     </span>
-                  </div>
-                </div>
-              </div>
+          </div>
+        </div>
+      </div>
             )}
             
             {/* Contact Information */}
@@ -400,7 +400,7 @@ const AgentListings = () => {
                 </div>
               )}
             </div>
-          </div>
+                  </div>
 
           {/* Rate this Agent Section */}
           <div className='bg-white p-6 rounded-lg shadow-md mb-6'>
@@ -414,8 +414,8 @@ const AgentListings = () => {
                 <span className="text-gray-600 text-lg">
                   ({calculateOverallRating()})
                 </span>
-              </div>
-            </div>
+                  </div>
+                </div>
 
             <div className="space-y-4">
               {Object.entries(ratings).map(([category, value]) => (
@@ -455,7 +455,7 @@ const AgentListings = () => {
                 ))}
               </div>
             )}
-          </div>
+            </div>
         </div>
       )}
     </div>

@@ -4,6 +4,8 @@ import LandlordRating from '../models/landlordRating.model.js';
 import Notification from '../models/notification.model.js';
 import { errorHandler } from '../utils/error.js';
 import mongoose from 'mongoose';
+import Reservation from '../models/reservation.model.js';
+import Listing from '../models/listing.model.js';
 
 export const getUserNotifications = async (req, res, next) => {
   try {
@@ -16,428 +18,167 @@ export const getUserNotifications = async (req, res, next) => {
       return next(errorHandler(404, 'User not found'));
     }
 
-    // Get notifications from the Notification model
-    const notifications = await Notification.find({ to: userId })
+    // Get notifications from the Notification model, excluding viewing_request type
+    const allNotifications = await Notification.find({ 
+      to: userId,
+      type: { $ne: 'viewing_request' } // Exclude viewing_request notifications
+    })
       .populate('to', 'username avatar')
       .populate('from', 'username avatar')
-      .populate('dispute.id')
+      .populate('reservationId')
       .sort({ createdAt: -1 });
 
-    console.log('Found direct notifications:', {
-      count: notifications.length,
-      sample: notifications[0] ? {
-        id: notifications[0]._id,
-        type: notifications[0].type,
-        dispute: notifications[0].dispute,
-        categories: notifications[0].dispute?.categories
-      } : null
-    });
-
-    // Get tenant ratings grouped by ratedBy and date
-    const tenantRatings = await TenantRating.aggregate([
-      { 
-        $match: { 
-          tenant: new mongoose.Types.ObjectId(userId) 
-        } 
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'ratedBy',
-          foreignField: '_id',
-          as: 'rater'
-        }
-      },
-      { $unwind: '$rater' },
-      {
-        $group: {
-          _id: {
-            ratedBy: '$ratedBy',
-            date: {
-              $dateToString: {
-                format: '%Y-%m-%d %H:%M',
-                date: '$createdAt'
-              }
-            }
-          },
-          categories: {
-            $push: {
-              id: '$_id',
-              category: '$category',
-              value: '$value'
-            }
-          },
-          read: { $first: '$read' },
-          comment: { $first: '$comment' },
-          createdAt: { $first: '$createdAt' },
-          rater: { $first: '$rater' }
-        }
-      }
-    ]) || [];
-
-    // Get landlord ratings grouped by ratedBy and date
-    const landlordRatings = await LandlordRating.aggregate([
-      { 
-        $match: { 
-          landlord: new mongoose.Types.ObjectId(userId) 
-        } 
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'ratedBy',
-          foreignField: '_id',
-          as: 'rater'
-        }
-      },
-      { $unwind: '$rater' },
-      {
-        $group: {
-          _id: {
-            ratedBy: '$ratedBy',
-            date: {
-              $dateToString: {
-                format: '%Y-%m-%d %H:%M',
-                date: '$createdAt'
-              }
-            }
-          },
-          categories: {
-            $push: {
-              id: '$_id',
-              category: '$category',
-              value: '$value'
-            }
-          },
-          read: { $first: '$read' },
-          comment: { $first: '$comment' },
-          createdAt: { $first: '$createdAt' },
-          rater: { $first: '$rater' }
-        }
-      }
-    ]) || [];
-
-    console.log('Raw ratings:', {
-      tenantCount: tenantRatings.length,
-      landlordCount: landlordRatings.length
-    });
-
-    // Format tenant ratings
-    const formattedTenantRatings = tenantRatings.map(rating => ({
-      id: rating.categories[0].id.toString(),
-      type: 'rating',
-      ratings: rating.categories.map(cat => ({
-        ...cat,
-        id: cat.id.toString()
-      })),
-      rater: {
-        id: rating.rater._id.toString(),
-        username: rating.rater.username || 'Unknown User',
-        avatar: rating.rater.avatar || ''
-      },
-      date: rating.createdAt,
-      comment: rating.comment || '',
-      read: rating.read || false
-    }));
-
-    // Format landlord ratings
-    const formattedLandlordRatings = landlordRatings.map(rating => ({
-      id: rating.categories[0].id.toString(),
-      type: 'rating',
-      ratings: rating.categories.map(cat => ({
-        ...cat,
-        id: cat.id.toString()
-      })),
-      rater: {
-        id: rating.rater._id.toString(),
-        username: rating.rater.username || 'Unknown User',
-        avatar: rating.rater.avatar || ''
-      },
-      date: rating.createdAt,
-      comment: rating.comment || '',
-      read: rating.read || false
-    }));
-
-    // Format notifications
-    const formattedNotifications = notifications.map(notification => ({
-      id: notification._id,
-      message: notification.message,
-      type: notification.type,
-      systemInfo: notification.systemInfo,
-      from: notification.from ? {
-        id: notification.from._id,
-        username: notification.from.username,
-        avatar: notification.from.avatar || ''
-      } : null,
-      date: notification.createdAt,
-      read: notification.read,
-      dispute: notification.dispute ? {
-        ...notification.dispute,
-        categories: Array.isArray(notification.dispute.categories) 
-          ? notification.dispute.categories 
-          : []
-      } : null
-    }));
-
-    console.log('Formatted notifications:', {
-      count: formattedNotifications.length,
-      sample: formattedNotifications[0]
-    });
-
-    // Combine all notifications and sort by date
-    const allNotifications = [
-      ...formattedNotifications,
-      ...formattedLandlordRatings,
-      ...formattedTenantRatings
-    ].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // Split into seen and unseen
+    // Split notifications into seen and unseen
     const seen = allNotifications.filter(notification => notification.read);
     const unseen = allNotifications.filter(notification => !notification.read);
 
-    console.log('Final notification counts:', { 
-      seenCount: seen.length, 
-      unseenCount: unseen.length,
-      totalCount: allNotifications.length
+    console.log('Found notifications:', {
+      total: allNotifications.length,
+      seen: seen.length,
+      unseen: unseen.length
     });
 
-    res.status(200).json({
+    res.json({
       seen,
       unseen
     });
   } catch (error) {
-    console.error('Error in getUserNotifications:', {
-      error: error.message,
-      stack: error.stack,
-      userId: req.user?.id
-    });
-    next(errorHandler(500, error.message || 'Error fetching notifications'));
-  }
-};
-
-export const deleteNotification = async (req, res, next) => {
-  try {
-    console.log('Deleting notification for user:', req.user.id);
-    const userId = req.user.id;
-    const { type, ratingId } = req.params;
-
-    // Validate parameters
-    if (!ratingId || !mongoose.Types.ObjectId.isValid(ratingId)) {
-      console.log('Invalid rating ID:', ratingId);
-      return next(errorHandler(400, 'Invalid rating ID'));
-    }
-
-    // First try to find and delete a direct notification
-    if (type === 'notification') {
-      const result = await Notification.deleteOne({
-        _id: ratingId,
-        to: userId
-      });
-
-      if (result.deletedCount > 0) {
-        return res.status(200).json({
-          success: true,
-          message: 'Notification deleted successfully'
-        });
-      }
-    }
-
-    // If type is 'rating', try both tenant and landlord ratings
-    if (type === 'rating') {
-      // Try deleting tenant rating
-      const tenantResult = await TenantRating.deleteOne({
-        _id: ratingId,
-        tenant: userId
-      });
-
-      if (tenantResult.deletedCount > 0) {
-        return res.status(200).json({
-          success: true,
-          message: 'Tenant rating notification deleted successfully'
-        });
-      }
-
-      // Try deleting landlord rating
-      const landlordResult = await LandlordRating.deleteOne({
-        _id: ratingId,
-        landlord: userId
-      });
-
-      if (landlordResult.deletedCount > 0) {
-        return res.status(200).json({
-          success: true,
-          message: 'Landlord rating notification deleted successfully'
-        });
-      }
-    }
-
-    // If we get here, no notification was found to delete
-    return next(errorHandler(404, 'Rating not found'));
-  } catch (error) {
-    console.error('Error in deleteNotification:', error);
-    next(errorHandler(500, error.message || 'Error deleting notification'));
-  }
-};
-
-export const getUnreadStatus = async (req, res, next) => {
-  try {
-    console.log('Getting unread status for user:', req.user.id);
-    const userId = req.user.id;
-
-    // Get user's notifications
-    console.log('Fetching user data...');
-    const user = await User.findById(userId)
-      .select('ratings')
-      .populate('ratings.ratedBy', 'username avatar')
-      .lean();
-
-    console.log('User data fetched:', { hasRatings: !!user?.ratings?.length });
-
-    // Get tenant ratings
-    console.log('Fetching tenant ratings...');
-    const tenantRatings = await TenantRating.find({ tenant: userId })
-      .populate('ratedBy', 'username avatar')
-      .lean();
-
-    console.log('Tenant ratings fetched:', { count: tenantRatings.length });
-
-    // Check if there are any unread notifications
-    const hasUnreadLandlordRatings = user?.ratings?.some(rating => !rating.read);
-    const hasUnreadTenantRatings = tenantRatings.some(rating => !rating.read);
-
-    const hasUnread = hasUnreadLandlordRatings || hasUnreadTenantRatings;
-
-    console.log('Unread status:', { hasUnread });
-
-    res.status(200).json({
-      success: true,
-      hasUnread
-    });
-  } catch (error) {
-    console.error('Error in getUnreadStatus:', error);
-    next(errorHandler(500, error.message || 'Error checking unread notifications'));
-  }
-};
-
-export const getUnreadCount = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return next(errorHandler(404, 'User not found'));
-    }
-
-    // Count unread notifications
-    const unreadCount = await TenantRating.countDocuments({
-      tenant: user._id,
-      read: false
-    });
-
-    res.status(200).json({ unreadCount });
-  } catch (error) {
+    console.error('Error in getUserNotifications:', error);
     next(error);
   }
 };
 
 export const createNotification = async (req, res, next) => {
   try {
-    const { userId, message, type, from, rating, ratingType, systemInfo } = req.body;
-    console.log('Creating notification:', { userId, message, type, systemInfo });
-
-    // Validate required fields
-    if (!userId || !message || !type) {
-      console.error('Missing required fields:', { userId, message, type });
-      return next(errorHandler(400, 'Missing required fields'));
-    }
-
-    // Create notification data with only required fields
-    const notificationData = {
-      to: userId,
-      message,
-      type,
-      read: false,
-      createdAt: new Date()
-    };
-
-    // Add optional fields if they exist
-    if (from) notificationData.from = from;
-    if (systemInfo) notificationData.systemInfo = systemInfo;
-    if (rating && ratingType) {
-      notificationData.rating = rating;
-      notificationData.ratingType = ratingType;
-    }
-
-    console.log('Creating notification with data:', notificationData);
-
-    const notification = await Notification.create(notificationData);
-    console.log('Created notification:', notification);
-
-    // Populate user fields if needed
-    await notification.populate(['to', 'from'].filter(field => notification[field]));
-
-    res.status(201).json({
-      success: true,
-      message: 'Notification created successfully',
-      notification
-    });
+    const notification = await Notification.create(req.body);
+    res.status(201).json(notification);
   } catch (error) {
-    console.error('Error creating notification:', error);
-    next(errorHandler(500, error.message || 'Error creating notification'));
+    next(error);
   }
 };
 
-export const markNotificationAsRead = async (req, res, next) => {
+export const deleteNotification = async (req, res, next) => {
   try {
-    const notificationId = req.params.id;
-    const userId = req.user.id;
-
-    // First try to find and update a direct notification
-    const notification = await Notification.findOne({
-      _id: notificationId,
-      to: userId
-    });
-
-    if (notification) {
-      notification.read = true;
-      await notification.save();
-      return res.status(200).json({
-        success: true,
-        message: 'Notification marked as read'
-      });
-    }
-
-    // If not a direct notification, try to find and update a tenant rating
-    const tenantRating = await TenantRating.findOne({
-      _id: notificationId,
-      tenant: userId
-    });
-
-    if (tenantRating) {
-      tenantRating.read = true;
-      await tenantRating.save();
-      return res.status(200).json({
-        success: true,
-        message: 'Tenant rating notification marked as read'
-      });
-    }
-
-    // If not a tenant rating, try to find and update a landlord rating
-    const landlordRating = await LandlordRating.findOne({
-      _id: notificationId,
-      landlord: userId
-    });
-
-    if (landlordRating) {
-      landlordRating.read = true;
-      await landlordRating.save();
-      return res.status(200).json({
-        success: true,
-        message: 'Landlord rating notification marked as read'
-      });
-    }
-
-    // If we get here, no notification was found
-    return next(errorHandler(404, 'Notification not found'));
+    const { type, ratingId } = req.params;
+    await Notification.findOneAndDelete({ type, 'data.ratingId': ratingId });
+    res.json({ message: 'Notification deleted successfully' });
   } catch (error) {
     next(error);
+  }
+};
+
+export const getUnreadCount = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    // Count unread notifications excluding viewing requests (handled in Schedule page)
+    const count = await Notification.countDocuments({ 
+      to: userId, 
+      read: false,
+      type: { $ne: 'viewing_request' }  // Exclude viewing requests from count
+    });
+
+    console.log(`Unread notifications count for user ${userId}:`, count);
+    
+    res.json({ count });
+  } catch (error) {
+    console.error('Error getting unread count:', error);
+    next(error);
+  }
+};
+
+export const getUnreadStatus = getUnreadCount;
+
+export const markNotificationAsRead = async (req, res, next) => {
+  try {
+    const { notificationId } = req.params;
+    const notification = await Notification.findByIdAndUpdate(
+      notificationId,
+      { read: true },
+      { new: true }
+    );
+    if (!notification) {
+      return next(errorHandler(404, 'Notification not found'));
+    }
+    res.json(notification);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getScheduleNotifications = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Find notifications related to viewing schedules
+    const notifications = await Notification.find({
+      $or: [{ to: userId }, { from: userId }],
+      type: { $in: ['viewing_request', 'viewing_response'] }
+    })
+    .populate('from', 'username email phoneNumbers')
+    .populate('to', 'username email phoneNumbers')
+    .sort({ createdAt: -1 });
+
+    // For each notification, populate the associated reservations and listing details
+    const populatedNotifications = await Promise.all(notifications.map(async (notification) => {
+      const notificationObj = {
+        _id: notification._id,
+        type: notification.type,
+        status: notification.status,
+        createdAt: notification.createdAt,
+        from: notification.from,
+        to: notification.to,
+        data: notification.data || {}
+      };
+      
+      if (notificationObj.data && (notificationObj.data.reservation || notificationObj.data.reservations)) {
+        // Handle both single and multiple reservations
+        const reservationIds = notificationObj.data.reservations 
+          ? notificationObj.data.reservations.map(r => r._id || r)
+          : [notificationObj.data.reservation._id || notificationObj.data.reservation];
+
+        const reservations = await Reservation.find({
+          _id: { $in: reservationIds }
+        }).populate('listing');
+
+        // Get the listing details from the first reservation
+        const listing = reservations[0]?.listing;
+
+        // Update the notification data with full reservation and listing details
+        notificationObj.data = {
+          ...notificationObj.data,
+          reservations: reservations.map(reservation => ({
+            _id: reservation._id,
+            date: reservation.date,
+            startTime: reservation.startTime,
+            endTime: reservation.endTime,
+            status: reservation.status,
+            rejectionReason: reservation.rejectionReason
+          })),
+          listing: listing ? {
+            _id: listing._id,
+            name: listing.name,
+            address: listing.address,
+            type: listing.type,
+            furnished: listing.furnished,
+            viewingSchedule: listing.viewingSchedule
+          } : null
+        };
+      }
+
+      return notificationObj;
+    }));
+
+    res.status(200).json({
+      success: true,
+      notifications: populatedNotifications
+    });
+
+  } catch (error) {
+    console.error('Error getting schedule notifications:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error retrieving notifications'
+    });
   }
 };

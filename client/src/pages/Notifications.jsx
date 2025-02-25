@@ -6,6 +6,7 @@ import logo from '../assets/tiny logo.png';
 import DisputeRatingPopup from '../components/DisputeRatingPopup';
 import Loader from '../components/Loader';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState({ unseen: [], seen: [] });
@@ -98,6 +99,7 @@ export default function Notifications() {
 
       setLoading(true);
       setError(null);
+      
       console.log('Fetching notifications with token:', currentUser.token ? 'present' : 'missing');
 
       const response = await fetch('http://localhost:3000/api/notifications', {
@@ -116,9 +118,18 @@ export default function Notifications() {
         throw new Error(data.message || 'Error fetching notifications');
       }
 
+      if (!data || (!data.seen && !data.unseen)) {
+        console.error('Invalid response format:', data);
+        throw new Error('Invalid response format from server');
+      }
+
+      // Add logging for notifications
+      const allNotifications = [...(data.unseen || []), ...(data.seen || [])];
+      console.log('Total notifications received:', allNotifications.length);
+
       // Check dispute status for each rating notification
       const notificationsWithDisputeStatus = await Promise.all(
-        data.seen.map(async notification => {
+        (data.seen || []).map(async notification => {
           if (notification.type === 'rating') {
             try {
               const disputeCheck = await fetch(`http://localhost:3000/api/dispute/check/${notification.id}`, {
@@ -138,7 +149,7 @@ export default function Notifications() {
       );
 
       const unseenWithDisputeStatus = await Promise.all(
-        data.unseen.map(async notification => {
+        (data.unseen || []).map(async notification => {
           if (notification.type === 'rating') {
             try {
               const disputeCheck = await fetch(`http://localhost:3000/api/dispute/check/${notification.id}`, {
@@ -157,23 +168,14 @@ export default function Notifications() {
         })
       );
 
-      // Ensure we have valid arrays for both seen and unseen notifications
-      const newNotifications = {
+      setNotifications({
         seen: notificationsWithDisputeStatus,
         unseen: unseenWithDisputeStatus
-      };
-
-      console.log('Processed notifications:', {
-        seen: newNotifications.seen.length,
-        unseen: newNotifications.unseen.length,
-        seenSample: newNotifications.seen[0],
-        unseenSample: newNotifications.unseen[0]
       });
-
-      setNotifications(newNotifications);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       setError(error.message);
+      toast.error('Failed to fetch notifications');
     } finally {
       setLoading(false);
     }
@@ -494,363 +496,29 @@ export default function Notifications() {
   };
 
   const handleNotificationClick = (notification) => {
-    console.log('Notification clicked - Full data:', JSON.stringify(notification, null, 2));
-    
-    if (notification.type === 'dispute_rejected' || notification.type === 'dispute_submitted' || notification.type === 'dispute_approved') {
-      setDisputeDetails({
-        id: notification.message.match(/ID: ([A-Z0-9]+)/)?.[1] || '',
-        message: notification.message
-      });
-      setShowConfirmation(true);
-    } else if (notification.type === 'dispute_submitted') {
-      // Extract dispute ID from the message
-      const disputeIdMatch = notification.message.match(/ID: ([A-Z0-9]+)/);
-      const disputeId = disputeIdMatch ? disputeIdMatch[1] : notification.id.slice(-6).toUpperCase();
-      
-      // Extract username from message
-      const disputedByMatch = notification.message.match(/disputed by ([^.]+)/);
-      const disputedBy = disputedByMatch ? disputedByMatch[1].trim() : 'Unknown user';
-
-      // Get dispute data and ensure categories is an array
-      const disputeData = notification.dispute || {};
-      const categories = disputeData.categories || [];
-      
-      // Format the categories with proper capitalization
-      const formattedCategories = categories.map(category => {
-        // Split by camelCase and capitalize each word
-        return category
-          .split(/(?=[A-Z])/)
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(' ');
-      }).join(', ');
-
-      // Log the categories data for debugging
-      console.log('Categories data:', {
-        rawCategories: categories,
-        formattedCategories,
-        fullDisputeData: disputeData
-      });
-
-      // Format the reason based on type
-      let formattedReason = 'No reason provided';
-      if (disputeData.reason) {
-        formattedReason = disputeData.reasonType === 'Other' 
-          ? disputeData.reason
-          : `${disputeData.reasonType}: ${disputeData.reason}`;
-      }
-
-      console.log('Dispute data:', {
-        dispute: disputeData,
-        formattedReason,
-        formattedCategories
-      });
-
-      const details = {
-        id: disputeId,
-        message: notification.message,
-        categories: formattedCategories || 'Categories not specified',
-        reason: formattedReason,
-        disputedBy: disputedBy,
-        date: new Date(notification.date).toLocaleString()
-      };
-      
-      console.log('Setting dispute details:', details);
-      setDisputeSubmittedDetails(details);
-      setShowDisputeSubmittedPopup(true);
+    if (notification.type === 'system' && 
+       (notification.data?.type === 'viewing_rejection' || notification.data?.type === 'viewing_accepted')) {
+      setViewingRequestPopup({ show: true, notification });
+    } else if (notification.type === 'rating' && !notification.disputed) {
+      setDisputePopup({ show: true, notification });
+    } else if (notification.type === 'rating' && notification.disputed) {
+      setAlreadyDisputedPopup({ show: true, notification });
     }
   };
 
-  const handleCopyId = (e, id) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(id);
-    toast.success('Dispute ID copied to clipboard');
-  };
-
-  const renderDisputePopup = () => {
-    if (!disputePopup.show) return null;
-    
-    const selectedCategories = disputePopup.categories.filter(cat => cat.selected);
-    const hasSelectedCategories = selectedCategories.length > 0;
-    const hasValidReason = disputePopup.selectedReason && 
-      (disputePopup.selectedReason !== 'Other' || disputePopup.otherReason.trim());
-    
-    const isFormValid = hasSelectedCategories && hasValidReason;
-
-    return (
-      <div 
-        className="fixed inset-0 z-50 flex items-center justify-center transition-all duration-300"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(5px)' }}
-      >
-        <div 
-          className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 ease-out animate-popup"
-        >
-          <h2 className="text-2xl font-semibold mb-4">Dispute Rating</h2>
-          
-          <div className="mb-4">
-            <h3 className="font-medium mb-2">Select categories to dispute:</h3>
-            <div className="space-y-2">
-              {disputePopup.categories.map((category) => (
-                <div key={category.category} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id={category.category}
-                    checked={category.selected}
-                    onChange={() => handleCategoryToggle(category)}
-                    className="mr-2"
-                  />
-                  <label htmlFor={category.category} className="capitalize">
-                    {category.category} ({category.value}/5)
-                  </label>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={handleSelectAll}
-              className="mt-2 text-blue-500 text-sm hover:text-blue-700"
-            >
-              Select All Categories
-            </button>
-            {!hasSelectedCategories && (
-              <p className="text-red-500 text-sm mt-1">Please select at least one category</p>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <h3 className="font-medium mb-2">Select reason for dispute:</h3>
-            <div className="space-y-2">
-              {disputeReasons.map((reason) => (
-                <div key={reason} className="flex items-center">
-                  <input
-                    type="radio"
-                    id={reason}
-                    name="disputeReason"
-                    value={reason}
-                    checked={disputePopup.selectedReason === reason}
-                    onChange={() => handleReasonSelect(reason)}
-                    className="mr-2"
-                  />
-                  <label htmlFor={reason}>{reason}</label>
-                </div>
-              ))}
-            </div>
-            {!disputePopup.selectedReason && (
-              <p className="text-red-500 text-sm mt-1">Please select a reason</p>
-            )}
-          </div>
-
-          {disputePopup.selectedReason === 'Other' && (
-            <div className="mb-4">
-              <label htmlFor="otherReason" className="block font-medium mb-2">
-                Please specify your reason:
-              </label>
-              <textarea
-                id="otherReason"
-                value={disputePopup.otherReason}
-                onChange={(e) => handleOtherReasonChange(e.target.value)}
-                className="w-full p-2 border rounded focus:ring-1 focus:ring-blue-500"
-                rows="3"
-                placeholder="Enter your reason for disputing these ratings..."
-              />
-              {disputePopup.selectedReason === 'Other' && !disputePopup.otherReason.trim() && (
-                <p className="text-red-500 text-sm mt-1">Please provide details for your reason</p>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => setDisputePopup(prev => ({ ...prev, show: false }))}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 bg-gray-100 rounded"
-              disabled={disputePopup.loading}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDisputeSubmit}
-              disabled={!isFormValid || disputePopup.loading}
-              className={`px-4 py-2 text-white rounded ${
-                isFormValid && !disputePopup.loading
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-gray-400 cursor-not-allowed'
-              }`}
-            >
-              {disputePopup.loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Submitting...</span>
-                </div>
-              ) : (
-                'Submit Dispute'
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const ViewingRequestPopup = () => {
-    const { notification } = viewingRequestPopup;
+  const ViewingRequestPopup = ({ notification, onClose }) => {
     const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
     const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
-    
-    // Log the full notification for debugging
-    console.log('Viewing Request Notification:', JSON.stringify(notification, null, 2));
-
-    const extractTimeSlotsFromReservation = () => {
-      try {
-        // First, check systemInfo for time slots
-        if (notification.systemInfo && notification.systemInfo.timeSlots) {
-          // If listing is available, use its viewing schedule for end times
-          if (notification.listing && notification.listing.viewingSchedule) {
-            return notification.systemInfo.timeSlots.map(slot => {
-              const daySchedule = notification.listing.viewingSchedule[slot.day];
-              return {
-                day: slot.day.toLowerCase(),
-                start: slot.time,
-                end: daySchedule && daySchedule.available && daySchedule.end 
-                  ? daySchedule.end 
-                  : '17:00'
-              };
-            });
-          }
-
-          // If no listing schedule, use default end time
-          return notification.systemInfo.timeSlots.map(slot => ({
-            day: slot.day.toLowerCase(),
-            start: slot.time,
-            end: '17:00'
-          }));
-        }
-
-        // Check for viewing schedule in notification itself
-        if (notification.viewingSchedule) {
-          return Object.entries(notification.viewingSchedule)
-            .filter(([_, schedule]) => schedule.available)
-            .map(([day, schedule]) => ({
-              day: day.toLowerCase(),
-              start: schedule.start,
-              end: schedule.end || '17:00'
-            }));
-        }
-
-        // Check for viewing schedule in listing
-        if (notification.listing && notification.listing.viewingSchedule) {
-          return Object.entries(notification.listing.viewingSchedule)
-            .filter(([_, schedule]) => schedule.available)
-            .map(([day, schedule]) => ({
-              day: day.toLowerCase(),
-              start: schedule.start,
-              end: schedule.end || '17:00'
-            }));
-        }
-
-        // Parse from message as a last resort
-        const dayTimePatterns = [
-          // Pattern like: "Monday 09:00-17:00"
-          {
-            regex: /(\w+)\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/gi,
-            extract: (match) => ({
-              day: match[1].toLowerCase(),
-              start: match[2],
-              end: match[3]
-            })
-          },
-          // Pattern like: "Monday at 10:00"
-          {
-            regex: /(\w+)\s*at\s*(\d{1,2}:\d{2})/gi,
-            extract: (match) => ({
-              day: match[1].toLowerCase(),
-              start: match[2],
-              end: '17:00'
-            })
-          }
-        ];
-
-        const extractedSlots = [];
-        
-        dayTimePatterns.forEach(pattern => {
-          const matches = [...notification.message.matchAll(new RegExp(pattern.regex))];
-          matches.forEach(match => {
-            const slot = pattern.extract(match);
-            extractedSlots.push(slot);
-          });
-        });
-
-        // Fallback to default viewing schedule
-        if (extractedSlots.length === 0) {
-          return [
-            { day: 'monday', start: '09:00', end: '17:00' },
-            { day: 'tuesday', start: '09:00', end: '17:00' },
-            { day: 'wednesday', start: '09:00', end: '17:00' },
-            { day: 'thursday', start: '09:00', end: '17:00' },
-            { day: 'friday', start: '09:00', end: '17:00' },
-            { day: 'saturday', start: '09:00', end: '17:00' },
-            { day: 'sunday', start: '09:00', end: '17:00' }
-          ];
-        }
-
-        return extractedSlots;
-      } catch (error) {
-        console.error('Error extracting time slots:', error);
-        return [
-          { day: 'monday', start: '09:00', end: '17:00' },
-          { day: 'tuesday', start: '09:00', end: '17:00' },
-          { day: 'wednesday', start: '09:00', end: '17:00' },
-          { day: 'thursday', start: '09:00', end: '17:00' },
-          { day: 'friday', start: '09:00', end: '17:00' },
-          { day: 'saturday', start: '09:00', end: '17:00' },
-          { day: 'sunday', start: '09:00', end: '17:00' }
-        ];
-      }
-    };
-
-    // Initialize available time slots on component mount
-    useEffect(() => {
-      const initialTimeSlots = extractTimeSlotsFromReservation();
-      setAvailableTimeSlots(initialTimeSlots);
-    }, [notification]);
-
-    // Format time slots with proper capitalization and structure
-    const formatTimeSlot = (slot) => {
-      const capitalizedDay = slot.day.charAt(0).toUpperCase() + slot.day.slice(1);
-      // Handle both time formats (time/end and start/end)
-      const startTime = slot.time || slot.start;
-      const endTime = slot.end || '17:00';
-      return `${capitalizedDay} ${startTime} - ${endTime}`;
-    };
+    const navigate = useNavigate();
 
     // Clean message for display
     const cleanMessage = (message) => {
-      // Remove the time slots part from the message
-      return message.replace(/\s*at the following times:.*$/i, '');
+      if (!message) {
+        message = notification.content || notification.data?.message || 'No message available';
+      }
+      return message;
     };
     const cleanedMessage = cleanMessage(notification.message);
-
-    // Format time slots from systemInfo
-    const formatTimeSlots = () => {
-      if (notification.systemInfo && notification.systemInfo.timeSlots) {
-        const slots = notification.systemInfo.timeSlots.map(slot => {
-          const endTime = notification.listing && 
-                          notification.listing.viewingSchedule && 
-                          notification.listing.viewingSchedule[slot.day] &&
-                          notification.listing.viewingSchedule[slot.day].end
-                          ? notification.listing.viewingSchedule[slot.day].end 
-                          : '17:00';
-          
-          return {
-            day: slot.day,
-            time: slot.time,
-            end: endTime
-          };
-        });
-        return slots.map(formatTimeSlot).join(', ');
-      }
-      return '';
-    };
-
-    // Modify the original message to include formatted time slots
-    const formattedMessage = `${cleanedMessage} at the following times: ${formatTimeSlots()}`;
 
     // Extract requester information
     const requesterName = notification.from?.username || 
@@ -863,140 +531,68 @@ export default function Notifications() {
     const requesterAvatar = notification.from?.avatar || 
                             notification.systemInfo?.avatar || 
                             '/default-avatar.png';
-    
-    // Handle time slot selection
-    const handleTimeSlotSelect = (timeSlot) => {
-      setSelectedTimeSlots(prev => {
-        const exists = prev.some(slot => 
-          slot.day === timeSlot.day && 
-          slot.start === timeSlot.start && 
-          slot.end === timeSlot.end
-        );
-        
-        if (exists) {
-          return prev.filter(slot => 
-            !(slot.day === timeSlot.day && 
-              slot.start === timeSlot.start && 
-              slot.end === timeSlot.end)
-          );
-        } else {
-          return [...prev, timeSlot];
-        }
-      });
+
+    const handleListingClick = () => {
+      const listingId = notification.data?.listing?._id;
+      if (listingId) {
+        onClose();
+        navigate(`/listing/${listingId}`);
+      }
     };
 
-    // Handle accept viewing request
-    const handleAccept = () => {
-      if (selectedTimeSlots.length === 0) {
-        alert('Please select at least one viewing time');
-        return;
-      }
-      
-      // Call the existing accept function with selected times
-      handleAcceptViewingRequest({
-        ...notification,
-        selectedTimes: selectedTimeSlots
-      });
-    };
+    const isAccepted = notification.data?.type === 'viewing_accepted';
 
     return (
-      <div 
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm animate-popup"
-        onClick={() => setViewingRequestPopup({ show: false, notification: null })}
-      >
-        <div 
-          className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 relative"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button 
-            onClick={() => setViewingRequestPopup({ show: false, notification: null })}
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-lg w-full relative">
+          <button
+            onClick={onClose}
             className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
 
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-              Viewing Request Details
-            </h2>
-            <p className="text-gray-600">
-              {formattedMessage}
-            </p>
+          <h2 className={`text-2xl font-bold mb-4 ${isAccepted ? 'text-green-600' : 'text-red-600'}`}>
+            {isAccepted ? 'Viewing Request Accepted' : 'Viewing Request Details'}
+          </h2>
+          
+          <div className="mb-6">
+            <div 
+              onClick={handleListingClick}
+              className={`bg-gray-50 rounded-lg p-4 mb-4 ${notification.data?.listing?._id ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
+            >
+              <h3 className="text-lg font-semibold mb-2">Listing Details</h3>
+              <p className="text-gray-700">
+                <span className="font-medium">Name: </span>
+                {notification.data?.listing?.name || 'Unnamed Listing'}
+              </p>
+              <p className="text-gray-700">
+                <span className="font-medium">ID: </span>
+                <span className="font-mono text-sm">{notification.data?.listing?._id || 'N/A'}</span>
+              </p>
+            </div>
+            <p className="text-gray-700 text-lg">{cleanedMessage}</p>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">Requester</h3>
-              <div className="flex items-center space-x-3">
-                <img 
-                  src={requesterAvatar} 
-                  alt="Requester" 
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-                <div>
-                  <p className="font-medium text-gray-800">
-                    {requesterName}
-                  </p>
-                  {requesterEmail && (
-                    <p className="text-sm text-gray-500">
-                      {requesterEmail}
-                    </p>
-                  )}
-                  {requesterPhone && (
-                    <p className="text-sm text-gray-500">
-                      {requesterPhone}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-semibold text-gray-700 mb-2">Available Viewing Times</h3>
-              <div className="flex flex-wrap gap-2 mb-4">
-                {availableTimeSlots && availableTimeSlots.length > 0 ? (
-                  availableTimeSlots.map((timeSlot, index) => (
-                    <div 
-                      key={index} 
-                      onClick={() => handleTimeSlotSelect(timeSlot)}
-                      className={`
-                        px-4 py-2 rounded-full cursor-pointer transition-all duration-200
-                        ${selectedTimeSlots.some(slot => 
-                          slot.day === timeSlot.day && 
-                          ((slot.time === timeSlot.time && slot.end === timeSlot.end) ||
-                           (slot.start === timeSlot.start && slot.end === timeSlot.end))
-                        ) 
-                          ? 'bg-green-800 text-white' 
-                          : 'bg-green-100 text-green-800 hover:bg-green-200'}
-                      `}
-                    >
-                      {timeSlot.day.charAt(0).toUpperCase() + timeSlot.day.slice(1)} {timeSlot.time || timeSlot.start} - {timeSlot.end}
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 italic">No times available</p>
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold mb-3">From Landlord</h3>
+            <div className="flex items-center gap-3">
+              <img
+                src={requesterAvatar}
+                alt={requesterName}
+                className="w-12 h-12 rounded-full object-cover"
+              />
+              <div>
+                <p className="font-medium text-lg">{requesterName}</p>
+                {requesterEmail && (
+                  <p className="text-gray-600">{requesterEmail}</p>
+                )}
+                {requesterPhone && (
+                  <p className="text-gray-600">{requesterPhone}</p>
                 )}
               </div>
-            </div>
-
-            <div className="flex justify-between space-x-4 mt-6">
-              <button
-                onClick={handleAccept}
-                className="flex-1 bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition-colors"
-              >
-                Accept ({selectedTimeSlots.length})
-              </button>
-              <button
-                onClick={() => {
-                  // Handle reject viewing request
-                  handleRejectViewingRequest(notification);
-                }}
-                className="flex-1 bg-red-500 text-white py-2 rounded-md hover:bg-red-600 transition-colors"
-              >
-                Reject
-              </button>
             </div>
           </div>
         </div>
@@ -1107,177 +703,169 @@ export default function Notifications() {
   };
 
   const renderNotification = (notification) => {
-    // Log full notification object for debugging
-    console.log('Full Notification Object:', JSON.stringify(notification, null, 2));
-
-    // Determine the date to use, with multiple fallback options
-    const notificationDate = 
-      notification.createdAt || 
-      notification.date || 
-      notification.timestamp || 
-      new Date().toISOString();
-
-    // Restore renderStars function for rating notifications
-    const renderStars = (value) => {
-      return (
-        <div className="flex items-center">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <svg
-              key={star}
-              className={`w-4 h-4 ${
-                star <= value ? 'text-yellow-400' : 'text-gray-300'
-              }`}
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292z"
+    const getNotificationContent = () => {
+      if (notification.type === 'system' && 
+         (notification.data?.type === 'viewing_rejection' || notification.data?.type === 'viewing_accepted')) {
+        const isRejection = notification.data.type === 'viewing_rejection';
+        return (
+          <>
+            <div className="flex items-start space-x-4">
+              <img
+                src={notification.from?.avatar || notification.systemInfo?.avatar || '/default-avatar.png'}
+                alt={notification.from?.username || notification.systemInfo?.name || 'Landlord'}
+                className="w-10 h-10 rounded-full object-cover"
               />
-            </svg>
-          ))}
-          <span className="ml-1 text-sm font-medium">{value}/5</span>
-        </div>
-      );
-    };
-
-    if (notification.type === 'system') {
-      return (
-        <div 
-          key={notification.id}
-          className="bg-white p-4 rounded-lg shadow-md relative cursor-pointer hover:bg-gray-50"
-          onClick={() => setViewingRequestPopup({ show: true, notification })}
-        >
-          <div className="flex items-start gap-4">
-            {getNotificationIcon(notification)}
-            <div className="flex-1">
-              <div>
-                {getNotificationTitle(notification)}
-                <p className="text-sm text-gray-400 mt-1">
-                  {formatDate(notificationDate)}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline">
+                  <p className={`text-sm font-medium truncate ${isRejection ? 'text-red-600' : 'text-green-600'}`}>
+                    {isRejection ? 'Rejected Viewing' : 'Accepted Viewing'}
+                  </p>
+                  <span className="ml-2 text-xs text-gray-500">
+                    {formatDate(notification.createdAt)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 truncate">
+                  {notification.data?.listing?.name || 'Unnamed Listing'}
                 </p>
-                <p className="text-sm text-gray-500 line-clamp-2 mt-2">{notification.message}</p>
+                <p className="text-sm text-gray-500 truncate">
+                  From: {notification.from?.username || notification.systemInfo?.name || 'Anonymous'}
+                </p>
               </div>
-              <div className="flex justify-between items-center mt-2">
-                <div className="flex items-center gap-2">
-                  {!notification.read && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMarkAsRead(notification.id);
-                      }}
-                      className="text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Mark as Read
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteNotification(notification);
-                    }}
-                    className="text-red-500 hover:text-red-700 transition-colors bg-red-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
-                  >
+            </div>
+            <div className="mt-3 flex items-center gap-2 justify-end">
+              {!notification.read && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMarkAsRead(notification._id);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Mark as Read
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(notification);
+                }}
+                disabled={deletingIds.has(notification._id)}
+                className="text-gray-500 hover:text-red-500 transition-colors bg-gray-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+              >
+                {deletingIds.has(notification._id) ? (
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+                ) : (
+                  <>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                     Delete
-                  </button>
-                </div>
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        );
+      }
+
+      // Default notification rendering
+      return (
+        <>
+          <div className="flex items-start space-x-4">
+            {getNotificationIcon(notification)}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline">
+                <p className="text-sm font-medium text-gray-900">
+                  {getNotificationTitle(notification)}
+                </p>
+                <span className="ml-2 text-xs text-gray-500">
+                  {formatDate(notification.createdAt)}
+                </span>
               </div>
+              <p className="text-sm text-gray-600">
+                {notification.content || notification.message}
+              </p>
             </div>
           </div>
-        </div>
+          <div className="mt-3 flex items-center gap-2 justify-end">
+            {!notification.read && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMarkAsRead(notification._id);
+                }}
+                className="text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Mark as Read
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(notification);
+              }}
+              disabled={deletingIds.has(notification._id)}
+              className="text-gray-500 hover:text-red-500 transition-colors bg-gray-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+            >
+              {deletingIds.has(notification._id) ? (
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </>
+              )}
+            </button>
+          </div>
+        </>
       );
-    }
-
-    // For other notification types, specifically rating notifications
-    const isRatingNotification = notification.type === 'rating';
-    const ratings = notification.ratings || [];
-    const sortedRatings = isRatingNotification 
-      ? ratings
-          .filter(r => r.category !== 'overall')
-          .sort((a, b) => a.category.localeCompare(b.category))
-      : [];
-
-    // Extract user info from rater or from fields
-    const rater = notification.rater || {};
-    const username = rater.username || 'Anonymous';
-    const avatar = rater.avatar || '/default-avatar.png';
+    };
 
     return (
-      <div 
-        key={notification.id} 
-        className="bg-white p-4 rounded-lg shadow-md relative cursor-pointer hover:bg-gray-50"
-        onClick={() => handleNotificationClick(notification)}
+      <div
+        key={notification._id}
+        className={`
+          p-4 hover:bg-gray-50 transition-colors cursor-pointer
+          ${!notification.read ? 'bg-blue-50' : 'bg-white'}
+          ${notification.disputed ? 'border-l-4 border-orange-500' : ''}
+        `}
+        onClick={(e) => {
+          e.preventDefault();
+          handleNotificationClick(notification);
+        }}
       >
-        <div className="flex items-start gap-4">
-          {getNotificationIcon(notification)}
-          <div className="flex-1">
-            <div className="flex justify-between items-start">
-              <div>
-                {getNotificationTitle(notification)}
-                <p className="text-gray-600 text-sm">
-                  {formatDate(notificationDate)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {!notification.read && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMarkAsRead(notification.id);
-                    }}
-                    className="text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Mark as Read
-                  </button>
-                )}
-                {getDisputeButton(notification)}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(notification);
-                  }}
-                  disabled={deletingIds.has(notification.id)}
-                  className="text-gray-500 hover:text-red-500 transition-colors bg-gray-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
-                >
-                  {deletingIds.has(notification.id) ? (
-                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Delete
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+        {getNotificationContent()}
+      </div>
+    );
+  };
 
-            <p className="mt-2">{notification.message || `${username} rated you`}</p>
-            
-            {isRatingNotification && (
-              <div className="mt-4 space-y-2">
-                {sortedRatings.map((rating) => (
-                  <div key={rating.category} className="flex items-center justify-between">
-                    <span className="text-gray-600 capitalize">{rating.category}:</span>
-                    <div className="flex items-center">
-                      {renderStars(rating.value)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+  const renderStars = (value) => {
+    return (
+      <div className="flex items-center">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <svg
+            key={star}
+            className={`w-4 h-4 ${
+              star <= value ? 'text-yellow-400' : 'text-gray-300'
+            }`}
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292z"
+            />
+          </svg>
+        ))}
+        <span className="ml-1 text-sm font-medium">{value}/5</span>
       </div>
     );
   };
@@ -1624,7 +1212,7 @@ export default function Notifications() {
       )}
 
       {disputePopup.show && renderDisputePopup()}
-      {viewingRequestPopup.show && <ViewingRequestPopup />}
+      {viewingRequestPopup.show && <ViewingRequestPopup notification={viewingRequestPopup.notification} onClose={() => setViewingRequestPopup({ show: false, notification: null })} />}
       {showConfirmation && disputeDetails && renderConfirmationPopup()}
       {showAlreadyDisputedPopup && alreadyDisputedDetails && renderAlreadyDisputedPopup()}
       {showDisputeSubmittedPopup && disputeSubmittedDetails && renderDisputeSubmittedPopup()}

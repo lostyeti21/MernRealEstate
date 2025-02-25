@@ -1,60 +1,45 @@
 import mongoose from 'mongoose';
 
 const notificationSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    required: true,
+    enum: ['viewing_request', 'system', 'message']
+  },
   to: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  message: {
+  from: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  title: {
     type: String,
     required: true
   },
-  type: {
+  content: {
     type: String,
-    required: true,
-    enum: ['rating', 'dispute_rejected', 'dispute_approved', 'dispute_submitted', 'dispute_resolved', 'system']
+    required: true
+  },
+  data: {
+    type: Object,
+    default: {}
+  },
+  reservationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Reservation'
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'accepted', 'rejected'],
+    default: 'pending'
   },
   read: {
     type: Boolean,
     default: false
-  },
-  from: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  systemInfo: {
-    name: {
-      type: String,
-      default: 'System'
-    },
-    avatar: {
-      type: String,
-      default: '/default-avatar.png'
-    }
-  },
-  dispute: {
-    id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Dispute'
-    },
-    reason: String,
-    reasonType: String,
-    categories: [{
-      type: String,
-      required: true
-    }]
-  },
-  rating: {
-    type: mongoose.Schema.Types.ObjectId,
-    refPath: 'ratingType',
-    required: false
-  },
-  ratingType: {
-    type: String,
-    enum: ['TenantRating', 'LandlordRating', null],
-    required: false,
-    default: null
   },
   createdAt: {
     type: Date,

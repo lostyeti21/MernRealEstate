@@ -323,6 +323,7 @@ export const rateLandlord = async (req, res, next) => {
 
     // Calculate new average rating
     const averageRating = calculateAverageRating(updateResult.ratings);
+    const totalRatings = updateResult.ratings.length;
 
     // Get rater's name for the notification
     const rater = await User.findById(userId).select('username');
@@ -331,7 +332,16 @@ export const rateLandlord = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Rating submitted successfully',
-      averageRating,
+      ratings: {
+        overall: {
+          averageRating,
+          totalRatings
+        },
+        categories: newRatings.reduce((acc, rating) => {
+          acc[rating.category] = rating.value;
+          return acc;
+        }, {})
+      },
       raterName
     });
 

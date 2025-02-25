@@ -109,15 +109,15 @@ export default function AgentCreateListing() {
 
       try {
         const urls = await Promise.all(promises);
-        setFormData({
-          ...formData,
-          imageUrls: formData.imageUrls.concat(urls),
-        });
-        setImageUploadError(false);
+          setFormData({
+            ...formData,
+            imageUrls: formData.imageUrls.concat(urls),
+          });
+          setImageUploadError(false);
       } catch (err) {
-        setImageUploadError('Image upload failed (2 mb max per image)');
+          setImageUploadError('Image upload failed (2 mb max per image)');
       } finally {
-        setUploading(false);
+          setUploading(false);
       }
     } else {
       setImageUploadError('You can only upload 6 images per listing');
@@ -316,7 +316,7 @@ export default function AgentCreateListing() {
 
       setLoading(true);
       setError(false);
-      
+
       // Ensure user is an agent before creating listing
       if (!user) {
         setError('User not found. Please log in as an agent.');
@@ -710,49 +710,49 @@ export default function AgentCreateListing() {
                 type='checkbox'
                 id='pool'
                 className='w-5 h-5'
-                onChange={handleChange}
+              onChange={handleChange}
                 checked={formData.pool}
               />
               <span>Pool</span>
             </div>
             <div className='flex gap-2 items-center'>
-              <input
+            <input
                 type='checkbox'
                 id='garden'
                 className='w-5 h-5'
-                onChange={handleChange}
+              onChange={handleChange}
                 checked={formData.garden}
-              />
+            />
               <span>Garden</span>
             </div>
             <div className='flex gap-2 items-center'>
-              <input
+            <input
                 type='checkbox'
                 id='balcony'
                 className='w-5 h-5'
-                onChange={handleChange}
+              onChange={handleChange}
                 checked={formData.balcony}
-              />
+            />
               <span>Balcony</span>
             </div>
             <div className='flex gap-2 items-center'>
-              <input
+            <input
                 type='checkbox'
                 id='airConditioning'
                 className='w-5 h-5'
-                onChange={handleChange}
+              onChange={handleChange}
                 checked={formData.airConditioning}
-              />
+            />
               <span>Air Conditioning</span>
             </div>
             <div className='flex gap-2 items-center'>
-              <input
+            <input
                 type='checkbox'
                 id='wifi'
                 className='w-5 h-5'
-                onChange={handleChange}
+              onChange={handleChange}
                 checked={formData.wifi}
-              />
+            />
               <span>WiFi</span>
             </div>
           </div>

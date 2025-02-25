@@ -455,7 +455,7 @@ export default function Home() {
       {/* Hero Section with Fade Transition and Zoom Effect */}
       <div className="absolute top-0 left-0 w-full h-[973px] z-0 overflow-hidden bg-black">
         <AnimatePresence initial={false}>
-          {heroImages.map((image, index) => (
+        {heroImages.map((image, index) => (
             index === currentImageIndex && (
               <motion.div
                 key={`hero-${index}`}
@@ -470,7 +470,7 @@ export default function Home() {
               >
                 <div className="relative w-full h-full">
                   <img
-                    src={image}
+            src={image}
                     alt={`Hero ${index}`}
                     className="w-full h-full object-cover brightness-"
                     style={{
@@ -513,7 +513,7 @@ export default function Home() {
                   className="text-lg lg:text-xl text-gray-200 leading-relaxed mb-4"
                 >
                   Just list it will help you find your home fast, easy and comfortable.
-                  <br />
+              <br />
                   Our expert support is always available.
                 </motion.div>
                 <motion.div
@@ -592,7 +592,7 @@ export default function Home() {
                 <div className="relative h-[100px] mb-8">
                   <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
                     <span style={{ color: '#d2d1e6', opacity: 0.6 }}>FEATURED</span>
-                  </h1>
+            </h1>
                   <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
                     Property
                   </h2>
@@ -1006,20 +1006,20 @@ export default function Home() {
           <div className="bg-white p-8 rounded-lg max-w-md w-full">
             <h2 className="text-2xl font-bold mb-4">Let's find your perfect place</h2>
             {isRenting === null && (
-              <div className="flex justify-around mb-4">
-                <button
-                  onClick={() => handleRentOrBuy("rent")}
+            <div className="flex justify-around mb-4">
+              <button
+                onClick={() => handleRentOrBuy("rent")}
                   className="bg-[#c9f2ac] hover:bg-[#c41212] text-black py-2 px-4 rounded"
-                >
-                  Rent
-                </button>
-                <button
-                  onClick={() => handleRentOrBuy("sale")}
+              >
+                Rent
+              </button>
+              <button
+                onClick={() => handleRentOrBuy("sale")}
                   className="bg-[#c9f2ac] hover:bg-[#c41212] text-black py-2 px-4 rounded"
-                >
-                  Buy
-                </button>
-              </div>
+              >
+                Buy
+              </button>
+            </div>
             )}
 
             {isRenting !== null && (
@@ -1031,26 +1031,26 @@ export default function Home() {
                     : "Enter your price range for buying:"}
                 </label>
                 <div className="space-y-4">
-                  <input
-                    type="number"
+                <input
+                  type="number"
                     placeholder={`Min ${isRenting === "rent" ? "Rent" : "Price"}`}
                     className="border p-3 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={minPrice}
+                  value={minPrice}
                     onChange={(e) => {
                       setMinPrice(e.target.value);
                       setPriceError('');
                     }}
-                  />
-                  <input
-                    type="number"
+                />
+                <input
+                  type="number"
                     placeholder={`Max ${isRenting === "rent" ? "Rent" : "Price"}`}
                     className="border p-3 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={maxPrice}
+                  value={maxPrice}
                     onChange={(e) => {
                       setMaxPrice(e.target.value);
                       setPriceError('');
                     }}
-                  />
+                />
                 </div>
                 {priceError && (
                   <p className="text-red-500 text-sm mt-2">{priceError}</p>

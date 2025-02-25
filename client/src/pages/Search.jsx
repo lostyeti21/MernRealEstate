@@ -545,7 +545,7 @@ export default function Search() {
           </div>
         </div>
       )}
-      
+
       {showPropertyTypePopup && (
         <div className="fixed top-0 left-0 w-full h-full flex justify-center items-center bg-black bg-opacity-50 z-50">
           <div 
@@ -638,7 +638,7 @@ export default function Search() {
           <div className="flex flex-col gap-2">
             <label className="font-semibold">Type</label>
             <div className="grid grid-cols-3 gap-2">
-              {['all', 'rent', 'sale'].map((type) => (
+            {['all', 'rent', 'sale'].map((type) => (
                 <div 
                   key={type}
                   className={`
@@ -671,8 +671,8 @@ export default function Search() {
                      type === 'rent' ? 'Rent' : 
                      'Sale'}
                   </span>
-                </div>
-              ))}
+              </div>
+            ))}
             </div>
           </div>
 
@@ -798,8 +798,8 @@ export default function Search() {
                         }}
                       >
                         {amenity.label}
-                      </div>
-                    ))}
+              </div>
+            ))}
                   </div>
                 </div>
               )}
@@ -840,28 +840,28 @@ export default function Search() {
             <div className="flex items-center gap-2">
               <div className="relative w-full">
                 <FaDollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-black pointer-events-none" />
-                <input
-                  type="number"
-                  id="minPrice"
+              <input
+                type="number"
+                id="minPrice"
                   placeholder="Min Price"
                   className="w-full pl-8 pr-3 py-2 bg-[#e4e7eb] text-black rounded-none border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                  value={sidebardata.minPrice}
+                value={sidebardata.minPrice}
                   onChange={(e) => {
                     setSidebardata({
                       ...sidebardata,
                       minPrice: e.target.value
                     });
                   }}
-                />
-              </div>
+              />
+            </div>
               <div className="relative w-full">
                 <FaDollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-black pointer-events-none" />
-                <input
-                  type="number"
-                  id="maxPrice"
+              <input
+                type="number"
+                id="maxPrice"
                   placeholder="Max Price"
                   className="w-full pl-8 pr-3 py-2 bg-[#e4e7eb] text-black rounded-none border border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300"
-                  value={sidebardata.maxPrice}
+                value={sidebardata.maxPrice}
                   onChange={(e) => {
                     setSidebardata({
                       ...sidebardata,
@@ -975,24 +975,24 @@ export default function Search() {
             </motion.div>
           ))}
         </div>
-        
+
         {!loading && listings.length > 0 && (
-          <div className="flex flex-col items-center mt-6">
-            <div className="flex justify-center items-center gap-4">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
+        <div className="flex flex-col items-center mt-6">
+          <div className="flex justify-center items-center gap-4">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
                 className={`bg-blue-500 text-white px-4 py-2 rounded-lg hover:opacity-90 ${
                   currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
                 disabled={currentPage === 1 || loading}
-              >
-                Previous
-              </button>
+            >
+              Previous
+            </button>
               <span className="text-lg font-semibold">
                 Page {currentPage} of {totalPages}
               </span>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
                 className={`
                   px-4 py-2 rounded-lg 
                   ${
@@ -1003,17 +1003,17 @@ export default function Search() {
                   text-white transition-colors duration-300
                 `}
                 disabled={currentPage === totalPages || loading}
-              >
-                Next
-              </button>
-            </div>
+            >
+              Next
+            </button>
+          </div>
 
-            <div className="flex items-center gap-2 mt-4">
-              <input
-                type="text"
-                placeholder="Go to page"
-                value={inputPage}
-                onChange={handlePageInput}
+          <div className="flex items-center gap-2 mt-4">
+            <input
+              type="text"
+              placeholder="Go to page"
+              value={inputPage}
+              onChange={handlePageInput}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter') {
                     goToPage();
@@ -1021,19 +1021,19 @@ export default function Search() {
                 }}
                 className="border rounded-lg p-2 w-24 text-center"
               />
-              <button
-                onClick={goToPage}
+            <button
+              onClick={goToPage}
                 disabled={!inputPage || loading || parseInt(inputPage) > totalPages}
                 className={`
                   px-4 py-2 rounded-lg bg-blue-500 text-white
                   hover:bg-blue-600 transition-colors duration-300
                   disabled:opacity-50 disabled:cursor-not-allowed
                 `}
-              >
-                Go
-              </button>
-            </div>
+            >
+              Go
+            </button>
           </div>
+        </div>
         )}
         <ScrollToTop />
       </div>

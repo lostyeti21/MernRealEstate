@@ -38,6 +38,7 @@ export default function Listing() {
   const [contact, setContact] = useState(false);
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
+  const [selectedDay, setSelectedDay] = useState([]);
   const [listedBy, setListedBy] = useState({ loading: true, error: null, data: null });
   const [coordinates, setCoordinates] = useState(null);
   const [showFullscreen, setShowFullscreen] = useState(false);
@@ -825,190 +826,210 @@ export default function Listing() {
     setShowReservationModal(true);
   };
 
-  const handleTimeSelection = (day, time) => {
-    // Get the end time from the listing's viewing schedule
-    const endTime = listing.viewingSchedule && 
-                    listing.viewingSchedule[day] && 
-                    listing.viewingSchedule[day].end 
-                    ? listing.viewingSchedule[day].end 
-                    : '17:00';
-
-    const timeSlot = { 
-      day, 
-      time, 
-      end: endTime 
-    };
-
-    setSelectedTimeSlots(prev => {
-      const exists = prev.some(slot => 
-        slot.day === day && slot.time === time
-      );
-      
-      if (exists) {
-        return prev.filter(slot => 
-          !(slot.day === day && slot.time === time)
-        );
+  const handleDaySelect = (day) => {
+    const schedule = listing.viewingSchedule[day.toLowerCase()];
+    if (schedule && schedule.available) {
+      // Toggle selected day
+      const isDaySelected = selectedDay.includes(day.toLowerCase());
+      if (isDaySelected) {
+        setSelectedDay(prev => prev.filter(d => d !== day.toLowerCase()));
+        setSelectedTimeSlots(prev => prev.filter(slot => slot.day !== getFormattedDate(day)));
       } else {
-        return [...prev, timeSlot];
+        setSelectedDay(prev => [...prev, day.toLowerCase()]);
+        
+        // Create a date for the selected day
+        const formattedDate = getFormattedDate(day);
+        
+        // Add the selected day to time slots
+        setSelectedTimeSlots(prev => [...prev, {
+          day: formattedDate,
+          start: schedule.start,
+          end: schedule.end
+        }]);
       }
-    });
+    } else {
+      toast.error('This day is not available for viewing');
+    }
   };
 
-  const handleSubmitReservation = async () => {
-    if (selectedTimeSlots.length === 0) {
-      toast.error('Please select at least one viewing time');
+  // Helper function to get formatted date for a day
+  const getFormattedDate = (day) => {
+    const today = new Date();
+    const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      .indexOf(day.toLowerCase());
+    
+    let targetDate = new Date();
+    const currentDayIndex = today.getDay();
+    const daysToAdd = (dayIndex - currentDayIndex + 7) % 7;
+    targetDate.setDate(today.getDate() + daysToAdd);
+    
+    return targetDate.toISOString().split('T')[0];
+  };
+
+  const renderViewingSchedule = () => {
+    if (!listing.viewingSchedule) return null;
+
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    return (
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex justify-between items-end mb-2">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-700">Select Viewing Days</h2>
+            <p className="text-sm text-gray-500">Choose one or more days that work for you</p>
+          </div>
+          {selectedTimeSlots.length > 0 && (
+            <button
+              onClick={() => {
+                setSelectedTimeSlots([]);
+                setSelectedDay([]);
+              }}
+              className="text-sm text-red-500 hover:text-red-600"
+            >
+              Clear Selection
+            </button>
+          )}
+        </div>
+        
+        {listing.flexibleViewingTime ? (
+          <p className="text-sm text-blue-600 mb-4">
+            Viewing times are flexible and will be arranged based on the landlord's availability
+          </p>
+        ) : (
+          <div className="grid gap-4">
+            {days.map((day) => {
+              const schedule = listing.viewingSchedule[day.toLowerCase()];
+              const isAvailable = schedule && schedule.available;
+              const isSelected = selectedDay.includes(day.toLowerCase());
+              
+              // Calculate the next occurrence of this day
+              const today = new Date();
+              const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+                .indexOf(day.toLowerCase());
+              let targetDate = new Date();
+              const currentDayIndex = today.getDay();
+              const daysToAdd = (dayIndex - currentDayIndex + 7) % 7;
+              targetDate.setDate(today.getDate() + daysToAdd);
+              
+              const formattedDate = targetDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
+              });
+              
+              return (
+                <div 
+                  key={day} 
+                  className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all ${
+                    isAvailable 
+                      ? isSelected
+                        ? 'bg-blue-100 border-2 border-blue-500'
+                        : 'bg-slate-50 hover:bg-slate-100'
+                      : 'bg-gray-100 opacity-50 cursor-not-allowed'
+                  }`}
+                  onClick={() => isAvailable && handleDaySelect(day)}
+                >
+                  <div className="flex items-center gap-3 min-w-[150px]">
+                    {isAvailable && (
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                        isSelected 
+                          ? 'bg-blue-500 border-blue-500 text-white'
+                          : 'border-gray-300'
+                      }`}>
+                        {isSelected && (
+                          <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex flex-col">
+                      <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                        {day}
+                      </span>
+                      <span className="text-sm text-gray-500">{formattedDate}</span>
+                    </div>
+                  </div>
+                  
+                  {isAvailable && (
+                    <div className="flex items-center gap-2 flex-1 text-sm">
+                      <span className={isSelected ? 'text-blue-700' : 'text-gray-600'}>
+                        {schedule.start} - {schedule.end}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {!isAvailable && (
+                    <span className="text-sm text-gray-500">Not available</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const handleConfirmViewing = async () => {
+    if (!selectedTimeSlots.length) {
+      toast.error('Please select a viewing day');
+      return;
+    }
+
+    console.log('Selected Time Slots:', selectedTimeSlots);
+    
+    const reservationData = {
+      listingId: listing._id,
+      userId: currentUser._id,
+      landlordId: listing.userRef,
+      selectedTimeSlots: selectedTimeSlots,
+      propertyName: listing.name,
+      viewerName: currentUser.username,
+      viewerEmail: currentUser.email,
+      viewerPhone: currentUser.phoneNumbers?.[0] || '',
+      flexibleViewingTime: listing.flexibleViewingTime
+    };
+
+    console.log('Data being sent:', reservationData);
+    await handleSubmitReservation(reservationData);
+  };
+
+  const handleSubmitReservation = async (reservationData) => {
+    if (!currentUser) {
+      navigate('/sign-in');
       return;
     }
 
     try {
-      // Get the authentication token with multiple fallback methods
-      const token = 
-        localStorage.getItem('access_token') || 
-        localStorage.getItem('token') || 
-        localStorage.getItem('realEstateToken') || 
-        (currentUser && currentUser.access_token) || 
-        (currentUser && currentUser.token);
+      const token = localStorage.getItem('access_token');
 
-      if (!token) {
-        toast.error('Authentication token is missing. Please log in again.');
-        navigate('/sign-in');
-        return;
-      }
+      console.log('Submitting reservation data:', reservationData);
 
-      console.log('Using token for reservation:', token); // Debug log
-
-      // Prepare reservation request body
-      const reservationRequestBody = {
-        listingId: listing._id,
-        userId: currentUser._id,
-        timeSlots: selectedTimeSlots.map(slot => ({
-          day: slot.day,
-          time: slot.time,
-          end: slot.end || '17:00'
-        })),
-      };
-
-      console.log('Reservation Request Body:', JSON.stringify(reservationRequestBody)); // Log request body
-
-      // Create the reservation
-      const reservationRes = await fetch('/api/reservation/create', {
+      const response = await fetch('/api/reservation/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // Add authorization header
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(reservationRequestBody),
+        body: JSON.stringify(reservationData)
       });
 
-      // Log full reservation response details
-      console.log('Reservation Response Status:', reservationRes.status);
-      console.log('Reservation Response Headers:', Object.fromEntries(reservationRes.headers.entries()));
-
-      // Log the raw response text for debugging
-      const reservationResText = await reservationRes.text();
-      console.log('Reservation Response Raw Text:', reservationResText);
-
-      let reservationData;
-      try {
-        reservationData = JSON.parse(reservationResText);
-      } catch (parseError) {
-        console.error('JSON Parsing Error for Reservation:', parseError);
-        console.error('Problematic Reservation Response Text:', reservationResText);
-        toast.error(`Reservation submission failed: Invalid server response`);
-        return;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create reservation');
       }
-      
-      if (reservationData.success) {
-        // Format time slots with proper capitalization and structure
-        const formatTimeSlot = (slot) => {
-          const capitalizedDay = slot.day.charAt(0).toUpperCase() + slot.day.slice(1);
-          return `${capitalizedDay} ${slot.time} - ${slot.end || '17:00'}`;
-        };
 
-        // Prepare notification request body
-        const notificationRequestBody = {
-          userId: listing.userRef,
-          message: `${currentUser.username} has requested to view your listing "${listing.name}" at the following times: ${selectedTimeSlots.map(formatTimeSlot).join(', ')}`,
-          type: 'system',
-          from: currentUser._id,
-          systemInfo: {
-            name: 'Viewing Request',
-            avatar: '/default-avatar.png',
-            listingId: listing._id,
-            requesterId: currentUser._id,
-            timeSlots: selectedTimeSlots.map(slot => ({
-              day: slot.day,
-              time: slot.time,
-              end: slot.end || '17:00'
-            }))
-          }
-        };
+      const data = await response.json();
+      console.log('Reservation created successfully:', data);
 
-        console.log('Notification Request Body:', JSON.stringify(notificationRequestBody)); // Log request body
+      setShowReservationModal(false);
+      setSelectedTimeSlots([]);
+      toast.success('Viewing request sent successfully!');
 
-        // Send notification to listing owner
-        const notificationRes = await fetch('/api/notifications/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`, // Add authorization header
-          },
-          body: JSON.stringify(notificationRequestBody),
-        });
-
-        // Log full notification response details
-        console.log('Notification Response Status:', notificationRes.status);
-        console.log('Notification Response Headers:', Object.fromEntries(notificationRes.headers.entries()));
-
-        // Check if the response is JSON or HTML
-        const contentType = notificationRes.headers.get('content-type');
-        let notificationResText;
-        
-        if (contentType && contentType.includes('application/json')) {
-          // If it's JSON, parse it directly
-          notificationResText = await notificationRes.text();
-        } else {
-          // If it's not JSON (e.g., HTML error), try to get the text
-          notificationResText = await notificationRes.text();
-          console.warn('Notification response is not JSON. Content:', notificationResText);
-          
-          // Optional: Show a toast message about the notification creation issue
-          toast.error('Could not send notification to listing owner. Please contact support.');
-          
-          // Continue with the rest of the flow since the reservation was successful
-          return;
-        }
-
-        console.log('Notification Response Raw Text:', notificationResText);
-
-        let notificationData;
-        try {
-          notificationData = JSON.parse(notificationResText);
-        } catch (parseError) {
-          console.error('JSON Parsing Error for Notification:', parseError);
-          console.error('Problematic Notification Response Text:', notificationResText);
-          
-          // Optional: Show a toast message about the parsing issue
-          toast.error('Could not process notification response. Please contact support.');
-          
-          // Continue with the rest of the flow since the reservation was successful
-          return;
-        }
-        
-        if (!notificationData.success) {
-          console.error('Failed to send notification:', notificationData.message);
-          toast.error('Could not send notification to listing owner.');
-        }
-        
-        toast.success('Viewing reservations submitted successfully!');
-        setShowReservationModal(false);
-        setSelectedTimeSlots([]);
-      } else {
-        toast.error(reservationData.message || 'Something went wrong with reservation');
-      }
     } catch (error) {
-      console.error('Reservation error:', error);
-      toast.error('Error submitting reservations');
+      console.error('Error creating reservation:', error);
+      toast.error(error.message || 'Failed to schedule viewing');
     }
   };
 
@@ -1265,155 +1286,114 @@ export default function Listing() {
 
       {/* Reservation Modal */}
       {showReservationModal && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex justify-between items-center mb-4"
-            >
-              <div>
-                <h3 className="text-xl font-semibold text-gray-800">Schedule a Viewing</h3>
-                <p className="text-sm text-gray-500 mt-1">Select multiple time slots if needed</p>
-              </div>
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h3 className="text-xl font-semibold text-gray-900">Schedule a Viewing</h3>
+              <button
                 onClick={() => {
                   setShowReservationModal(false);
                   setSelectedTimeSlots([]);
+                  setSelectedDay([]);
                 }}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-400 hover:text-gray-500"
               >
-                <FaTimes />
-              </motion.button>
-            </motion.div>
-            {listing.flexibleViewingTime ? (
-              <div className="mb-4">
-                <p className="text-gray-600 mb-2">
-                  This property has flexible viewing times. We'll contact you to arrange suitable times.
-                </p>
-                <button
-                  onClick={handleSubmitReservation}
-                  className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  Request Viewing
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {selectedTimeSlots.length > 0 && (
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Selected Time Slots:</p>
-                    <div className="space-y-2">
-                      {selectedTimeSlots.map((slot, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm">
-                          <span className="capitalize">{slot.day}</span>
-                          <div className="flex items-center gap-2">
-                            <span>{slot.time} - {slot.end || '17:00'}</span>
-                            <button
-                              onClick={() => handleTimeSelection(slot.day, slot.time)}
-                              className="text-red-500 hover:text-red-600"
-                            >
-                              <FaTimes />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+              {currentUser ? (
+                <>
+                  <div className="mb-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">Selected Property</h4>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <p className="font-medium text-gray-800">{listing.name}</p>
+                      <p className="text-gray-600 text-sm mt-1">{listing.address}</p>
                     </div>
                   </div>
-                )}
 
-                <div className="grid gap-3">
-                  {Object.entries(listing.viewingSchedule)
-                    .filter(([_, schedule]) => schedule.available)
-                    .map(([day, schedule]) => (
-                      <div
-                        key={day}
-                        className={`p-3 rounded-lg cursor-pointer transition-all duration-200
-                          ${selectedTimeSlots.some(slot => slot.day === day)
-                            ? 'bg-green-800 text-white'
-                            : 'bg-green-100 text-green-800 hover:bg-green-200'
-                          }
-                        `}
-                        onClick={() => handleTimeSelection(day, schedule.start)}
-                      >
-                        <div className="font-medium">
-                          {day.charAt(0).toUpperCase() + day.slice(1)}
-                        </div>
-                        <div className="text-sm">
-                          {schedule.start} - {schedule.end}
-                        </div>
+                  {selectedTimeSlots.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">Selected Time Slots</h4>
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        {selectedTimeSlots.map((slot, index) => (
+                          <div key={index} className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <span className="text-blue-700">{new Date(slot.day).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                              <span className="text-gray-600">{slot.start} - {slot.end}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setSelectedTimeSlots([]);
+                                setSelectedDay([]);
+                              }}
+                              className="text-red-500 hover:text-red-600"
+                            >
+                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                </div>
+                    </div>
+                  )}
 
-                {Object.values(listing.viewingSchedule).some(schedule => schedule.available) ? (
+                  {renderViewingSchedule()}
+                </>) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-600 mb-4">Please sign in to schedule a viewing</p>
                   <button
-                    onClick={handleSubmitReservation}
-                    className={`w-full py-2 rounded-lg transition-colors ${
-                      selectedTimeSlots.length > 0
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
-                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                    }`}
-                    disabled={selectedTimeSlots.length === 0}
+                    onClick={() => navigate('/sign-in')}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
                   >
-                    Confirm {selectedTimeSlots.length} Viewing{selectedTimeSlots.length !== 1 ? 's' : ''}
+                    Sign In
                   </button>
-                ) : (
-                  <p className="text-center text-gray-500 py-2">
-                    No viewing times currently available
-                  </p>
-                )}
+                </div>
+              )}
+            </div>
+
+            {currentUser && (
+              <div className="border-t p-6 bg-gray-50">
+                <div className="flex justify-end gap-4">
+                  <button
+                    onClick={() => {
+                      setShowReservationModal(false);
+                      setSelectedTimeSlots([]);
+                      setSelectedDay([]);
+                    }}
+                    className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmViewing}
+                    disabled={selectedTimeSlots.length === 0}
+                    className={`px-6 py-2 rounded-lg ${
+                      selectedTimeSlots.length === 0
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
+                  >
+                    Confirm Viewing
+                  </button>
+                </div>
               </div>
             )}
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
 
       {/* Verification Code Modal */}
       {showVerificationModal && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex justify-between items-center mb-4"
-            >
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-800">Enter Verification Code</h3>
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
+              <button
                 onClick={() => {
                   setShowVerificationModal(false);
                   setVerificationCode('');
@@ -1422,22 +1402,14 @@ export default function Listing() {
                 className="text-gray-500 hover:text-gray-700"
               >
                 <FaTimes />
-              </motion.button>
-            </motion.div>
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="mb-4"
-            >
+              </button>
+            </div>
+            <div className="mb-4">
               <p className="text-sm text-gray-600">
                 Please enter the verification code provided by the landlord to proceed.
               </p>
-            </motion.div>
-            <motion.input
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+            </div>
+            <input
               type="text"
               value={verificationCode}
               onChange={(e) => setVerificationCode(e.target.value)}
@@ -1446,25 +1418,12 @@ export default function Listing() {
               disabled={verifyingCode}
             />
             {verificationError && (
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="text-red-600 text-sm mb-4"
-              >
+              <p className="text-red-600 text-sm mb-4">
                 {verificationError}
-              </motion.p>
+              </p>
             )}
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex justify-end gap-2"
-            >
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
+            <div className="flex justify-end gap-2">
+              <button
                 onClick={() => {
                   setShowVerificationModal(false);
                   setVerificationCode('');
@@ -1474,60 +1433,33 @@ export default function Listing() {
                 disabled={verifyingCode}
               >
                 Cancel
-              </motion.button>
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
+              </button>
+              <button
                 onClick={handleVerifyCode}
                 className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
                 disabled={verifyingCode}
               >
                 {verifyingCode ? "Verifying..." : "Proceed"}
-              </motion.button>
-            </motion.div>
-          </motion.div>
-        </motion.div>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Disclaimer Modal */}
       {showDisclaimerModal && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center"
-        >
-          <motion.div 
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            transition={{ 
-              duration: 0.3,
-              ease: [0.4, 0, 0.2, 1] // Custom easing for smoother animation
-            }}
-            className="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative"
-            onClick={e => e.stopPropagation()}
-          >
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative">
+            <button
               onClick={() => setShowDisclaimerModal(false)}
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </motion.button>
+            </button>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="mb-6"
-            >
+            <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Disclaimer</h2>
               <p className="text-gray-600 leading-relaxed">
                 Specific dates may be discussed on when the listing viewing can be done either via phone, 
@@ -1535,24 +1467,16 @@ export default function Listing() {
                 that you will actually view the listing. Be sure to always confirm with the lister before 
                 going to the listing's location.
               </p>
-            </motion.div>
+            </div>
 
-            <motion.button
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ 
-                duration: 0.2,
-                ease: "easeOut"
-              }}
+            <button
               onClick={handleDisclaimerConfirm}
               className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
             >
               I Understand
-            </motion.button>
-          </motion.div>
-        </motion.div>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

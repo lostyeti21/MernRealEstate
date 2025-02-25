@@ -1,36 +1,38 @@
 import express from 'express';
-import { verifyToken } from '../middleware/verifyToken.js';
 import { 
   getUserNotifications, 
-  deleteNotification,
-  getUnreadStatus,
+  createNotification, 
+  deleteNotification, 
+  getUnreadStatus, 
   getUnreadCount,
-  createNotification,
-  markNotificationAsRead
+  markNotificationAsRead,
+  getScheduleNotifications 
 } from '../controllers/notification.controller.js';
+import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
-// SuperUser middleware
-const verifySuperUser = (req, res, next) => {
-  const superUserAuth = req.headers['x-super-user-auth'];
-  
-  if (superUserAuth !== 'ishe') {
-    return res.status(401).json({
-      success: false,
-      statusCode: 401,
-      message: 'Unauthorized super user access'
-    });
-  }
-  next();
-};
-
+// Get all notifications
 router.get('/', verifyToken, getUserNotifications);
-router.get('/unread/count', verifyToken, getUnreadCount);
+
+// Get user notifications
+router.get('/user/:userId', verifyToken, getUserNotifications);
+
+// Get schedule notifications
+router.get('/schedule', verifyToken, getScheduleNotifications);
+router.get('/schedule/:userId', verifyToken, getScheduleNotifications);
+
+// Get unread status and count
 router.get('/unread', verifyToken, getUnreadStatus);
-router.delete('/:type/:ratingId', verifyToken, deleteNotification);
+router.get('/unread/count', verifyToken, getUnreadCount);
+
+// Create and update notifications
 router.post('/create', verifyToken, createNotification);
-router.post('/', verifySuperUser, createNotification);
-router.patch('/:notificationId/read', verifyToken, markNotificationAsRead);
+router.put('/:notificationId/read', verifyToken, markNotificationAsRead);
+router.put('/read/:id', verifyToken, markNotificationAsRead);
+
+// Delete notification
+router.delete('/:type/:ratingId', verifyToken, deleteNotification);
+router.delete('/:id', verifyToken, deleteNotification);
 
 export default router;
