@@ -7,6 +7,7 @@ import DisputeRatingPopup from '../components/DisputeRatingPopup';
 import Loader from '../components/Loader';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import ReactDOM from 'react-dom';
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState({ unseen: [], seen: [] });
@@ -23,7 +24,8 @@ export default function Notifications() {
     reason: '',
     selectedReason: '',
     otherReason: '',
-    loading: false
+    loading: false,
+    notification: null
   });
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [disputeDetails, setDisputeDetails] = useState(null);
@@ -35,6 +37,7 @@ export default function Notifications() {
     show: false,
     notification: null,
   });
+  const [ratingDetailsPopup, setRatingDetailsPopup] = useState({ show: false, notification: null });
   const { currentUser } = useSelector((state) => state.user);
 
   const formatDate = (dateString) => {
@@ -93,91 +96,96 @@ export default function Notifications() {
 
   const fetchNotifications = async () => {
     try {
-      if (!currentUser?.token) {
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
+      console.log('Fetching notifications for user:', currentUser._id);
       
-      console.log('Fetching notifications with token:', currentUser.token ? 'present' : 'missing');
-
-      const response = await fetch('http://localhost:3000/api/notifications', {
+      // Fetch system notifications
+      const systemNotificationsResponse = await fetch('http://localhost:3000/api/notifications', {
+        method: 'GET',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${currentUser.token}`,
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include'
+          'Authorization': `Bearer ${currentUser.token}`
+        }
       });
 
-      console.log('Notifications response status:', response.status);
-      const data = await response.json();
-      console.log('Notifications data:', data);
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Error fetching notifications');
-      }
-
-      if (!data || (!data.seen && !data.unseen)) {
-        console.error('Invalid response format:', data);
-        throw new Error('Invalid response format from server');
-      }
-
-      // Add logging for notifications
-      const allNotifications = [...(data.unseen || []), ...(data.seen || [])];
-      console.log('Total notifications received:', allNotifications.length);
-
-      // Check dispute status for each rating notification
-      const notificationsWithDisputeStatus = await Promise.all(
-        (data.seen || []).map(async notification => {
-          if (notification.type === 'rating') {
-            try {
-              const disputeCheck = await fetch(`http://localhost:3000/api/dispute/check/${notification.id}`, {
-                headers: {
-                  'Authorization': `Bearer ${currentUser.token}`
-                }
-              });
-              const disputeData = await disputeCheck.json();
-              return { ...notification, disputed: disputeData.disputed };
-            } catch (error) {
-              console.error('Error checking dispute status:', error);
-              return notification;
-            }
-          }
-          return notification;
-        })
-      );
-
-      const unseenWithDisputeStatus = await Promise.all(
-        (data.unseen || []).map(async notification => {
-          if (notification.type === 'rating') {
-            try {
-              const disputeCheck = await fetch(`http://localhost:3000/api/dispute/check/${notification.id}`, {
-                headers: {
-                  'Authorization': `Bearer ${currentUser.token}`
-                }
-              });
-              const disputeData = await disputeCheck.json();
-              return { ...notification, disputed: disputeData.disputed };
-            } catch (error) {
-              console.error('Error checking dispute status:', error);
-              return notification;
-            }
-          }
-          return notification;
-        })
-      );
-
-      setNotifications({
-        seen: notificationsWithDisputeStatus,
-        unseen: unseenWithDisputeStatus
+      console.log('System notifications response:', {
+        status: systemNotificationsResponse.status,
+        ok: systemNotificationsResponse.ok
       });
+
+      let systemNotifications = [];
+      if (systemNotificationsResponse.ok) {
+        const systemNotificationsData = await systemNotificationsResponse.json();
+        console.log('System notifications response:', systemNotificationsData);
+
+        // Handle different possible response formats
+        if (systemNotificationsData.unseen && systemNotificationsData.seen) {
+          systemNotifications = [...(systemNotificationsData.unseen || []), ...(systemNotificationsData.seen || [])];
+        } else if (Array.isArray(systemNotificationsData)) {
+          systemNotifications = systemNotificationsData;
+        } else if (systemNotificationsData.notifications) {
+          systemNotifications = systemNotificationsData.notifications;
+        } else {
+          console.warn('Unexpected system notifications format:', systemNotificationsData);
+        }
+
+        console.log('System notifications fetched:', systemNotifications.length);
+      } else {
+        const errorText = await systemNotificationsResponse.text();
+        console.error('Failed to fetch system notifications:', errorText);
+      }
+
+      // Fetch rating notifications
+      const ratingNotificationsResponse = await fetch('http://localhost:3000/api/rating-notifications/user', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${currentUser.token}`
+        }
+      });
+
+      console.log('Rating notifications response:', {
+        status: ratingNotificationsResponse.status,
+        ok: ratingNotificationsResponse.ok
+      });
+
+      let ratingNotifications = [];
+      if (ratingNotificationsResponse.ok) {
+        ratingNotifications = await ratingNotificationsResponse.json();
+        console.log('Rating notifications fetched:', ratingNotifications.length);
+      } else {
+        const errorText = await ratingNotificationsResponse.text();
+        console.error('Failed to fetch rating notifications:', errorText);
+      }
+
+      // Combine and sort notifications
+      const combinedNotifications = [
+        ...(Array.isArray(systemNotifications) ? systemNotifications : []).map(n => ({ 
+          ...n, 
+          type: n.type || 'system' 
+        })),
+        ...(Array.isArray(ratingNotifications) ? ratingNotifications : []).map(n => ({ 
+          ...n, 
+          type: 'rating', 
+          createdAt: n.createdAt,
+          data: {
+            ratingDetails: n.ratingDetails,
+            ratedBy: n.ratedBy
+          }
+        }))
+      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      console.log('Combined notifications:', {
+        total: combinedNotifications.length,
+        types: combinedNotifications.map(n => n.type)
+      });
+
+      setNotifications(combinedNotifications);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      setError(error.message);
-      toast.error('Failed to fetch notifications');
-    } finally {
+      setError(error.message || 'Failed to fetch notifications');
       setLoading(false);
+      toast.error('Unable to load notifications. Please try again later.');
     }
   };
 
@@ -283,63 +291,93 @@ export default function Notifications() {
   ];
 
   const handleDisputeClick = async (notification) => {
+    console.error('DISPUTE CLICK TRIGGERED', { 
+      notification,
+      type: notification.type,
+      id: notification.id,
+      disputed: notification.disputed
+    });
+
     try {
       const token = localStorage.getItem('access_token');
-      
-      // Check if rating is already disputed
-      const response = await fetch(`http://localhost:3000/api/dispute/check/${notification.id}`, {
+      if (!token) {
+        console.error('NO ACCESS TOKEN');
+        toast.error('Authentication required');
+        return;
+      }
+
+      // Check dispute status
+      const disputeCheckResponse = await fetch(`http://localhost:3000/api/dispute/check/${notification.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      const data = await response.json();
+      console.error('DISPUTE CHECK RESPONSE', {
+        status: disputeCheckResponse.status,
+        statusText: disputeCheckResponse.statusText
+      });
 
-      if (response.ok && data.disputed) {
-        // If already disputed, show details
+      const disputeCheckData = await disputeCheckResponse.json();
+
+      console.error('DISPUTE CHECK DATA', disputeCheckData);
+
+      // If already disputed
+      if (disputeCheckData.disputed) {
+        console.error('RATING ALREADY DISPUTED');
+        const disputeDetails = disputeCheckData.dispute;
         setAlreadyDisputedDetails({
-          id: data.dispute._id.slice(-6).toUpperCase(),
+          id: disputeDetails._id.slice(-6).toUpperCase(),
           message: "You have already submitted a dispute for this rating. Our support team will review your case and get back to you soon.",
-          date: new Date(data.dispute.createdAt).toLocaleDateString('en-US', {
+          status: disputeDetails.status,
+          date: new Date(disputeDetails.createdAt).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric'
-          }),
-          status: data.dispute.status
+          })
         });
         setShowAlreadyDisputedPopup(true);
         return;
       }
 
-      // If not disputed, show dispute popup
-      const isRatingNotification = notification.type === 'rating';
-      const ratings = notification.ratings || [];
-      
-      // Filter out overall rating and prepare categories for dispute
-      const disputeCategories = ratings
-        .filter(r => r.category !== 'overall')
-        .map(rating => ({
-          category: rating.category,
-          value: rating.value,
-          selected: false
-        }));
+      // Prepare categories for dispute
+      const ratingCategories = notification.ratingDetails?.categories || 
+        (notification.ratings || [])
+          .filter(r => r.category !== 'overall')
+          .map(rating => ({
+            category: rating.category,
+            value: rating.value,
+            selected: false
+          }));
 
-      console.log('Dispute categories:', disputeCategories);
+      console.error('PREPARED RATING CATEGORIES', ratingCategories);
 
+      // Set dispute popup state
       setDisputePopup({
         show: true,
         ratingId: notification.id,
-        ratingType: data.ratingType || 'tenant', // Use rating type from check response
-        categories: disputeCategories,
+        ratingType: disputeCheckData.ratingType || notification.ratingType || 'tenant', 
+        categories: ratingCategories,
         selectedCategories: [],
         reason: '',
         selectedReason: '',
         otherReason: '',
-        loading: false
+        loading: false,
+        notification: notification
       });
+
+      console.error('DISPUTE POPUP STATE SET', {
+        ratingId: notification.id,
+        ratingType: disputeCheckData.ratingType || notification.ratingType || 'tenant'
+      });
+
     } catch (error) {
-      console.error('Error checking dispute status:', error);
-      toast.error('Error checking dispute status');
+      console.error('FULL DISPUTE CLICK ERROR', {
+        message: error.message,
+        stack: error.stack,
+        notification: notification
+      });
+      toast.error('Error processing dispute request');
     }
   };
 
@@ -411,43 +449,133 @@ export default function Notifications() {
     }));
   };
 
-  const handleDisputeSubmit = async () => {
-    try {
-      setDisputePopup(prev => ({ ...prev, loading: true }));
-      const token = localStorage.getItem('access_token');
+  const handleSubmitDispute = async () => {
+    console.error('SUBMIT DISPUTE CALLED', {
+      disputeSelectedCategories: disputePopup.selectedCategories,
+      disputeReasonType: disputePopup.selectedReason,
+      disputeReason: disputePopup.reason,
+      isSubmittingDispute: disputePopup.loading
+    });
 
-      // Log the data being sent
-      const requestData = {
+    // Prevent multiple submissions
+    if (disputePopup.loading) {
+      console.error('DISPUTE ALREADY SUBMITTING');
+      return;
+    }
+
+    // Validate inputs
+    if (disputePopup.selectedCategories.length === 0) {
+      console.error('NO CATEGORIES SELECTED');
+      toast.error('Please select at least one category to dispute');
+      return;
+    }
+
+    if (!disputePopup.selectedReason) {
+      console.error('NO REASON TYPE SELECTED');
+      toast.error('Please select a reason type');
+      return;
+    }
+
+    if (disputePopup.selectedReason === 'Other' && !disputePopup.otherReason.trim()) {
+      console.error('OTHER REASON REQUIRED BUT EMPTY');
+      toast.error('Please provide a detailed reason');
+      return;
+    }
+
+    // Set submitting state
+    setDisputePopup(prev => ({ ...prev, loading: true }));
+
+    try {
+      // Prepare dispute data
+      const disputeData = {
         ratingId: disputePopup.ratingId,
-        ratingType: disputePopup.ratingType,
-        categories: disputePopup.selectedCategories.map(cat => ({
-          category: cat.category,
-          value: cat.value
+        ratingType: disputePopup.ratingType || 'tenant',
+        categories: disputePopup.selectedCategories.map(category => ({
+          category: category.category,
+          value: category.value
         })),
-        reason: disputePopup.selectedReason === 'Other' ? disputePopup.otherReason : disputePopup.selectedReason,
-        reasonType: disputePopup.selectedReason
+        reason: disputePopup.selectedReason === 'Other' 
+          ? disputePopup.otherReason 
+          : {
+              'Inaccurate or unfair assessment': 'Inaccurate or unfair assessment',
+              'Rating based on factors outside my control': 'Rating based on factors outside my control',
+              'Personal bias or conflict of interest': 'Personal bias or conflict of interest',
+              'Incorrect information or misunderstanding': 'Incorrect information or misunderstanding'
+            }[disputePopup.selectedReason],
+        reasonType: disputePopup.selectedReason === 'Other' ? 'Other' : 
+          {
+            'Inaccurate or unfair assessment': 'Inaccurate or unfair assessment',
+            'Rating based on factors outside my control': 'Rating based on factors outside my control',
+            'Personal bias or conflict of interest': 'Personal bias or conflict of interest',
+            'Incorrect information or misunderstanding': 'Incorrect information or misunderstanding'
+          }[disputePopup.selectedReason]
       };
 
-      console.log('Submitting dispute with data:', requestData);
+      console.error('PREPARED DISPUTE DATA', JSON.stringify(disputeData, null, 2));
 
-      const response = await fetch('http://localhost:3000/api/dispute/create', {
+      // Send dispute to backend
+      const response = await fetch('/api/disputes/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         credentials: 'include',
-        body: JSON.stringify(requestData)
+        body: JSON.stringify(disputeData)
       });
 
-      const data = await response.json();
-      console.log('Dispute submission response:', data);
+      console.error('DISPUTE SUBMISSION RESPONSE', {
+        status: response.status,
+        statusText: response.statusText
+      });
+
+      const result = await response.json();
+
+      console.error('DISPUTE SUBMISSION RESULT', JSON.stringify(result, null, 2));
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to submit dispute');
+        throw new Error(result.message || 'Failed to submit dispute');
       }
 
-      // Update the notification to show it's been disputed
+      // Create a notification for the super user
+      const notificationData = {
+        type: 'dispute_submitted',
+        title: 'New Rating Dispute',
+        content: `A new dispute has been submitted for a ${disputeData.ratingType} rating. Dispute ID: ${result.dispute._id}`,
+        from: result.dispute.disputedBy.id,
+        to: null, // Will be handled by backend to send to super users
+        data: {
+          disputeId: result.dispute._id,
+          ratingType: disputeData.ratingType,
+          categories: disputeData.categories,
+          reason: disputeData.reason,
+          reasonType: disputeData.reasonType
+        },
+        read: false
+      };
+
+      console.error('SUPER USER NOTIFICATION DATA', JSON.stringify(notificationData, null, 2));
+
+      // Send notification to super users
+      const notificationResponse = await fetch('/api/notifications/create-super-notification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        credentials: 'include',
+        body: JSON.stringify(notificationData)
+      });
+
+      console.error('SUPER USER NOTIFICATION RESPONSE', {
+        status: notificationResponse.status,
+        statusText: notificationResponse.statusText
+      });
+
+      const notificationResult = await notificationResponse.json();
+      console.error('SUPER USER NOTIFICATION RESULT', JSON.stringify(notificationResult, null, 2));
+
+      // Update notifications to show dispute status
       setNotifications(prev => ({
         ...prev,
         unseen: prev.unseen.map(notif => 
@@ -462,23 +590,29 @@ export default function Notifications() {
         )
       }));
 
-      // Set dispute details for confirmation popup
+      // Show confirmation
       setDisputeDetails({
         message: "Your dispute has been submitted successfully. You will be notified when there's an update."
       });
       setShowConfirmation(true);
 
-      // Close the dispute popup
+      // Reset dispute popup
       setDisputePopup({
         show: false,
         ratingId: null,
         ratingType: null,
-        loading: false
+        categories: [],
+        selectedCategories: [],
+        reason: '',
+        selectedReason: '',
+        otherReason: '',
+        loading: false,
+        notification: null
       });
 
       toast.success('Dispute submitted successfully');
     } catch (error) {
-      console.error('Error details:', {
+      console.error('FULL DISPUTE SUBMISSION ERROR', {
         message: error.message,
         stack: error.stack,
         disputeData: {
@@ -499,104 +633,359 @@ export default function Notifications() {
     if (notification.type === 'system' && 
        (notification.data?.type === 'viewing_rejection' || notification.data?.type === 'viewing_accepted')) {
       setViewingRequestPopup({ show: true, notification });
-    } else if (notification.type === 'rating' && !notification.disputed) {
-      setDisputePopup({ show: true, notification });
-    } else if (notification.type === 'rating' && notification.disputed) {
-      setAlreadyDisputedPopup({ show: true, notification });
+    } else if (notification.type === 'rating') {
+      setRatingDetailsPopup({ show: true, notification });
     }
   };
 
-  const ViewingRequestPopup = ({ notification, onClose }) => {
-    const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
-    const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
-    const navigate = useNavigate();
+  const RatingDetailsPopup = ({ notification, onClose }) => {
+    const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
+    const [disputeCategories, setDisputeCategories] = useState([]);
+    const [disputeReason, setDisputeReason] = useState('');
+    const [disputeReasonType, setDisputeReasonType] = useState('');
+    const [isSubmittingDispute, setIsSubmittingDispute] = useState(false);
 
-    // Clean message for display
-    const cleanMessage = (message) => {
-      if (!message) {
-        message = notification.content || notification.data?.message || 'No message available';
-      }
-      return message;
-    };
-    const cleanedMessage = cleanMessage(notification.message);
+    const ratingDetails = notification.data?.ratingDetails || {};
+    const ratedBy = notification.data?.ratedBy || {};
 
-    // Extract requester information
-    const requesterName = notification.from?.username || 
-                          notification.systemInfo?.name || 
-                          'Anonymous';
-    
-    const requesterEmail = notification.from?.email || '';
-    const requesterPhone = notification.from?.phone || '';
-
-    const requesterAvatar = notification.from?.avatar || 
-                            notification.systemInfo?.avatar || 
-                            '/default-avatar.png';
-
-    const handleListingClick = () => {
-      const listingId = notification.data?.listing?._id;
-      if (listingId) {
-        onClose();
-        navigate(`/listing/${listingId}`);
-      }
+    const handleOpenDisputeModal = () => {
+      setIsDisputeModalOpen(true);
     };
 
-    const isAccepted = notification.data?.type === 'viewing_accepted';
+    const handleCloseDisputeModal = () => {
+      setIsDisputeModalOpen(false);
+      setDisputeCategories([]);
+      setDisputeReason('');
+      setDisputeReasonType('');
+    };
 
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 max-w-lg w-full relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+    const handleCategoryToggle = (category) => {
+      setDisputeCategories(prev => 
+        prev.includes(category) 
+          ? prev.filter(cat => cat !== category) 
+          : [...prev, category]
+      );
+    };
+
+    const handleSubmitDispute = async () => {
+      if (disputeCategories.length === 0 || !disputeReason || !disputeReasonType) {
+        toast.error('Please select categories, provide a reason, and choose a reason type.');
+        return;
+      }
+
+      setIsSubmittingDispute(true);
+
+      try {
+        const response = await fetch('http://localhost:3000/api/rating-notifications/dispute', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            ratingId: notification._id,
+            ratingType: notification.data.ratingType,
+            categories: disputeCategories,
+            reason: disputeReason,
+            reasonType: disputeReasonType
+          })
+        });
+
+        toast.success('Dispute submitted successfully');
+        handleCloseDisputeModal();
+      } catch (error) {
+        console.error('Failed to submit dispute:', error);
+        toast.error(error.response?.data?.message || 'Failed to submit dispute');
+      } finally {
+        setIsSubmittingDispute(false);
+      }
+    };
+
+    return ReactDOM.createPortal(
+      <>
+        <div 
+          className="fixed inset-0 z-[9999] bg-black bg-opacity-50 flex items-center justify-center overflow-hidden"
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100vh', 
+            zIndex: 9999 
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 max-w-md w-full relative z-[10000]"
+            style={{ 
+              position: 'relative', 
+              zIndex: 10000 
+            }}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <h2 className={`text-2xl font-bold mb-4 ${isAccepted ? 'text-green-600' : 'text-red-600'}`}>
-            {isAccepted ? 'Viewing Request Accepted' : 'Viewing Request Details'}
-          </h2>
-          
-          <div className="mb-6">
-            <div 
-              onClick={handleListingClick}
-              className={`bg-gray-50 rounded-lg p-4 mb-4 ${notification.data?.listing?._id ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
+            <button 
+              onClick={onClose} 
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
             >
-              <h3 className="text-lg font-semibold mb-2">Listing Details</h3>
-              <p className="text-gray-700">
-                <span className="font-medium">Name: </span>
-                {notification.data?.listing?.name || 'Unnamed Listing'}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">ID: </span>
-                <span className="font-mono text-sm">{notification.data?.listing?._id || 'N/A'}</span>
-              </p>
-            </div>
-            <p className="text-gray-700 text-lg">{cleanedMessage}</p>
-          </div>
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className="w-6 h-6" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M6 18L18 6M6 6l12 12" 
+                />
+              </svg>
+            </button>
 
-          <div className="mb-6">
-            <h3 className="text-xl font-semibold mb-3">From Landlord</h3>
-            <div className="flex items-center gap-3">
-              <img
-                src={requesterAvatar}
-                alt={requesterName}
-                className="w-12 h-12 rounded-full object-cover"
-              />
-              <div>
-                <p className="font-medium text-lg">{requesterName}</p>
-                {requesterEmail && (
-                  <p className="text-gray-600">{requesterEmail}</p>
-                )}
-                {requesterPhone && (
-                  <p className="text-gray-600">{requesterPhone}</p>
-                )}
+            <h2 className="text-2xl font-bold mb-4 text-blue-600">
+              Rating Details
+            </h2>
+            
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <img
+                  src={ratedBy.avatar || '/default-avatar.png'}
+                  alt={ratedBy.username || 'Rater'}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <div>
+                  <p className="font-medium text-lg">
+                    {ratedBy.username || 'Anonymous'}
+                  </p>
+                </div>
               </div>
+
+              <div className="space-y-3">
+                {['communication', 'cleanliness', 'reliability'].map((category) => (
+                  <div key={category}>
+                    <p className="font-semibold capitalize">
+                      {category}
+                    </p>
+                    <div className="flex items-center">
+                      {[...Array(5)].map((_, index) => (
+                        <svg 
+                          key={index} 
+                          className={`w-5 h-5 ${index < ratingDetails[category] ? 'text-yellow-400' : 'text-gray-300'}`} 
+                          fill="currentColor" 
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                      <span className="ml-2 text-gray-600">{ratingDetails[category]}/5</span>
+                    </div>
+                  </div>
+                ))}
+
+                <div>
+                  <p className="font-semibold">Overall Rating</p>
+                  <div className="flex items-center">
+                    {[...Array(5)].map((_, index) => (
+                      <svg 
+                        key={index} 
+                        className={`w-6 h-6 ${index < Math.round(ratingDetails.overall) ? 'text-yellow-400' : 'text-gray-300'}`} 
+                        fill="currentColor" 
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                    <span className="ml-2 text-gray-600">{ratingDetails.overall?.toFixed(1) || 'N/A'}/5</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 border-t pt-4 flex justify-between items-center">
+              <button
+                onClick={handleOpenDisputeModal}
+                className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors"
+              >
+                Dispute Rating
+              </button>
             </div>
           </div>
         </div>
-      </div>
+
+        {isDisputeModalOpen && (
+          <div 
+            className="fixed inset-0 z-[9999] bg-black bg-opacity-50 flex items-center justify-center overflow-hidden"
+            style={{ 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              width: '100vw', 
+              height: '100vh', 
+              zIndex: 10000 
+            }}
+          >
+            <div 
+              className="bg-white rounded-lg p-6 max-w-md w-full relative"
+              style={{ 
+                position: 'relative', 
+                zIndex: 10001 
+              }}
+            >
+              <button 
+                onClick={handleCloseDisputeModal} 
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              >
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className="w-6 h-6" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth="2" 
+                    d="M6 18L18 6M6 6l12 12" 
+                  />
+                </svg>
+              </button>
+
+              <h2 className="text-2xl font-bold mb-4 text-yellow-600">
+                Dispute Rating
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <p className="font-semibold mb-2">Select Categories to Dispute</p>
+                  
+                  {/* Current Rating Display */}
+                  <div className="bg-gray-100 rounded-md p-4 mb-4">
+                    <h3 className="text-lg font-semibold mb-3 text-gray-700">Current Rating</h3>
+                    <div className="space-y-2">
+                      {['communication', 'cleanliness', 'reliability'].map((category) => (
+                        <div key={category} className="flex justify-between items-center">
+                          <span className="capitalize font-medium text-gray-600">{category}</span>
+                          <div className="flex items-center">
+                            {[...Array(5)].map((_, index) => (
+                              <svg 
+                                key={index} 
+                                className={`w-5 h-5 ${index < ratingDetails[category] ? 'text-yellow-400' : 'text-gray-300'}`} 
+                                fill="currentColor" 
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            ))}
+                            <span className="ml-2 text-gray-600 font-medium">
+                              {ratingDetails[category]}/5
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Overall Rating */}
+                      <div className="flex justify-between items-center border-t mt-2 pt-2">
+                        <span className="font-semibold text-gray-700">Overall Rating</span>
+                        <div className="flex items-center">
+                          {[...Array(5)].map((_, index) => (
+                            <svg 
+                              key={index} 
+                              className={`w-6 h-6 ${index < Math.round(ratingDetails.overall) ? 'text-yellow-400' : 'text-gray-300'}`} 
+                              fill="currentColor" 
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          ))}
+                          <span className="ml-2 text-gray-600 font-medium">
+                            {ratingDetails.overall?.toFixed(1) || 'N/A'}/5
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Category Selection Buttons */}
+                  <div className="flex space-x-2">
+                    {['communication', 'cleanliness', 'reliability'].map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => handleCategoryToggle(category)}
+                        className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                          disputeCategories.includes(category) 
+                            ? 'bg-yellow-500 text-white' 
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold mb-2">Reason Type</label>
+                  <select
+                    value={disputeReasonType}
+                    onChange={(e) => {
+                      setDisputeReasonType(e.target.value);
+                      // Clear reason if not 'other'
+                      if (e.target.value !== 'other') {
+                        setDisputeReason('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="">Select Reason Type</option>
+                    <option value="inaccurate">Inaccurate Rating</option>
+                    <option value="unfair">Unfair Assessment</option>
+                    <option value="incorrect">Incorrect Information</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                {disputeReasonType === 'other' && (
+                  <div>
+                    <label className="block font-semibold mb-2">Detailed Reason</label>
+                    <textarea
+                      value={disputeReason}
+                      onChange={(e) => setDisputeReason(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md min-h-[100px]"
+                      placeholder="Provide details about your dispute..."
+                      required
+                    />
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleSubmitDispute}
+                disabled={
+                  isSubmittingDispute || 
+                  disputeCategories.length === 0 || 
+                  !disputeReasonType || 
+                  (disputeReasonType === 'other' && !disputeReason.trim())
+                }
+                className={`
+                  w-full px-4 py-2 rounded-md text-white transition-colors
+                  ${
+                    isSubmittingDispute || 
+                    disputeCategories.length === 0 || 
+                    !disputeReasonType || 
+                    (disputeReasonType === 'other' && !disputeReason.trim())
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-yellow-500 hover:bg-yellow-600'
+                  }
+                `}
+              >
+                {isSubmittingDispute ? 'Submitting...' : 'Submit Dispute'}
+              </button>
+            </div>
+          </div>
+        )}
+      </>,
+      document.body
     );
   };
 
@@ -771,6 +1160,72 @@ export default function Notifications() {
         );
       }
 
+      // New rating notification rendering
+      if (notification.type === 'rating') {
+        return (
+          <>
+            <div className="flex items-start space-x-4">
+              <img
+                src={notification.data?.ratedBy?.avatar || '/default-avatar.png'}
+                alt={notification.data?.ratedBy?.username || 'Rater'}
+                className="w-10 h-10 rounded-full object-cover"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline">
+                  <p className="text-sm font-medium text-blue-600 truncate">
+                    New Rating Received
+                  </p>
+                  <span className="ml-2 text-xs text-gray-500">
+                    {formatDate(notification.createdAt)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 truncate">
+                  Overall Rating: {notification.data?.ratingDetails?.overall || 'N/A'}/5
+                </p>
+                <p className="text-sm text-gray-500 truncate">
+                  From: {notification.data?.ratedBy?.username || 'Anonymous'}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2 justify-end">
+              {!notification.read && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMarkAsRead(notification._id);
+                  }}
+                  className="text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Mark as Read
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(notification);
+                }}
+                disabled={deletingIds.has(notification._id)}
+                className="text-gray-500 hover:text-red-500 transition-colors bg-gray-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
+              >
+                {deletingIds.has(notification._id) ? (
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        );
+      }
+
       // Default notification rendering
       return (
         <>
@@ -830,20 +1285,25 @@ export default function Notifications() {
     };
 
     return (
-      <div
-        key={notification._id}
-        className={`
-          p-4 hover:bg-gray-50 transition-colors cursor-pointer
-          ${!notification.read ? 'bg-blue-50' : 'bg-white'}
-          ${notification.disputed ? 'border-l-4 border-orange-500' : ''}
-        `}
-        onClick={(e) => {
-          e.preventDefault();
-          handleNotificationClick(notification);
-        }}
-      >
-        {getNotificationContent()}
-      </div>
+      <>
+        <div
+          key={notification._id}
+          className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+          onClick={(e) => {
+            e.preventDefault();
+            handleNotificationClick(notification);
+          }}
+        >
+          {getNotificationContent()}
+        </div>
+
+        {ratingDetailsPopup.show && ratingDetailsPopup.notification._id === notification._id && (
+          <RatingDetailsPopup 
+            notification={ratingDetailsPopup.notification} 
+            onClose={() => setRatingDetailsPopup({ show: false, notification: null })} 
+          />
+        )}
+      </>
     );
   };
 
@@ -861,7 +1321,7 @@ export default function Notifications() {
             fill="currentColor"
           >
             <path
-              d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292z"
+              d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
             />
           </svg>
         ))}
@@ -1036,6 +1496,100 @@ export default function Notifications() {
     );
   };
 
+  const ViewingRequestPopup = ({ notification, onClose }) => {
+    const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
+    const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+    const navigate = useNavigate();
+
+    // Clean message for display
+    const cleanMessage = (message) => {
+      if (!message) {
+        message = notification.content || notification.data?.message || 'No message available';
+      }
+      return message;
+    };
+    const cleanedMessage = cleanMessage(notification.message);
+
+    // Extract requester information
+    const requesterName = notification.from?.username || 
+                          notification.systemInfo?.name || 
+                          'Anonymous';
+    
+    const requesterEmail = notification.from?.email || '';
+    const requesterPhone = notification.from?.phone || '';
+
+    const requesterAvatar = notification.from?.avatar || 
+                            notification.systemInfo?.avatar || 
+                            '/default-avatar.png';
+
+    const handleListingClick = () => {
+      const listingId = notification.data?.listing?._id;
+      if (listingId) {
+        onClose();
+        navigate(`/listing/${listingId}`);
+      }
+    };
+
+    const isAccepted = notification.data?.type === 'viewing_accepted';
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-lg w-full relative">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <h2 className={`text-2xl font-bold mb-4 ${isAccepted ? 'text-green-600' : 'text-red-600'}`}>
+            {isAccepted ? 'Viewing Request Accepted' : 'Viewing Request Details'}
+          </h2>
+          
+          <div className="mb-6">
+            <div 
+              onClick={handleListingClick}
+              className={`bg-gray-50 rounded-lg p-4 mb-4 ${notification.data?.listing?._id ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
+            >
+              <h3 className="text-lg font-semibold mb-2">Listing Details</h3>
+              <p className="text-gray-700">
+                <span className="font-medium">Name: </span>
+                {notification.data?.listing?.name || 'Unnamed Listing'}
+              </p>
+              <p className="text-gray-700">
+                <span className="font-medium">ID: </span>
+                <span className="font-mono text-sm">{notification.data?.listing?._id || 'N/A'}</span>
+              </p>
+            </div>
+            <p className="text-gray-700 text-lg">{cleanedMessage}</p>
+          </div>
+
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold mb-3">From Landlord</h3>
+            <div className="flex items-center gap-3">
+              <img
+                src={requesterAvatar}
+                alt={requesterName}
+                className="w-12 h-12 rounded-full object-cover"
+              />
+              <div>
+                <p className="font-medium text-lg">{requesterName}</p>
+                {requesterEmail && (
+                  <p className="text-gray-600">{requesterEmail}</p>
+                )}
+                {requesterPhone && (
+                  <p className="text-gray-600">{requesterPhone}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const style = document.createElement('style');
   style.textContent = `
     @keyframes popup {
@@ -1111,103 +1665,54 @@ export default function Notifications() {
         </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
-      ) : notifications.unseen.length === 0 && notifications.seen.length === 0 ? (
+      ) : notifications.length === 0 ? (
         <div className="text-center text-gray-500">No notifications</div>
       ) : (
         <div>
-          {notifications.unseen.length > 0 && (
-            <div 
-              className="mb-8 notifications-section unseen-notifications"
-              style={{ 
-                scrollSnapType: 'y mandatory',
-                overflowY: 'scroll',
-                position: 'relative',
-                paddingTop: '60px'
-              }}
-            >
-              <div className="relative h-[120px] mb-8 overflow-visible">
-                <motion.h1 
-                  initial={{ opacity: 0, x: -100 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
-                  className="text-[150px] font-bold text-gray-100 uppercase absolute -top-20 left-0 w-full text-left whitespace-nowrap overflow-visible"
-                  style={{ color: '#d2d1e6', opacity: 0.1 }}
-                >
-                  UNSEEN
-                </motion.h1>
-                <motion.h2 
-                  initial={{ opacity: 0, x: 100 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
-                  className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'
-                >
-                  Notifications
-                </motion.h2>
-              </div>
-              <h2 className="text-2xl font-bold mb-4 text-gray-800"></h2>
-              <div className="space-y-4">
-                {notifications.unseen.map((notification, index) => (
-                  <div 
-                    key={notification.id || index} 
-                    className="notification-item transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg"
-                    style={{
-                      scrollSnapAlign: 'start',
-                      willChange: 'transform, box-shadow'
-                    }}
-                  >
-                    {renderNotification(notification)}
-                  </div>
-                ))}
-              </div>
+          <div 
+            className="mb-8 notifications-section"
+            style={{ 
+              scrollSnapType: 'y mandatory',
+              overflowY: 'scroll',
+              position: 'relative',
+              paddingTop: '60px'
+            }}
+          >
+            <div className="relative h-[120px] mb-8 overflow-visible">
+              <motion.h1 
+                initial={{ opacity: 0, x: -100 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+                className="text-[150px] font-bold text-gray-100 uppercase absolute -top-20 left-0 w-full text-left whitespace-nowrap overflow-visible"
+                style={{ color: '#d2d1e6', opacity: 0.1 }}
+              >
+                NOTIFICATIONS
+              </motion.h1>
+              <motion.h2 
+                initial={{ opacity: 0, x: 100 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+                className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'
+              >
+                Notifications
+              </motion.h2>
             </div>
-          )}
-
-          {notifications.seen.length > 0 && (
-            <div 
-              className="notifications-section seen-notifications"
-              style={{ 
-                scrollSnapType: 'y mandatory',
-                overflowY: 'scroll',
-                position: 'relative',
-                paddingTop: '60px'
-              }}
-            >
-              <div className="relative h-[120px] mb-8 overflow-visible">
-                <motion.h1 
-                  initial={{ opacity: 0, x: -100 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
-                  className="text-[150px] font-bold text-gray-100 uppercase absolute -top-20 left-0 w-full text-left whitespace-nowrap overflow-visible"
-                  style={{ color: '#C9F2AC', opacity: 0.6 }}
+            <h2 className="text-2xl font-bold mb-4 text-gray-800"></h2>
+            <div className="space-y-4">
+              {notifications.map((notification, index) => (
+                <div 
+                  key={notification.id || index} 
+                  className="notification-item transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg"
+                  style={{
+                    scrollSnapAlign: 'start',
+                    willChange: 'transform, box-shadow'
+                  }}
                 >
-                  SEEN
-                </motion.h1>
-                <motion.h2 
-                  initial={{ opacity: 0, x: 100 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
-                  className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'
-                >
-                  Notifications
-                </motion.h2>
-              </div>
-              <h2 className="text-2xl font-bold mb-4 text-gray-800"></h2>
-              <div className="space-y-4">
-                {notifications.seen.map((notification, index) => (
-                  <div 
-                    key={notification.id || index} 
-                    className="notification-item transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg"
-                    style={{
-                      scrollSnapAlign: 'start',
-                      willChange: 'transform, box-shadow'
-                    }}
-                  >
-                    {renderNotification(notification)}
-                  </div>
-                ))}
-              </div>
+                  {renderNotification(notification)}
+                </div>
+              ))}
             </div>
-          )}
+          </div>
         </div>
       )}
 

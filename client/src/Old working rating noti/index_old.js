@@ -26,8 +26,6 @@ import agentRatingRouter from './routes/agent-rating.route.js';
 import sessionAnalyticsRouter from './routes/sessionAnalytics.route.js';
 import notificationRouter from './routes/notification.route.js';
 import disputeRouter from './routes/dispute.route.js';
-import reservationRouter from './routes/reservation.route.js';
-import ratingNotificationRouter from './routes/ratingNotification.route.js';
 
 // Load environment variables at the very start
 dotenv.config();
@@ -108,8 +106,6 @@ app.use('/api/agent-rating', agentRatingRouter);
 app.use('/api/session-analytics', sessionAnalyticsRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api/dispute', disputeRouter);
-app.use('/api/reservation', reservationRouter);
-app.use('/api/rating-notifications', ratingNotificationRouter);
 
 // Add global error handler middleware
 app.use((err, req, res, next) => {

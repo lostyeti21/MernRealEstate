@@ -154,8 +154,60 @@ const TenantProfile = () => {
         categories: data.ratings?.categories
       });
 
-      toast.success('Rating submitted successfully!');
-      
+      // Send rating notification
+      console.log('Preparing to send rating notification:', {
+        ratedUser: tenantId,
+        ratedBy: JSON.parse(localStorage.getItem('currentUser'))._id,
+        ratingType: 'tenant',
+        ratingDetails: {
+          communication: ratings.communication,
+          cleanliness: ratings.cleanliness,
+          reliability: ratings.reliability,
+          overall: currentOverallRating
+        }
+      });
+
+      const ratingNotificationResponse = await fetch('http://localhost:3000/api/rating-notifications/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ratedUser: tenantId,
+          ratedBy: JSON.parse(localStorage.getItem('currentUser'))._id,
+          ratingType: 'tenant',
+          ratingDetails: {
+            communication: ratings.communication,
+            cleanliness: ratings.cleanliness,
+            reliability: ratings.reliability,
+            overall: currentOverallRating
+          }
+        })
+      });
+
+      console.log('Rating notification response:', {
+        status: ratingNotificationResponse.status,
+        ok: ratingNotificationResponse.ok
+      });
+
+      if (!ratingNotificationResponse.ok) {
+        const errorText = await ratingNotificationResponse.text();
+        console.error('Failed to send rating notification:', errorText);
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          toast.error(errorJson.message || 'Failed to send rating notification');
+        } catch {
+          toast.error('Failed to send rating notification');
+        }
+      } else {
+        const responseData = await ratingNotificationResponse.json();
+        console.log('Rating notification created successfully:', responseData);
+        toast.success('Rating submitted successfully');
+      }
+
       // Reset ratings and hover states
       setRatings({
         communication: 0,
