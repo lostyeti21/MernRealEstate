@@ -3,21 +3,39 @@ import { useNavigate } from 'react-router-dom';
 
 export default function NotificationPopup({ unreadCount, onClose }) {
   const [isVisible, setIsVisible] = useState(false);
+  const [shownForCount, setShownForCount] = useState(0);
   const navigate = useNavigate();
+  let autoCloseTimer;
 
   useEffect(() => {
-    // Show popup if there are unread notifications
-    if (unreadCount > 0) {
+    // Show popup only if there are new unread notifications
+    if (unreadCount > 0 && unreadCount !== shownForCount) {
       // Wait 5 seconds before showing the popup
-      const timer = setTimeout(() => {
+      const showTimer = setTimeout(() => {
         setIsVisible(true);
+        setShownForCount(unreadCount);
       }, 5000);
 
-      return () => clearTimeout(timer);
+      return () => clearTimeout(showTimer);
     } else {
       setIsVisible(false);
     }
-  }, [unreadCount]);
+  }, [unreadCount, shownForCount]);
+
+  useEffect(() => {
+    if (isVisible) {
+      autoCloseTimer = setTimeout(() => {
+        setIsVisible(false);
+        onClose();
+      }, 5000);
+    }
+
+    return () => {
+      if (autoCloseTimer) {
+        clearTimeout(autoCloseTimer);
+      }
+    };
+  }, [isVisible, onClose]);
 
   const handleClick = () => {
     navigate('/notifications');
@@ -25,10 +43,28 @@ export default function NotificationPopup({ unreadCount, onClose }) {
     setIsVisible(false);
   };
 
+  const handleMouseEnter = () => {
+    // Prevent auto-close when mouse is over the popup
+    clearTimeout(autoCloseTimer);
+  };
+
+  const handleMouseLeave = () => {
+    // Restart auto-close timer when mouse leaves
+    autoCloseTimer = setTimeout(() => {
+      setIsVisible(false);
+      onClose();
+    }, 5000);
+  };
+
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 bg-white rounded-lg shadow-xl p-4 max-w-sm animate-slide-up z-50 border border-gray-200">
+    <div 
+      className="fixed bottom-4 left-4 bg-white/50 backdrop-blur-md rounded-lg shadow-xl p-4 max-w-sm animate-slide-up z-50 border border-gray-200/50 cursor-pointer hover:bg-white/70 transition-colors duration-200"
+      onClick={handleClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0">
           <div className="bg-blue-100 rounded-full p-2">
@@ -46,21 +82,17 @@ export default function NotificationPopup({ unreadCount, onClose }) {
           </p>
         </div>
         <button
-          onClick={() => setIsVisible(false)}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent triggering main click event
+            setIsVisible(false);
+            onClose();
+          }}
           className="flex-shrink-0 ml-2 text-gray-400 hover:text-gray-600 focus:outline-none"
           aria-label="Close notification"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          ✕
         </button>
       </div>
-      <button
-        onClick={handleClick}
-        className="mt-3 w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-      >
-        View Notifications
-      </button>
     </div>
   );
 }

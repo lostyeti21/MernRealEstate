@@ -7,46 +7,26 @@ import Notification from '../models/notification.model.js';
 
 export const disputeRating = async (req, res, next) => {
   try {
-    const { ratingId, ratingType, categories, reason, reasonType } = req.body;
+    const { rating, ratingType, categories, reason, reasonType, disputedBy, ratedBy } = req.body;
     console.log('Creating dispute with data:', {
-      ratingId,
+      rating,
       ratingType,
-      categories: Array.isArray(categories) ? categories : [categories],
+      categories,
       reason,
-      reasonType
+      reasonType,
+      disputedBy,
+      ratedBy
     });
-
-    // Validate required fields
-    if (!ratingId || !ratingType || !categories || !categories.length || !reason || !reasonType) {
-      console.error('Missing required fields:', { ratingId, ratingType, categories, reason, reasonType });
-      return next(errorHandler(400, 'Missing required fields'));
-    }
-
-    // Get the rating based on type
-    const RatingModel = ratingType === 'tenant' ? TenantRating : LandlordRating;
-    const rating = await RatingModel.findById(ratingId);
-
-    if (!rating) {
-      console.error('Rating not found:', { ratingId, ratingType });
-      return next(errorHandler(404, 'Rating not found'));
-    }
-
-    // Check if rating is already disputed
-    const existingDispute = await Dispute.findOne({ rating: ratingId });
-    if (existingDispute) {
-      console.error('Rating already disputed:', { ratingId, disputeId: existingDispute._id });
-      return next(errorHandler(400, 'This rating is already disputed'));
-    }
 
     // Create dispute
     const dispute = await Dispute.create({
-      rating: ratingId,
+      rating,
       ratingType,
       categories: Array.isArray(categories) ? categories : [categories],
       reason,
       reasonType,
-      disputedBy: req.user.id,
-      ratedBy: rating.ratedBy,
+      disputedBy,
+      ratedBy,
       status: 'pending',
       createdAt: new Date()
     });
@@ -63,8 +43,8 @@ export const disputeRating = async (req, res, next) => {
       console.log('Creating notification with categories:', categoryNames);
       
       const notificationData = {
-        to: rating.ratedBy,
-        message: `Your ${ratingType} rating has been disputed by ${dispute.disputedBy.username}. The dispute (ID: ${disputeReference}) is currently under review by our support team.`,
+        to: ratedBy,
+        message: `Your ${ratingType} rating has been disputed. The dispute (ID: ${disputeReference}) is currently under review by our support team.`,
         type: 'dispute_submitted',
         systemInfo: {
           name: 'JustListIt Support',
@@ -74,7 +54,7 @@ export const disputeRating = async (req, res, next) => {
           id: dispute._id,
           reason: reason,
           reasonType: reasonType,
-          categories: categoryNames // Only send the category names
+          categories: categoryNames
         },
         read: false,
         createdAt: new Date()
@@ -97,7 +77,7 @@ export const disputeRating = async (req, res, next) => {
         error: notificationError.message,
         stack: notificationError.stack,
         dispute: dispute._id,
-        user: rating.ratedBy
+        user: ratedBy
       });
       // Don't throw the error as the dispute was still created successfully
     }

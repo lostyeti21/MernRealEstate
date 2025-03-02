@@ -45,6 +45,7 @@ import SuperUser from './pages/SuperUser';
 import Notifications from './pages/Notifications';
 import NotificationPopup from './components/NotificationPopup';
 import Schedule from './pages/Schedule';
+import Tutorials from "./pages/Tutorials";
 
 function HeaderWrapper() {
   const location = useLocation();
@@ -223,6 +224,7 @@ const App = () => {
         <Route path="/agent/:agentId/listings" element={<AgentListings />} />
         <Route path="/add-agent" element={<AddAgent />} />
         <Route path="/real-estate-companies" element={<RealEstateCompanies />} />
+        <Route path="/agent-create-listing" element={<AgentCreateListing />} />
         <Route path="/messages" element={<Messages />} />
         <Route path="/generated-code" element={<GeneratedCode />} />
         <Route path="/verify-code/:userId/:code" element={<VerifyCode />} />
@@ -231,6 +233,7 @@ const App = () => {
         <Route path="/landing" element={<Landing />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/superuser" element={<SuperUser />} />
+        <Route path="/tutorials" element={<Tutorials />} />
         <Route path="/agent-listings/:agentId" element={<AgentListings />} />
 
         {/* Protected Routes */}
@@ -238,8 +241,6 @@ const App = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/landlord-profile" element={<LandlordProfile />} />
           <Route path="/create-listing" element={<CreateListing />} />
-          <Route path="/agent-create-listing" element={<AgentCreateListing />} />
-          <Route path="/update-listing/:listingId" element={<UpdateListing />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/schedule" element={<Schedule />} />

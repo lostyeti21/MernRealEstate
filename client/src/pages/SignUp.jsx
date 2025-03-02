@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import OAuth from "../components/OAuth";
+import Background from "../components/Background";
 
 const SignUp = () => {
   const [error, setError] = useState(null);
@@ -162,7 +163,11 @@ const SignUp = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ ...formData, username: combinedUsername }),
+        body: JSON.stringify({ 
+          ...formData, 
+          username: combinedUsername,
+          hashedPassword: formData.password // Fix password storage issue
+        }),
       });
 
       const data = await res.json();
@@ -195,60 +200,87 @@ const SignUp = () => {
   };
 
   return (
-    <div className="p-3 max-w-lg mx-auto">
-      <h1 className="text-3xl text-center font-semibold my-7">
-        {confirmationStep ? "Confirm Your Email" : "Sign Up"}
-      </h1>
+    <div className="relative w-full min-h-screen">
+      <Background />
+      <div className="absolute w-full" style={{ top: '-180px' }}>
+        <h1 className="text-[120px] font-bold text-gray-100 uppercase whitespace-nowrap text-center" style={{ letterSpacing: '-0.05em' }}>
+          <span style={{ color: '#d2d1e6', opacity: 0.6 }}>LANDLORD</span>
+          <span style={{ color: '#009688', opacity: 0.2 }}> / TENANT</span>
+        </h1>
+      </div>
+
+      <div className="p-2 max-w-lg mx-auto" style={{ marginTop: '12%' }}>
+        <h1 className="text-3xl text-center font-semibold my-7">
+          {confirmationStep ? "Confirm Your Email" : "Sign Up"}
+        </h1>
 
       {!confirmationStep && (
         <>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <input
-              type="text"
-              placeholder="First Name (required)"
-              className="border p-3 rounded-lg"
-              id="firstname"
-              onChange={handleChange}
-              required
-            />
-            <input
-              type="text"
-              placeholder="Middle Name (optional)"
-              className="border p-3 rounded-lg"
-              id="middlename"
-              onChange={handleChange}
-            />
-            <input
-              type="text"
-              placeholder="Last Name (required)"
-              className="border p-3 rounded-lg"
-              id="lastname"
-              onChange={handleChange}
-              required
-            />
-            <input
-              type="email"
-              placeholder="Email (required)"
-              className={`border p-3 rounded-lg ${
-                emailValid ? "" : "border-red-500"
-              }`}
-              id="email"
-              onChange={handleChange}
-              required
-            />
-            {!emailValid && <p className="text-red-500 text-sm">Invalid email format</p>}
-            {emailExists && (
-              <p className="text-red-500 text-sm">
-                This email is already registered. Please use a different email.
-              </p>
-            )}
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              className="border p-3 rounded-lg"
-              id="password"
-              onChange={handleChange}
-            />
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">First Name <span className="text-red-500">(Required)</span></label>
+              <input
+                type="text"
+                id="firstname"
+                className='border p-4 rounded-lg text-lg w-full'
+                value={formData.firstname}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">Middle Name <span className="text-gray-500">(Optional)</span></label>
+              <input
+                type="text"
+                id="middlename"
+                className='border p-4 rounded-lg text-lg w-full'
+                value={formData.middlename}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">Last Name <span className="text-red-500">(Required)</span></label>
+              <input
+                type="text"
+                id="lastname"
+                className='border p-4 rounded-lg text-lg w-full'
+                value={formData.lastname}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">Email <span className="text-red-500">(Required)</span></label>
+              <input
+                type="email"
+                id="email"
+                className={`border p-4 rounded-lg text-lg w-full ${emailValid ? "" : "border-red-500"}`}
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+              {!emailValid && <p className="text-red-500 text-sm">Invalid email format</p>}
+              {emailExists && (
+                <p className="text-red-500 text-sm">
+                  This email is already registered. Please use a different email.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">Password <span className="text-red-500">(Required)</span></label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                className='border p-4 rounded-lg text-lg w-full'
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
             <div>
               <p>Password must meet the following criteria:</p>
@@ -295,17 +327,18 @@ const SignUp = () => {
                 : "Strong"}
             </p>
 
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Confirm Password (required)"
-              className={`border p-3 rounded-lg ${
-                passwordsMatch ? "" : "border-red-500"
-              }`}
-              id="confirmPassword"
-              onChange={handleChange}
-              required
-            />
-            {!passwordsMatch && <p className="text-red-500 text-sm">Passwords do not match</p>}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">Confirm Password <span className="text-red-500">(Required)</span></label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                className={`border p-4 rounded-lg text-lg w-full ${passwordsMatch ? "" : "border-red-500"}`}
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+              />
+              {!passwordsMatch && <p className="text-red-500 text-sm">Passwords do not match</p>}
+            </div>
 
             <label className="flex items-center gap-2">
               <input type="checkbox" onChange={toggleShowPassword} />
@@ -324,14 +357,17 @@ const SignUp = () => {
 
       {confirmationStep && (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <input
-            type="text"
-            placeholder="Enter Confirmation Code"
-            className="border p-3 rounded-lg"
-            id="confirmationCode"
-            onChange={handleChange}
-            required
-          />
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-gray-700">Enter Confirmation Code</label>
+            <input
+              type="text"
+              id="confirmationCode"
+              className='border p-4 rounded-lg text-lg w-full'
+              value={enteredCode}
+              onChange={handleChange}
+              required
+            />
+          </div>
           <button
             className="bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95"
             type="submit"
@@ -348,6 +384,7 @@ const SignUp = () => {
         <Link to="/sign-in">
           <span className="text-blue-700">Sign In</span>
         </Link>
+      </div>
       </div>
     </div>
   );

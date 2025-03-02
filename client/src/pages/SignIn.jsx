@@ -1,6 +1,6 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { signInStart, signInSuccess, signInFailure } from '../redux/user/userSlice';
-import React, { useState, useRef } from 'react'; 
+import React, { useState, useRef, useEffect } from 'react'; 
 import { useNavigate, Link } from "react-router-dom";
 import OAuth from '../components/OAuth';
 import styled from 'styled-components';
@@ -13,6 +13,7 @@ import {
   ErrorMessage 
 } from '../components/StyledComponents';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import Background from '../components/Background';
 
 const StyledPopup = styled.div`
   .cards {
@@ -88,6 +89,23 @@ export default function SignIn() {
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  const [isClosing, setIsClosing] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  const handleCloseError = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setError('');
+      setIsClosing(false);
+    }, 300);
+  };
+
+  useEffect(() => {
+    if (error === 'Invalid email or password. Please try again.') {
+      setShowForgotPassword(true);
+    }
+  }, [error]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -236,6 +254,7 @@ export default function SignIn() {
 
   return (
     <div ref={containerRef} className='max-w-6xl mx-auto'>
+      <Background />
       {showPopup ? (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <StyledPopup className="bg-white p-8 rounded-lg max-w-2xl w-full mx-4">
@@ -305,40 +324,56 @@ export default function SignIn() {
                 onSubmit={handleSubmit} 
                 className='flex flex-col gap-6 w-full'
               >
-                <Input
-                  type='email'
-                  placeholder='Email'
-                  className='border p-4 rounded-lg text-lg w-full'
-                  value={formData.email}
-                  onChange={handleChange}
-                  name='email'
-                  required
-                />
-
-                <div className="relative w-full">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-gray-700">Email</label>
                   <Input
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder='Password'
-                    className='border p-4 rounded-lg w-full text-lg'
-                    value={formData.password}
+                    type='email'
+                    name='email'
+                    className='border p-4 rounded-lg text-lg w-full'
+                    value={formData.email}
                     onChange={handleChange}
-                    name='password'
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-[40%] -translate-y-[50%] text-gray-500 flex items-center h-[24px]"
-                    style={{ marginTop: '1px' }}
-                  >
-                    {!showPassword ? <FaEyeSlash size={20} /> : <FaEye size={20} />}
-                  </button>
                 </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-gray-700">Password</label>
+                  <div className="relative w-full">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      name='password'
+                      className='border p-4 rounded-lg text-lg w-full'
+                      value={formData.password}
+                      onChange={handleChange}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-[40%] -translate-y-[50%] text-gray-500 flex items-center h-[24px]"
+                      style={{ marginTop: '1px' }}
+                    >
+                      {!showPassword ? <FaEyeSlash size={20} /> : <FaEye size={20} />}
+                    </button>
+                  </div>
+                </div>
+
+                {(error === 'Invalid email or password. Please try again.' || showForgotPassword) && (
+                  <div className='text-center mt-0'>
+                    <button 
+                      onClick={handlePasswordResetClick}
+                      className='text-blue-700 hover:underline focus:outline-none'
+                    >
+                      Forgot your password?
+                    </button>
+                  </div>
+                )}
 
                 <Button 
                   type="submit" 
                   disabled={loading}
-                  className='bg-slate-700 text-white p-4 rounded-lg uppercase hover:opacity-95 disabled:opacity-80 text-lg w-full'
+                  style={{ backgroundColor: '#009688' }}
+                  className='text-white p-4 rounded-lg uppercase hover:opacity-95 disabled:opacity-80 text-lg w-full'
                 >
                   {loading ? 'Loading...' : 'Sign In'}
                 </Button>
@@ -358,19 +393,13 @@ export default function SignIn() {
                 </Link>
               </div>
 
-              <div className='mt-6 text-center'>
-                <button 
-                  onClick={handlePasswordResetClick}
-                  className='text-blue-700 hover:underline focus:outline-none mb-4'
+              {showPasswordReset && (
+                <div 
+                  ref={passwordResetRef}
+                  className='transition-all duration-300 ease-in-out'
                 >
-                  {showPasswordReset ? 'Cancel' : 'Forgot your password?'}
-                </button>
-
-                {showPasswordReset && (
-                  <div 
-                    ref={passwordResetRef}
-                    className='transition-all duration-300 ease-in-out'
-                  >
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-medium text-gray-700">Email</label>
                     <Input
                       type='email'
                       placeholder='Enter your email address'
@@ -378,21 +407,45 @@ export default function SignIn() {
                       value={forgotPasswordEmail}
                       onChange={(e) => setForgotPasswordEmail(e.target.value)}
                     />
-                    <Button
-                      onClick={handleForgotPassword}
-                      className='bg-blue-500 text-white p-4 rounded-lg w-full hover:opacity-95 text-lg'
-                    >
-                      Reset Account Password
-                    </Button>
-                    {verificationError && <ErrorMessage className='text-red-500 mt-4'>{verificationError}</ErrorMessage>}
                   </div>
-                )}
-              </div>
+                  <Button
+                    onClick={handleForgotPassword}
+                    className='bg-blue-500 text-white p-4 rounded-lg w-full hover:opacity-95 text-lg'
+                  >
+                    Reset Account Password
+                  </Button>
+                  {verificationError && <ErrorMessage className='text-red-500 mt-4'>{verificationError}</ErrorMessage>}
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
-      {error && <ErrorMessage className='text-red-500 mt-5'>{error}</ErrorMessage>}
+      {error && (
+        <div 
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 
+            ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
+          onClick={handleCloseError}
+        >
+          <div 
+            className={`bg-white p-8 rounded-lg shadow-lg max-w-md w-full relative 
+              ${isClosing ? 'animate-zoom-out' : 'animate-zoom-in'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleCloseError}
+              className='absolute top-2 right-2 text-gray-500 hover:text-gray-700 transition-colors duration-200'
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className='text-red-500 text-center text-lg'>
+              {error}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

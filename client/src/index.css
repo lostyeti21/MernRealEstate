@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Dark mode global styles */
+html.dark {
+  background-color: #121212;
+  color: #ffffff;
+}
+
+.dark body {
+  background-color: #121212;
+  color: #ffffff;
+}
+
+.dark a {
+  color: #1976D2;
+}
+
+.dark input {
+  background-color: #2c2c2c;
+  color: #ffffff;
+  border-color: #424242;
+}
+
+.dark .bg-white {
+  background-color: #1e1e1e;
+}
+
+.dark .text-slate-700 {
+  color: #b0b0b0;
+}
+
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(255, 255, 255, 0.05);
+}
+
 body {
     background-color: white;
 }

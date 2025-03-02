@@ -5,6 +5,7 @@ import User from "../models/user.model.js"; // Import the User model for email c
 import { verifyToken } from '../utils/verifyUser.js';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken'; // Import jwt
 import { errorHandler } from '../utils/error.js';
 
 const router = express.Router();
@@ -134,6 +135,51 @@ router.post("/reset-password", async (req, res, next) => {
 router.get("/check-auth", verifyToken, (req, res) => {
   // If the request reaches here, the user is authenticated
   res.status(200).json({ authenticated: true, user: req.user });
+});
+
+// SuperUser Authentication Routes
+router.post("/superuser/login", async (req, res, next) => {
+  const { username, password } = req.body;
+  
+  try {
+    // Hardcoded SuperUser credentials check
+    if (username === 'admin' && password === 'ishe') {
+      // Generate a token for the SuperUser
+      const token = jwt.sign(
+        { id: '6767dcec826d237d0ac04849', isSuperUser: true },
+        process.env.JWT_SECRET
+      );
+      
+      res.status(200).json({
+        success: true,
+        token,
+        message: 'SuperUser login successful'
+      });
+    } else {
+      next(errorHandler(401, 'Invalid SuperUser credentials'));
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/superuser/verify", async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ authenticated: false });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.isSuperUser) {
+      res.status(200).json({ authenticated: true });
+    } else {
+      res.status(401).json({ authenticated: false });
+    }
+  } catch (error) {
+    res.status(401).json({ authenticated: false });
+  }
 });
 
 export default router;

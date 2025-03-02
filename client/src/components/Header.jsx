@@ -7,6 +7,7 @@ import logo from '../assets/logo.png';
 import { FaSearch } from 'react-icons/fa';
 import { FaUserCircle } from 'react-icons/fa';
 import { IoMdNotifications } from 'react-icons/io';
+import { MdDarkMode, MdLightMode } from 'react-icons/md';
 
 export default function Header() {
   const { currentUser, isRealEstateCompany, realEstateCompany } = useSelector((state) => state.user);
@@ -16,6 +17,11 @@ export default function Header() {
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [hasListings, setHasListings] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    // Initialize dark mode from localStorage
+    const savedMode = localStorage.getItem('darkMode');
+    return savedMode === 'true';
+  });
   const socket = useRef();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -500,6 +506,20 @@ export default function Header() {
     }
   }, [isNotificationsPage]);
 
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('darkMode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('darkMode', 'false');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3 relative">
@@ -566,6 +586,9 @@ export default function Header() {
               </Link>
               <Link to="/market-trends" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Market Trends
+              </Link>
+              <Link to="/tutorials" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+                Tutorials
               </Link>
             </div>
           </div>
@@ -693,8 +716,24 @@ export default function Header() {
                       <hr className="border-gray-200" />
                       
                       <button
-                        onClick={handleSignOut}
+                        onClick={toggleDarkMode}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:text-[#009688] hover:bg-gray-100 transition-colors duration-200"
+                      >
+                        {isDarkMode ? (
+                          <div className="flex items-center">
+                            <MdLightMode className="mr-2" />
+                            Light Mode
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <MdDarkMode className="mr-2" />
+                            Dark Mode
+                          </div>
+                        )}
+                      </button>
+                      <button 
+                        onClick={handleSignOut} 
+                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 transition-colors duration-200"
                       >
                         Sign Out
                       </button>
@@ -704,11 +743,18 @@ export default function Header() {
               )}
             </div>
           ) : (
-            <Link to="/sign-in">
-              <button className="text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#009688] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100">
-                Sign In
-              </button>
-            </Link>
+            <div className="flex gap-2">
+              <Link to="/sign-in">
+                <button className="text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#009688] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100">
+                  Sign In
+                </button>
+              </Link>
+              <Link to="/sign-up">
+                <button className="text-sm tracking-[1px] uppercase text-center font-bold py-[0.5em] px-[1.2em] border-[2px] text-black border-black rounded-[2px] relative shadow-[0_2px_10px_rgba(0,0,0,0.16),0_3px_6px_rgba(0,0,0,0.1)] transition-all duration-300 ease-all z-[1] before:transition-all before:duration-500 before:ease-all before:absolute before:top-0 before:left-[50%] before:right-[50%] before:bottom-0 before:opacity-0 before:content-[''] before:bg-[#009688] before:-z-[1] hover:text-white hover:before:left-0 hover:before:right-0 hover:before:opacity-100">
+                  Sign Up
+                </button>
+              </Link>
+            </div>
           )}
         </div>
       </div>

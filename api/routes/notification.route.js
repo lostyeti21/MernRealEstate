@@ -6,7 +6,8 @@ import {
   getUnreadStatus, 
   getUnreadCount,
   markNotificationAsRead,
-  getScheduleNotifications 
+  getScheduleNotifications,
+  createSuperUserNotification 
 } from '../controllers/notification.controller.js';
 import { verifyToken } from '../utils/verifyUser.js';
 
@@ -28,6 +29,7 @@ router.get('/unread/count', verifyToken, getUnreadCount);
 
 // Create and update notifications
 router.post('/create', verifyToken, createNotification);
+router.post('/create-super-notification', verifyToken, createSuperUserNotification);
 router.put('/:notificationId/read', verifyToken, markNotificationAsRead);
 router.put('/read/:id', verifyToken, markNotificationAsRead);
 

@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['viewing_request', 'system', 'message', 'rating']
+    enum: ['viewing_request', 'system', 'message', 'rating', 'dispute_submitted', 'dispute_received', 'dispute_approved', 'dispute_rejected']
   },
   to: {
     type: mongoose.Schema.Types.ObjectId,
@@ -18,11 +18,15 @@ const notificationSchema = new mongoose.Schema({
   },
   title: {
     type: String,
-    required: true
+    required: function() {
+      return !this.type.startsWith('dispute_');
+    }
   },
   content: {
     type: String,
-    required: true
+    required: function() {
+      return !this.type.startsWith('dispute_');
+    }
   },
   data: {
     type: Object,

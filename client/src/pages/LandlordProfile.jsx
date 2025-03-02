@@ -37,9 +37,65 @@ export default function LandlordProfile() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [averageRating, setAverageRating] = useState(null);
   const [ratingLoading, setRatingLoading] = useState(true);
+  
+  // New state for generated code
+  const [code, setCode] = useState('');
+  const [expiryTime, setExpiryTime] = useState(null);
+  const [codeLoading, setCodeLoading] = useState(true);
+  const [codeError, setCodeError] = useState(null);
 
   const dispatch = useDispatch();
 
+  // Fetch generated code
+  useEffect(() => {
+    const fetchCode = async () => {
+      try {
+        setCodeLoading(true);
+        setCodeError(null);
+
+        const res = await fetch('/api/code/generate', {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`
+          }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || 'Could not generate code');
+        }
+
+        setCode(data.code);
+        setExpiryTime(new Date(data.expiryTime).getTime());
+      } catch (err) {
+        console.error('Error fetching code:', err);
+        setCodeError(err.message);
+      } finally {
+        setCodeLoading(false);
+      }
+    };
+
+    if (currentUser) {
+      fetchCode();
+    }
+  }, [currentUser]);
+
+  // Format time remaining
+  const getTimeRemaining = () => {
+    if (!expiryTime) return '';
+    
+    const now = new Date().getTime();
+    const timeLeft = expiryTime - now;
+    
+    if (timeLeft <= 0) return 'Expired';
+    
+    const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `Valid for: ${hours}h ${minutes}m`;
+  };
+
+  // Existing useEffect for file upload
   useEffect(() => {
     if (file) {
       handleFileUpload(file);
@@ -485,6 +541,31 @@ export default function LandlordProfile() {
               <p className='text-sm text-gray-500 text-center mt-2'>
                 Scan to view verification code
               </p>
+            </div>
+            
+            {/* Generated Code Section */}
+            <div className='flex flex-col items-center'>
+              <h3 className='text-lg font-medium text-slate-700 mb-2'>Verification Code:</h3>
+              {codeLoading ? (
+                <p className='text-gray-500'>Loading code...</p>
+              ) : codeError ? (
+                <p className='text-red-700'>{codeError}</p>
+              ) : (
+                <div className='bg-gray-100 p-4 rounded-lg text-center'>
+                  <div className='text-2xl font-mono tracking-wider'>
+                    {code.split('').map((char, index) => (
+                      <span 
+                        key={index} 
+                        className={`mx-1 ${/[0-9]/.test(char) ? 'text-blue-600' : 
+                          /[A-Z]/.test(char) ? 'text-green-600' : 'text-purple-600'}`}
+                      >
+                        {char}
+                      </span>
+                    ))}
+                  </div>
+                  <p className='text-sm text-gray-500 mt-2'>{getTimeRemaining()}</p>
+                </div>
+              )}
             </div>
           </div>
 

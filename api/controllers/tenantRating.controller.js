@@ -96,3 +96,34 @@ export const checkIfRated = async (req, res, next) => {
     next(errorHandler(500, 'Error checking rating status'));
   }
 };
+
+// Get rating by category
+export const getRatingByCategory = async (req, res, next) => {
+  try {
+    const { tenantId, category } = req.params;
+
+    // Validate tenant ID
+    if (!mongoose.Types.ObjectId.isValid(tenantId)) {
+      return next(errorHandler(400, 'Invalid tenant ID'));
+    }
+
+    // Find the most recent rating for this category
+    const rating = await TenantRating.findOne({
+      tenant: tenantId,
+      category: category.toLowerCase()
+    }).sort({ createdAt: -1 });
+
+    if (!rating) {
+      return next(errorHandler(404, `No rating found for category ${category}`));
+    }
+
+    res.status(200).json({
+      success: true,
+      rating
+    });
+
+  } catch (error) {
+    console.error('Error in getRatingByCategory:', error);
+    next(errorHandler(500, 'Error fetching rating by category'));
+  }
+};

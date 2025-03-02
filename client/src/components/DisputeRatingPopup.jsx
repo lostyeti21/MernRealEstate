@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function DisputeRatingPopup({ onClose, onSubmit, notification }) {
+export default function DisputeRatingPopup({ onClose, onSubmit, notification, raterName }) {
   const [selectedReason, setSelectedReason] = useState('');
   const [otherReason, setOtherReason] = useState('');
   const [error, setError] = useState('');
@@ -28,8 +28,20 @@ export default function DisputeRatingPopup({ onClose, onSubmit, notification }) 
       setIsSubmitting(true);
       setError('');
 
-      const reason = selectedReason === '4' ? otherReason : disputeReasons.find(r => r.id === parseInt(selectedReason))?.text;
-      await onSubmit(reason);
+      const reasonText = selectedReason === '4' ? otherReason : disputeReasons.find(r => r.id === parseInt(selectedReason))?.text;
+      
+      console.log('🚀 [DisputeRatingPopup] Submitting dispute with data:', {
+        reason: reasonText,
+        reasonType: selectedReason === '4' ? 'Other' : disputeReasons.find(r => r.id === parseInt(selectedReason))?.text,
+        raterName
+      });
+
+      await onSubmit({
+        reason: reasonText,
+        reasonType: selectedReason === '4' ? 'Other' : disputeReasons.find(r => r.id === parseInt(selectedReason))?.text,
+        raterName
+      });
+      
       onClose();
     } catch (error) {
       setError(error.message);

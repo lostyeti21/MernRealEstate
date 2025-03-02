@@ -3,7 +3,8 @@ import { verifyToken } from '../utils/verifyUser.js';
 import { 
   rateTenant, 
   getTenantRatings, 
-  checkIfRated 
+  checkIfRated,
+  getRatingByCategory
 } from '../controllers/tenantRating.controller.js';
 
 const router = express.Router();
@@ -16,5 +17,8 @@ router.get('/:tenantId', getTenantRatings);
 
 // Check if user has rated a tenant
 router.get('/check/:tenantId', verifyToken, checkIfRated);
+
+// Get rating by category
+router.get('/category/:tenantId/:category', verifyToken, getRatingByCategory);
 
 export default router;
