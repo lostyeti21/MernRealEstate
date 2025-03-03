@@ -10,6 +10,7 @@ import ReactDOM from 'react-dom';
 import DisputeRatingPopup from '../components/DisputeRatingPopup';
 import DisputeConfirmationPopup from '../components/DisputeConfirmationPopup';
 import NewRatingPopup from '../components/NewRatingPopup';
+import DisputeDoneAlreadyPopup from '../components/DisputeDoneAlreadyPopup';
 
 export default function Notifications({ superUserProps, onDisputeSubmit }) {
   const { currentUser } = useSelector((state) => state.user);
@@ -43,6 +44,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [selectedRating, setSelectedRating] = useState(null);
   const [showNewRatingPopup, setShowNewRatingPopup] = useState(false);
+  const [showDisputeDoneAlready, setShowDisputeDoneAlready] = useState(false);
 
   const formatDate = (dateString) => {
     // Add more detailed logging
@@ -235,46 +237,44 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
 
   const handleDelete = async (notification) => {
     try {
-      if (!notification.ratings?.length) {
-        throw new Error('No valid ratings to delete');
+      // If no ID is present, throw an error
+      if (!notification.id && !notification._id) {
+        throw new Error('No notification ID found');
       }
 
-      setDeletingIds(prev => new Set([...prev, notification.id]));
+      const notificationId = notification.id || notification._id;
+      
+      // Optimistically remove the notification from the state
+      setNotifications(prev => prev.filter(n => (n.id !== notificationId && n._id !== notificationId)));
 
-      // Delete all ratings in the group
-      for (const rating of notification.ratings) {
-        if (!rating.id) {
-          console.warn('Skipping rating without ID:', rating);
-          continue;
-        }
+      setDeletingIds(prev => new Set([...prev, notificationId]));
 
-        const res = await fetch(`http://localhost:3000/api/notifications/${notification.type}/${rating.id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${currentUser?.token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
+      // Use the new deletion endpoint that supports multiple deletion methods
+      const deleteEndpoint = `/api/notifications/${notificationId}`;
 
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.message || 'Failed to delete notification');
-        }
+      const res = await fetch(deleteEndpoint, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${currentUser?.token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        // If delete fails, revert the optimistic update
+        setNotifications(prev => [...prev, notification]);
+        throw new Error(data.message || 'Failed to delete notification');
       }
 
-      // Remove the deleted notification group from state
-      setNotifications(prev => prev.filter(n => n.id !== notification.id));
-
-      // Refresh notifications to ensure sync with server
-      await fetchNotifications();
     } catch (error) {
       console.error('Error deleting notification:', error);
       alert('Failed to delete notification: ' + error.message);
     } finally {
       setDeletingIds(prev => {
         const newSet = new Set(prev);
-        newSet.delete(notification.id);
+        newSet.delete(notification.id || notification._id);
         return newSet;
       });
     }
@@ -334,6 +334,12 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
         return;
       }
 
+      // Check if rating is already disputed
+      if (notification.disputed) {
+        setShowDisputeDoneAlready(true);
+        return;
+      }
+
       const disputeCheckData = {
         ratingId: notification.id,
         ratingType: notification.ratingType || 'tenant'
@@ -373,59 +379,104 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
     }
   };
 
-  const handleDisputeSubmit = async (disputeData) => {
-    console.log('🚀 [Notifications] Handling dispute submit with data:', disputeData);
-
+  const handleDisputeSubmit = async (disputeData, notificationId) => {
+    console.log('Handling dispute submit:', { disputeData, notificationId });
+    
     try {
-      // If superUserProps exists, send to SuperUser component
-      if (superUserProps?.onDisputeSubmit) {
-        console.log('🔄 [Notifications] Forwarding dispute to SuperUser component');
-        superUserProps.onDisputeSubmit(disputeData);
-        return;
+      // Update the notification's disputed status in the UI immediately
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notification => {
+          if (notification._id === notificationId) {
+            console.log('Marking notification as disputed in UI:', notification._id);
+            return { ...notification, disputed: true };
+          }
+          return notification;
+        })
+      );
+
+      // Show confirmation popup with the updated notification data
+      setDisputeDetails({
+        ...disputeData,
+        notificationId
+      });
+      setShowConfirmation(true);
+
+      // Update the disputed status in the database
+      const response = await fetch(`/api/notifications/${notificationId}/mark-disputed`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to mark notification as disputed');
       }
 
-      if (onDisputeSubmit) {
-        console.log('🔄 [Notifications] Forwarding dispute to onDisputeSubmit callback');
-        onDisputeSubmit(disputeData);
-        return;
-      }
-
-      console.warn('⚠️ [Notifications] No SuperUser component found to handle dispute');
-      // Show fallback success message
-      toast.success('Dispute submitted successfully!');
+      console.log('Successfully marked notification as disputed in database:', notificationId);
+      
     } catch (error) {
-      console.error('❌ [Notifications] Error handling dispute:', error);
-      toast.error('Failed to submit dispute');
+      console.error('Error in handleDisputeSubmit:', error);
+      toast.error('Failed to update notification status');
+      
+      // Revert the local state if the API call failed
+      setNotifications(prevNotifications => 
+        prevNotifications.map(notification => {
+          if (notification._id === notificationId) {
+            console.log('Reverting disputed status for notification:', notification._id);
+            return { ...notification, disputed: false };
+          }
+          return notification;
+        })
+      );
     }
   };
 
-  const handleDisputeSubmitSuccess = (disputeData) => {
-    console.log('🚀 [Notifications] Dispute submitted successfully:', disputeData);
-    console.log('🔍 [Notifications] superUserProps available:', !!superUserProps);
+  const handleNewRatingDispute = async (disputeData) => {
+    console.log('New rating dispute data:', disputeData);
     
-    // First, pass the data to SuperUser if props exist
-    if (superUserProps?.onDisputeSubmit) {
-      console.log('🔄 [Notifications] Forwarding dispute to SuperUser component with superUserProps:', superUserProps);
-      superUserProps.onDisputeSubmit(disputeData);
-    } else {
-      console.warn('⚠️ [Notifications] No SuperUser component (superUserProps is undefined or missing onDisputeSubmit)');
-      // In case superUserProps doesn't exist, still use the handleDisputeSubmit function
-      handleDisputeSubmit(disputeData);
+    const notificationId = disputeData.notification?._id;
+    if (!notificationId) {
+      console.error('Missing notification ID in dispute data:', disputeData);
+      return;
     }
 
-    // Then show confirmation popup
+    // Update notification state and handle the dispute
+    await handleDisputeSubmit(disputeData, notificationId);
+  };
+
+  const handleDisputeSubmitSuccess = async (disputeData) => {
+    console.log('Dispute submitted successfully:', disputeData);
+    
+    const notificationId = disputeData.notification?._id;
+    if (!notificationId) {
+      console.error('Missing notification ID in successful dispute data:', disputeData);
+      return;
+    }
+
+    // Update the notification's disputed status in the UI
+    setNotifications(prevNotifications => 
+      prevNotifications.map(notification => {
+        if (notification._id === notificationId) {
+          console.log('Marking notification as disputed after successful submission:', notification._id);
+          return { ...notification, disputed: true };
+        }
+        return notification;
+      })
+    );
+
+    // Pass the data to SuperUser if props exist
+    if (superUserProps?.onDisputeSubmit) {
+      console.log('Forwarding dispute to SuperUser component');
+      superUserProps.onDisputeSubmit(disputeData);
+    }
+
+    // Show confirmation popup
     setDisputeDetails({
-      id: disputeData.id,
-      createdAt: disputeData.createdAt,
-      categories: disputeData.categories || [],
-      reason: disputeData.reason,
-      reasonType: disputeData.reasonType || 'Not Specified',
-      raterName: disputeData.raterName || disputePopup?.raterName || 'Unknown User'
+      ...disputeData,
+      notificationId
     });
     setShowConfirmation(true);
-    
-    // Refresh notifications to show the new dispute notification
-    fetchNotifications();
   };
 
   const handleCloseDisputePopup = () => {
@@ -443,9 +494,19 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
   const handleNotificationClick = (notification) => {
     console.log('Notification clicked:', notification);
     
+    // Check if notification is valid
+    if (!notification) {
+      console.error('Invalid notification clicked');
+      return;
+    }
+    
     // Mark as read if not already read
     if (!notification.read) {
-      handleMarkAsRead(notification._id);
+      try {
+        handleMarkAsRead(notification._id || notification.id);
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
     }
     
     // Handle different notification types
@@ -490,10 +551,32 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
         }
       });
       setShowNewRatingPopup(true);
-    } else if (notification.type === 'viewing_request') {
+    } else if (
+      notification.type === 'viewing_request' || 
+      (notification.type === 'system' && 
+        (notification.data?.type === 'viewing_rejection' || 
+         notification.data?.type === 'viewing_accepted'))
+    ) {
+      console.log('Opening viewing request/response popup:', notification);
+      console.log('Notification full data:', JSON.stringify(notification, null, 2));
+      
       setViewingRequestPopup({
         show: true,
-        notification
+        notification: {
+          ...notification,
+          data: {
+            ...notification.data,
+            status: notification.data?.type === 'viewing_rejection' ? 'rejected' :
+                    notification.data?.type === 'viewing_accepted' ? 'accepted' :
+                    notification.data?.status || 
+                    (notification.title === 'Viewing Request Rejected' ? 'rejected' : 
+                     notification.title === 'Viewing Request Accepted' ? 'accepted' : 'pending'),
+            listingTitle: notification.data?.listing?.name || 
+                          notification.data?.listingTitle || 
+                          notification.listingTitle || 
+                          'Unknown Listing'
+          }
+        }
       });
     }
   };
@@ -590,7 +673,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
           className="text-red-500 hover:text-red-700 transition-colors bg-red-50 px-3 py-1 rounded-md text-sm font-medium flex items-center gap-1"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333-.38 1.81.588 1.81l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.462a1 1 0 00.951-.69l1.07-3.292c.3-.921-.755-1.688-1.54-1.118l-2.8 2.034a1 1 0 00-.364 1.118L2.98 8.72c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292c.3-.921-.755-1.688-1.54-1.118l-2.8 2.034a1 1 0 00-.364 1.118L2.98 8.72c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292z" />
           </svg>
           Dispute Rating
         </button>
@@ -644,6 +727,11 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                   </svg>
                   Mark as Read
                 </button>
+              )}
+              {notification.disputed && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                  Disputed
+                </span>
               )}
               <button
                 onClick={(e) => {
@@ -711,6 +799,11 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                   Mark as Read
                 </button>
               )}
+              {notification.disputed && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                  Disputed
+                </span>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -758,17 +851,14 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                 <div className="flex items-baseline justify-between">
                   <div className="flex items-center gap-2">
                     <p className="text-gray-900 font-medium">JustListIt Support</p>
-                    {notification.data?.status && (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getDisputeStatusColor(notification.data.status)}`}>
-                        {notification.data.status.charAt(0).toUpperCase() + notification.data.status.slice(1)}
-                      </span>
-                    )}
                   </div>
                   <span className="text-xs text-gray-500">
                     {formatDate(notification.createdAt)}
                   </span>
                 </div>
-                <p className="text-gray-600 mt-1">{notification.message}</p>
+                <p className="text-gray-600 mt-1 whitespace-pre-wrap">
+                  {notification.content || notification.message}
+                </p>
                 {notification.data && (
                   <div className="mt-2 bg-gray-50 p-3 rounded-md space-y-2">
                     {notification.data.disputeId && (
@@ -787,63 +877,55 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                             className="text-blue-600 hover:text-blue-800"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-4M14 4v2m0 0v2m0-2h2m-2 0H10m2 2v2m0 0h2m-2 0H8m2 2v2m0 0h2m-2 0H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-4M16 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2v2a2 2 0 002 2h2a2 2 0 002-2V6a2 2 0 012-2h2a2 2 0 012 2V6z" />
                             </svg>
                           </button>
                         </div>
                       </div>
                     )}
-                    {notification.data.raterName && (
-                      <p className="text-sm text-gray-600">
-                        <span className="font-medium">Rater:</span> {notification.data.raterName}
-                      </p>
-                    )}
                     {notification.data.categories && notification.data.categories.length > 0 && (
                       <div>
                         <p className="text-sm font-medium text-gray-600 mb-1">Disputed Categories:</p>
-                        <div className="flex flex-col gap-2">
-                          {notification.data.categories.map((cat, index) => (
-                            <div key={index} className="flex items-center justify-between bg-white p-2 rounded">
-                              <span className="text-sm text-blue-600">
-                                {(typeof cat === 'string' ? cat : cat.category).charAt(0).toUpperCase() + 
-                                 (typeof cat === 'string' ? cat : cat.category).slice(1)}
+                        <div className="flex flex-wrap gap-2">
+                          {notification.data.categories.map((category, index) => {
+                            // Handle both string and object categories
+                            const categoryName = typeof category === 'object' 
+                              ? category.category || category.name || JSON.stringify(category)
+                              : category;
+                            
+                            return (
+                              <span
+                                key={index}
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                              >
+                                {categoryName}
                               </span>
-                              {typeof cat === 'object' && (cat.rating || cat.value) && (
-                                <div className="flex items-center">
-                                  <div className="flex">
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                      <svg
-                                        key={star}
-                                        className={`w-4 h-4 ${
-                                          star <= (cat.rating || cat.value) ? 'text-yellow-400' : 'text-gray-300'
-                                        }`}
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                      >
-                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                      </svg>
-                                    ))}
-                                  </div>
-                                  <span className="ml-1 text-sm text-gray-600">{cat.rating || cat.value}/5</span>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
-                    {notification.data.reasonType && (
-                      <p className="text-sm text-gray-600">
-                        <span className="font-medium">Reason Type:</span> {notification.data.reasonType}
-                      </p>
-                    )}
-                    {notification.data.reason && (
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">Detailed Reason:</p>
-                        <p className="text-sm text-gray-600 bg-white p-2 rounded">
-                          {notification.data.reason}
-                        </p>
+                    {notification.data.ratingValue && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium text-gray-600">Rating Value:</span>
+                        <div className="flex items-center">
+                          <div className="flex">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <svg
+                                key={star}
+                                className={`w-4 h-4 ${
+                                  star <= notification.data.ratingValue ? 'text-yellow-400' : 'text-gray-300'
+                                }`}
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.462a1 1 0 00.951-.69l1.07-3.292c.3-.921-.755-1.688-1.54-1.118l-2.8 2.034a1 1 0 00-.364 1.118L2.98 8.72c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            ))}
+                          </div>
+                          <span className="ml-1 text-sm text-gray-600">{notification.data.ratingValue}/5</span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -864,6 +946,11 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                   </svg>
                   Mark as Read
                 </button>
+              )}
+              {notification.disputed && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                  Disputed
+                </span>
               )}
               <button
                 onClick={(e) => {
@@ -918,7 +1005,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                 </span>
               </div>
               <p className="text-sm text-gray-600">
-                {notification.content || notification.message}
+                {notification.message}
               </p>
             </div>
           </div>
@@ -936,6 +1023,11 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                 </svg>
                 Mark as Read
               </button>
+            )}
+            {notification.disputed && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                Disputed
+              </span>
             )}
             <button
               onClick={(e) => {
@@ -991,8 +1083,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
             fill="currentColor"
           >
             <path
-              d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.461a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
-            />
+              d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.77-1.333-.38-1.81.588-1.81h3.462a1 1 0 00.951-.69l1.07-3.292c.3-.921-.755-1.688-1.54-1.118l-2.8 2.034a1 1 0 00-.364 1.118L2.98 8.72c-.77 1.333-.38 1.81.588 1.81h3.462a1 1 0 00.951-.69l1.07-3.292z" />
           </svg>
         ))}
         <span className="ml-1 text-sm font-medium">{value}/5</span>
@@ -1047,7 +1138,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
               className="ml-2 text-blue-600 hover:text-blue-800 transition-colors duration-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-4M14 4v2m0 0v2m0-2h2m-2 0H10m2 2v2m0 0h2m-2 0H8m2 2v2m0 0h2m-2 0H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-4M16 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2v2a2 2 0 002 2h2a2 2 0 002-2V6a2 2 0 012-2h2a2 2 0 012 2V6z" />
               </svg>
             </button>
           </div>
@@ -1111,7 +1202,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                     className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-4M14 4v2m0 0v2m0-2h2m-2 0H10m2 2v2m0 0h2m-2 0H8m2 2v2m0 0h2m-2 0H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-4M16 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2v2a2 2 0 002 2h2a2 2 0 002-2V6a2 2 0 012-2h2a2 2 0 012 2V6z" />
                     </svg>
                   </button>
                 </div>
@@ -1152,93 +1243,292 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
   };
 
   const ViewingRequestPopup = ({ notification, onClose }) => {
-    const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
-    const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+    console.log('ViewingRequestPopup - Full Notification:', JSON.stringify(notification, null, 2));
+    
+    // Extract listing title with multiple fallback options
+    const listingTitle = 
+      notification.data?.listing?.name || 
+      notification.data?.listingTitle || 
+      notification.listingTitle || 
+      'Unknown Listing';
+
+    // Extract listing ID
+    const listingId = 
+      notification.data?.listing?._id || 
+      notification.data?.listingId || 
+      notification.listingId;
+
+    const extractAcceptedTime = () => {
+      // Comprehensive list of possible time fields
+      const possibleTimeFields = [
+        notification.data?.acceptedTime,
+        notification.data?.time,
+        notification.data?.viewingTime,
+        notification.data?.reservationTime,
+        notification.data?.scheduledTime,
+        notification.data?.proposedTime,
+        notification.data?.confirmedTime
+      ];
+
+      console.log('Possible Time Fields:', possibleTimeFields);
+
+      // Check if any of the time fields exist
+      const foundTime = possibleTimeFields.find(time => time);
+
+      if (foundTime) {
+        console.log('Found Time:', foundTime);
+        return format(new Date(foundTime), 'EEEE, MMMM d, yyyy at h:mm a');
+      }
+
+      // Check reservation data if available
+      if (notification.data?.reservationId) {
+        // You might want to fetch reservation details here if needed
+        console.log('Reservation ID exists:', notification.data.reservationId);
+      }
+
+      // If no specific time is found, try to extract from viewing schedule
+      if (notification.data?.listing?.viewingSchedule) {
+        const schedule = notification.data.listing.viewingSchedule;
+        const availableDays = Object.entries(schedule)
+          .filter(([day, info]) => info.available)
+          .map(([day, info]) => `${day.charAt(0).toUpperCase() + day.slice(1)}: ${info.start} - ${info.end}`);
+        
+        console.log('Available Days:', availableDays);
+        
+        if (availableDays.length > 0) {
+          return `Available times: ${availableDays.join(', ')}`;
+        }
+      }
+
+      // Last resort: check if there's any time-related information in the message
+      const timeRegexes = [
+        /(\d{1,2}:\d{2}\s*[ap]m)/i,  // Matches time like 2:30 pm
+        /(\d{1,2}:\d{2})/,  // Matches 24-hour time
+      ];
+
+      const messageTimeMatch = timeRegexes.reduce((match, regex) => {
+        return match || notification.content.match(regex);
+      }, null);
+
+      if (messageTimeMatch) {
+        console.log('Time found in message:', messageTimeMatch[1]);
+        return messageTimeMatch[1];
+      }
+
+      console.log('No specific time found in notification data');
+      return null;
+    };
+
+    const formattedAcceptedTime = extractAcceptedTime();
+
+    // Modify the content to include the schedule page suggestion
+    const enhancedContent = notification.content 
+      ? `${notification.content} Please check your Schedule page to see the specific time on your calendar.`
+      : "Please check your Schedule page to see the specific time on your calendar.";
+
     const navigate = useNavigate();
 
-    // Clean message for display
-    const cleanMessage = (message) => {
-      if (!message) {
-        message = notification.content || notification.data?.message || 'No message available';
-      }
-      return message;
-    };
-    const cleanedMessage = cleanMessage(notification.message);
-
-    // Extract requester information
-    const requesterName = notification.from?.username || 
-                          notification.systemInfo?.name || 
-                          'Anonymous';
-    
-    const requesterEmail = notification.from?.email || '';
-    const requesterPhone = notification.from?.phone || '';
-
-    const requesterAvatar = notification.from?.avatar || 
-                            notification.systemInfo?.avatar || 
-                            '/default-avatar.png';
-
     const handleListingClick = () => {
-      const listingId = notification.data?.listing?._id;
       if (listingId) {
-        onClose();
         navigate(`/listing/${listingId}`);
+        onClose(); // Close the popup after navigation
       }
     };
 
-    const isAccepted = notification.data?.type === 'viewing_accepted';
+    console.log('ViewingRequestPopup - Listing Title:', listingTitle);
+    console.log('ViewingRequestPopup - Listing ID:', listingId);
+    console.log('ViewingRequestPopup - Accepted Time:', formattedAcceptedTime);
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 max-w-lg w-full relative">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <h2 className={`text-2xl font-bold mb-4 ${isAccepted ? 'text-green-600' : 'text-red-600'}`}>
-            {isAccepted ? 'Viewing Request Accepted' : 'Viewing Request Details'}
-          </h2>
-          
-          <div className="mb-6">
-            <div 
-              onClick={handleListingClick}
-              className={`bg-gray-50 rounded-lg p-4 mb-4 ${notification.data?.listing?._id ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+        <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Viewing Request Status
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700"
             >
-              <h3 className="text-lg font-semibold mb-2">Listing Details</h3>
-              <p className="text-gray-700">
-                <span className="font-medium">Name: </span>
-                {notification.data?.listing?.name || 'Unnamed Listing'}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">ID: </span>
-                <span className="font-mono text-sm">{notification.data?.listing?._id || 'N/A'}</span>
-              </p>
-            </div>
-            <p className="text-gray-700 text-lg">{cleanedMessage}</p>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
-          <div className="mb-6">
-            <h3 className="text-xl font-semibold mb-3">From Landlord</h3>
-            <div className="flex items-center gap-3">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium 
+                ${notification.data?.status === 'accepted' ? 'bg-green-100 text-green-800' : 
+                  notification.data?.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                  'bg-yellow-100 text-yellow-800'}`}>
+                {notification.data?.status ? 
+                  notification.data.status.charAt(0).toUpperCase() + notification.data.status.slice(1) : 
+                  'Pending'}
+              </span>
+              <span className="text-sm text-gray-500">
+                {format(new Date(notification.createdAt), 'MMM d, yyyy, h:mm a')}
+              </span>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+              {listingTitle && listingTitle !== 'Unknown Listing' && (
+                <p className="text-sm">
+                  <span className="font-medium">Listing:</span>{' '}
+                  <span 
+                    onClick={handleListingClick}
+                    className={`bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200 transition-colors ${listingId ? 'text-blue-600 hover:underline' : ''}`}
+                  >
+                    {listingTitle}
+                    {listingId && (
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-4 w-4 inline-block ml-1 mb-1" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M10 6H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-4M14 4v2m0 0v2m0-2h2m-2 0H10m2 2v2m0 0h2m-2 0H8m2 2v2m0 0h2m-2 0H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-4M16 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2v2a2 2 0 002 2h2a2 2 0 002-2V6a2 2 0 012-2h2a2 2 0 012 2V6z" 
+                        />
+                      </svg>
+                    )}
+                  </span>
+                </p>
+              )}
+              
+              {enhancedContent && (
+                <div className="text-sm text-gray-700">
+                  <span className="font-medium">Message:</span>
+                  <p className="mt-1">{enhancedContent}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const ViewingRejectionPopup = ({ notification, onClose }) => {
+    console.log('ViewingRejectionPopup - Full Notification:', JSON.stringify(notification, null, 2));
+    
+    // Extract listing title with multiple fallback options
+    const listingTitle = 
+      notification.data?.listing?.name || 
+      notification.data?.listingTitle || 
+      notification.listingTitle || 
+      'Unknown Listing';
+
+    // Extract listing ID
+    const listingId = 
+      notification.data?.listing?._id || 
+      notification.data?.listingId || 
+      notification.listingId;
+
+    const navigate = useNavigate();
+
+    const handleListingClick = () => {
+      if (listingId) {
+        navigate(`/listing/${listingId}`);
+        onClose(); // Close the popup after navigation
+      }
+    };
+
+    console.log('ViewingRejectionPopup - Listing Title:', listingTitle);
+    console.log('ViewingRejectionPopup - Listing ID:', listingId);
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+        <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Viewing Request Status
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 pt-2">
               <img
-                src={requesterAvatar}
-                alt={requesterName}
-                className="w-12 h-12 rounded-full object-cover"
+                src={notification.from?.avatar || '/default-avatar.png'}
+                alt={notification.from?.username}
+                className="w-8 h-8 rounded-full"
               />
               <div>
-                <p className="font-medium text-lg">{requesterName}</p>
-                {requesterEmail && (
-                  <p className="text-gray-600">{requesterEmail}</p>
-                )}
-                {requesterPhone && (
-                  <p className="text-gray-600">{requesterPhone}</p>
+                <p className="text-sm font-medium">{notification.from?.username}</p>
+                {notification.from?.email && (
+                  <p className="text-sm text-gray-500">{notification.from?.email}</p>
                 )}
               </div>
             </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+              {listingTitle && listingTitle !== 'Unknown Listing' && (
+                <p className="text-sm">
+                  <span className="font-medium">Listing:</span>{' '}
+                  <span 
+                    onClick={handleListingClick}
+                    className={`bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200 transition-colors ${listingId ? 'text-blue-600 hover:underline' : ''}`}
+                  >
+                    {listingTitle}
+                    {listingId && (
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        className="h-4 w-4 inline-block ml-1 mb-1" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M10 6H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-4M14 4v2m0 0v2m0-2h2m-2 0H10m2 2v2m0 0h2m-2 0H8m2 2v2m0 0h2m-2 0H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-4M16 4v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2v2a2 2 0 002 2h2a2 2 0 002-2V6a2 2 0 012-2h2a2 2 0 012 2V6z" 
+                        />
+                      </svg>
+                    )}
+                  </span>
+                </p>
+              )}
+              
+              {notification.content && (
+                <div>
+                  <p className="text-sm font-medium mb-1">Message:</p>
+                  <p className="text-sm text-gray-600 bg-white p-3 rounded">
+                    {notification.content}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <button
+              onClick={onClose}
+              className="w-full bg-gray-100 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-200 transition-colors"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>
@@ -1383,10 +1673,27 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
           onSubmitSuccess={superUserProps?.onDisputeSubmit || onDisputeSubmit || handleDisputeSubmitSuccess}
         />
       )}
-      {viewingRequestPopup.show && <ViewingRequestPopup notification={viewingRequestPopup.notification} onClose={() => setViewingRequestPopup({ show: false, notification: null })} />}
+      {viewingRequestPopup.show && (
+        viewingRequestPopup.notification?.data?.type === 'viewing_rejection' ? (
+          <ViewingRejectionPopup 
+            notification={viewingRequestPopup.notification} 
+            onClose={() => setViewingRequestPopup({ show: false, notification: null })} 
+          />
+        ) : (
+          <ViewingRequestPopup 
+            notification={viewingRequestPopup.notification} 
+            onClose={() => setViewingRequestPopup({ show: false, notification: null })} 
+          />
+        )
+      )}
       {showConfirmation && disputeDetails && renderConfirmationPopup()}
       {showAlreadyDisputedPopup && alreadyDisputedDetails && renderAlreadyDisputedPopup()}
       {showDisputeSubmittedPopup && disputeSubmittedDetails && renderDisputeSubmittedPopup()}
+      {showDisputeDoneAlready && (
+        <DisputeDoneAlreadyPopup 
+          onClose={() => setShowDisputeDoneAlready(false)} 
+        />
+      )}
       {showNewRatingPopup && selectedNotification && (
         <NewRatingPopup
           ratingData={{

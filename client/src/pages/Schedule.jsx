@@ -446,6 +446,7 @@ const Schedule = () => {
   const [currentNotification, setCurrentNotification] = useState(null);
   const [blurredNotifications, setBlurredNotifications] = useState(new Set());
   const [showNotifications, setShowNotifications] = useState(false);
+  const [hasListings, setHasListings] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('scheduleActiveTab', activeTab);
@@ -497,6 +498,32 @@ const Schedule = () => {
       fetchNotifications();
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    // Check if user has listings
+    const checkListings = async () => {
+      try {
+        const res = await fetch(`/api/listing/user/${currentUser._id}`, {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`
+          }
+        });
+        const data = await res.json();
+        setHasListings(data.listings && data.listings.length > 0);
+        
+        // If user has no listings and activeTab is 'pending', switch to 'accepted'
+        if ((!data.listings || data.listings.length === 0) && activeTab === 'pending') {
+          setActiveTab('accepted');
+        }
+      } catch (error) {
+        console.error('Error checking listings:', error);
+      }
+    };
+
+    if (currentUser?._id && currentUser?.token) {
+      checkListings();
+    }
+  }, [currentUser, activeTab]);
 
   const handleAcceptViewing = async (notificationId, reservationId) => {
     try {
@@ -1011,19 +1038,38 @@ const Schedule = () => {
       <div className="mb-6">
         <h1 className="text-3xl font-semibold mb-4">Schedule Management</h1>
         <div className="flex space-x-4">
-          {tabs.map(tab => (
+          {hasListings && (
             <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
+              onClick={() => setActiveTab('pending')}
               className={`px-4 py-2 rounded-lg ${
-                activeTab === tab.value
+                activeTab === 'pending'
                   ? 'bg-slate-800 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {tab.label}
+              Pending
             </button>
-          ))}
+          )}
+          <button
+            onClick={() => setActiveTab('accepted')}
+            className={`px-4 py-2 rounded-lg ${
+              activeTab === 'accepted'
+                ? 'bg-slate-800 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Accepted
+          </button>
+          <button
+            onClick={() => setActiveTab('rejected')}
+            className={`px-4 py-2 rounded-lg ${
+              activeTab === 'rejected'
+                ? 'bg-slate-800 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Rejected
+          </button>
         </div>
       </div>
 

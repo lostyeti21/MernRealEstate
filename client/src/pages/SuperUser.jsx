@@ -8,9 +8,11 @@ import ListingChart from '../components/charts/ListingChart';
 import MarketChart from '../components/charts/MarketChart';
 import UserDistributionChart from '../components/charts/UserDistributionChart';
 import ImageCollage from '../components/ImageCollage';
+import SuperUserNotificationSender from '../components/SuperUserNotificationSender';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import logo from '../assets/logo.png';
 import { toast } from 'react-toastify';
+import { useSelector } from 'react-redux';
 
 const DEFAULT_AVATAR = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
 
@@ -48,6 +50,7 @@ const renderUserAvatar = (user) => {
 };
 
 export default function SuperUser() {
+  const { currentUser } = useSelector((state) => state.user);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -77,6 +80,8 @@ export default function SuperUser() {
   const [disputes, setDisputes] = useState([]);
   const [activeDisputeTab, setActiveDisputeTab] = useState('pending');
   const [disputeLoading, setDisputeLoading] = useState(false);
+  const [showNotificationSender, setShowNotificationSender] = useState(false);
+  const [notificationData, setNotificationData] = useState(null);
   const navigate = useNavigate();
 
   const fetchSuperUserNotifications = async () => {
@@ -560,125 +565,123 @@ export default function SuperUser() {
 
   const handleDisputeAction = async (dispute, action) => {
     try {
-      // Get the dispute ID from the notification data
-      const disputeId = dispute.data?.id || dispute.data?.disputeId || dispute.data?.disputeDetails?.id || dispute._id;
-      
-      console.log(`🔄 [SuperUser] Handling dispute ${disputeId} with action ${action}...`, {
-        dispute,
-        disputeId,
-        action
-      });
+      console.log(`${action}ing dispute:`, dispute);
+      setDisputeLoading(true);
 
-      const res = await fetch(`http://localhost:3000/api/dispute/${disputeId}/${action}`, {
+      const response = await fetch(`/api/dispute/${dispute._id}/${action}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Authorization': `Bearer ${currentUser.token}`,
           'x-super-user-auth': 'ishe'
-        },
-        credentials: 'include'
+        }
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to update dispute');
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to ${action} dispute`);
       }
 
-      const responseData = await res.json();
-      console.log('✅ [SuperUser] Dispute action response:', responseData);
-
-      const now = new Date().toISOString();
-
-      // Update the dispute status locally
+      // Update disputes list
       setDisputes(prevDisputes => {
         const updatedDisputes = prevDisputes.map(d => {
-          const currentDisputeId = d.data?.id || d.data?.disputeId || d.data?.disputeDetails?.id || d._id;
-          if (currentDisputeId === disputeId) {
-            const newStatus = action === 'approve' ? 'resolved' : 'rejected';
-            return {
-              ...d,
-              status: newStatus,
-              updatedAt: now,
-              data: {
-                ...d.data,
-                updatedAt: now,
-                disputeDetails: {
-                  ...d.data?.disputeDetails,
-                  status: newStatus,
-                  updatedAt: now
-                },
-                dispute: {
-                  ...d.data?.dispute,
-                  status: newStatus,
-                  updatedAt: now
-                }
-              }
-            };
+          if (d._id === dispute._id) {
+            return { ...d, status: action === 'approve' ? 'approved' : 'rejected' };
           }
           return d;
         });
-
-        // Sort the disputes to ensure the most recently updated appears first
-        return updatedDisputes.sort((a, b) => {
-          const aDate = new Date(a.data?.updatedAt || a.updatedAt || a.createdAt);
-          const bDate = new Date(b.data?.updatedAt || b.updatedAt || b.createdAt);
-          return bDate - aDate;
-        });
-      });
-
-      // Switch to the appropriate tab
-      setActiveDisputeTab(action === 'approve' ? 'resolved' : 'rejected');
-      
-      toast.success(responseData.message || `Dispute ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
-    } catch (error) {
-      console.error('❌ [SuperUser] Error updating dispute:', error);
-      toast.error(error.message || 'Failed to update dispute');
-    }
-  };
-
-  const handleDisputeSubmit = async (disputeData) => {
-    console.log('🚀 [SuperUser] Received new dispute:', disputeData);
-    console.log('📝 [SuperUser] Current disputes state before update:', disputes);
-    
-    try {
-      // Format the dispute data to match the existing structure
-      const formattedDispute = {
-        _id: disputeData.id || Date.now().toString(),
-        status: 'pending',
-        reason: disputeData.reason,
-        reasonType: disputeData.reasonType,
-        categories: disputeData.categories || [],
-        createdAt: disputeData.createdAt || new Date().toISOString(),
-        disputedBy: {
-          _id: disputeData.disputedBy,
-          username: disputeData.disputerName
-        },
-        ratedBy: {
-          _id: disputeData.ratedBy,
-          username: disputeData.raterName
-        }
-      };
-
-      console.log('📦 [SuperUser] Formatted dispute:', formattedDispute);
-      
-      // Add the new dispute to the state
-      setDisputes(prevDisputes => {
-        console.log('Current disputes:', prevDisputes);
-        const updatedDisputes = [formattedDispute, ...prevDisputes];
-        console.log('Updated disputes:', updatedDisputes);
         return updatedDisputes;
       });
+
+      // If approved, send notification to the disputer
+      if (action === 'approve') {
+        try {
+          // Extract categories and format them
+          const categoryNames = (dispute.categories || []).map(cat => {
+            // If cat is an object, try to extract name or category
+            if (typeof cat === 'object') {
+              return cat.name || cat.category || cat.toString();
+            }
+            // If cat is already a string, return it
+            return cat.toString();
+          }).filter(Boolean);
+
+          // Get rating value safely
+          const ratingValue = dispute.rating?.value || 
+            (dispute.categories?.length > 0 && typeof dispute.categories[0] === 'object' 
+              ? dispute.categories[0].value 
+              : 'N/A');
+
+          console.log('Sending notification to disputer:', {
+            disputerId: dispute.disputedBy?._id,
+            raterName: dispute.ratedBy?.username || dispute.raterName,
+            categories: categoryNames,
+            ratingValue: ratingValue
+          });
+
+          const notificationResponse = await fetch('/api/notifications/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentUser.token}`,
+              'x-super-user-auth': 'ishe'
+            },
+            body: JSON.stringify({
+              title: 'Dispute Approved by JustListIt Support',
+              content: `Your dispute against ${dispute.ratedBy?.username || dispute.raterName}'s rating has been approved. The disputed rating categories (${categoryNames.join(', ')}) will be reverted. The rating value of ${ratingValue} will be removed from their profile.\n\nDispute Details:\nID: ${dispute._id}\nReason: ${dispute.reasonType}\n${dispute.detailedReason ? `Detailed Reason: ${dispute.detailedReason}\n` : ''}Date Submitted: ${new Date(dispute.createdAt).toLocaleDateString()}\n\nThank you for bringing this to our attention.`,
+              type: 'dispute_approved',
+              to: dispute.disputedBy?._id,
+              from: currentUser._id,
+              data: {
+                disputeId: dispute._id,
+                ratingId: dispute.rating?._id,
+                categories: categoryNames,
+                ratingValue: ratingValue,
+                reasonType: dispute.reasonType,
+                detailedReason: dispute.detailedReason,
+                raterInfo: {
+                  id: dispute.ratedBy?._id,
+                  username: dispute.ratedBy?.username || dispute.raterName
+                },
+                disputerInfo: {
+                  id: dispute.disputedBy?._id,
+                  username: dispute.disputedBy?.username
+                },
+                dates: {
+                  disputeCreated: dispute.createdAt,
+                  disputeResolved: new Date().toISOString()
+                },
+                systemInfo: {
+                  name: 'JustListIt Support',
+                  role: 'System',
+                  avatar: '/support-avatar.png'
+                }
+              }
+            })
+          });
+
+          const notificationData = await notificationResponse.json();
+          if (!notificationResponse.ok) {
+            throw new Error(notificationData.message || 'Failed to send notification');
+          }
+
+          console.log('Successfully sent notification:', notificationData);
+        } catch (notifError) {
+          console.error('Error sending notification:', notifError);
+          toast.error('Dispute approved but failed to send notification');
+        }
+      }
+
+      // Show success message
+      toast.success(`Dispute ${action}ed successfully`);
       
-      // Show success toast
-      toast.success('New dispute received and added to pending disputes');
-      
-      // Switch to disputes tab and pending sub-tab
-      console.log('🔄 [SuperUser] Switching to disputes tab');
-      setActiveTab('disputes');
-      setActiveDisputeTab('pending');
+      // Refresh disputes list
+      await fetchDisputes();
     } catch (error) {
-      console.error('❌ [SuperUser] Error handling dispute:', error);
-      toast.error('Failed to process dispute');
+      console.error(`Error ${action}ing dispute:`, error);
+      toast.error(error.message || `Failed to ${action} dispute`);
+    } finally {
+      setDisputeLoading(false);
     }
   };
 
@@ -1878,6 +1881,23 @@ export default function SuperUser() {
 
         {/* Rating Disputes Tab */}
         {activeTab === 'disputes' && renderDisputesTab()}
+        
+        {showNotificationSender && notificationData && (
+          <SuperUserNotificationSender
+            onClose={() => {
+              setShowNotificationSender(false);
+              setNotificationData(null);
+            }}
+            targetUserId={notificationData.targetUserId}
+            prefilledData={{
+              title: notificationData.title,
+              message: notificationData.message,
+              type: notificationData.type,
+              priority: notificationData.priority,
+              systemInfo: notificationData.prefilledData.systemInfo
+            }}
+          />
+        )}
       </motion.div>
     </motion.div>
   );

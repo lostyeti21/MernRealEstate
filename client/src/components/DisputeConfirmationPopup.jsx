@@ -7,7 +7,32 @@ export default function DisputeConfirmationPopup({ disputeData, onClose }) {
   
   const [showNotificationHandler, setShowNotificationHandler] = useState(false);
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    try {
+      // Mark the notification as disputed in the database
+      if (disputeData.notificationId) {
+        console.log('Marking notification as disputed:', disputeData.notificationId);
+        
+        const response = await fetch(`/api/notifications/${disputeData.notificationId}/mark-disputed`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to mark notification as disputed');
+        }
+
+        console.log('Successfully marked notification as disputed:', disputeData.notificationId);
+      } else {
+        console.warn('No notification ID found in dispute details');
+      }
+    } catch (error) {
+      console.error('Error marking notification as disputed:', error);
+    }
+
+    // Continue with existing notification process
     console.log(' [DisputeConfirmationPopup] Close button clicked, starting notification process...', {
       disputeData,
       showNotificationHandler

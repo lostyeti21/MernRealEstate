@@ -155,10 +155,47 @@ export const createSuperUserNotification = async (req, res, next) => {
 
 export const deleteNotification = async (req, res, next) => {
   try {
-    const { type, ratingId } = req.params;
-    await Notification.findOneAndDelete({ type, 'data.ratingId': ratingId });
-    res.json({ message: 'Notification deleted successfully' });
+    const { type, ratingId, id } = req.params;
+    const userId = req.user.id;
+
+    let deletedNotification;
+
+    // If an ID is provided, delete by ID
+    if (id) {
+      deletedNotification = await Notification.findOneAndDelete({ 
+        _id: id, 
+        to: userId 
+      });
+    } 
+    // If type and ratingId are provided, delete by type and ratingId
+    else if (type && ratingId) {
+      deletedNotification = await Notification.findOneAndDelete({ 
+        type, 
+        'data.ratingId': ratingId,
+        to: userId
+      });
+    } 
+    // If only type is provided, delete the first matching notification
+    else if (type) {
+      deletedNotification = await Notification.findOneAndDelete({ 
+        type,
+        to: userId
+      });
+    }
+    else {
+      return res.status(400).json({ message: 'Invalid deletion parameters' });
+    }
+
+    if (!deletedNotification) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+
+    res.json({ 
+      message: 'Notification deleted successfully', 
+      deletedNotification 
+    });
   } catch (error) {
+    console.error('Error deleting notification:', error);
     next(error);
   }
 };
@@ -476,6 +513,115 @@ export const handleRatingDispute = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error handling rating dispute:', error);
+    next(error);
+  }
+};
+
+export const sendSuperNotification = async (req, res, next) => {
+  try {
+    const {
+      title,
+      message,
+      type,
+      priority,
+      action,
+      targetUserId,
+      fromSuperUser,
+      systemInfo
+    } = req.body;
+
+    console.log('Creating super user notification:', {
+      title,
+      type,
+      priority,
+      targetUserId,
+      fromSuperUser
+    });
+
+    // Validate required fields
+    if (!title || !message || !targetUserId || !fromSuperUser) {
+      console.error('Missing required fields for super notification');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+
+    // Create the notification
+    const notification = await Notification.create({
+      title,
+      content: message,
+      type,
+      priority,
+      action,
+      to: targetUserId,
+      from: fromSuperUser,
+      systemInfo,
+      read: false,
+      createdAt: new Date()
+    });
+
+    console.log('Successfully created super notification:', notification._id);
+
+    res.status(201).json({
+      success: true,
+      notification
+    });
+  } catch (error) {
+    console.error('Error creating super notification:', error);
+    next(error);
+  }
+};
+
+export const createSuperNotification = async (req, res, next) => {
+  try {
+    const {
+      title,
+      message,
+      type,
+      priority,
+      targetUserId,
+      fromSuperUser,
+      systemInfo
+    } = req.body;
+
+    console.log('Creating notification from SuperUser:', {
+      title,
+      type,
+      priority,
+      targetUserId
+    });
+
+    // Validate required fields
+    if (!title || !message || !targetUserId) {
+      console.error('Missing required fields for notification');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+
+    // Create the notification
+    const notification = await Notification.create({
+      title,
+      content: message,
+      type,
+      priority,
+      to: targetUserId,
+      read: false,
+      fromSuperUser: true,
+      systemInfo,
+      createdAt: new Date()
+    });
+
+    console.log('Successfully created notification:', notification._id);
+
+    res.status(201).json({
+      success: true,
+      notification
+    });
+  } catch (error) {
+    console.error('Error creating notification:', error);
     next(error);
   }
 };

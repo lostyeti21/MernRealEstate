@@ -398,6 +398,49 @@ export const handleDisputeAction = async (req, res, next) => {
   }
 };
 
+export const approveDispute = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    console.log('Approving dispute:', id);
+
+    // Get the dispute
+    const dispute = await Dispute.findById(id)
+      .populate('rating')
+      .populate('disputedBy', 'username email')
+      .populate('ratedBy', 'username email');
+
+    if (!dispute) {
+      console.error('Dispute not found:', id);
+      return res.status(404).json({ message: 'Dispute not found' });
+    }
+
+    // Update dispute status
+    dispute.status = 'approved';
+    dispute.resolvedAt = new Date();
+    dispute.resolvedBy = req.user._id;
+    await dispute.save();
+
+    console.log('Dispute approved:', dispute._id);
+
+    // If there's a rating associated, mark it as disputed and invalid
+    if (dispute.rating) {
+      dispute.rating.disputed = true;
+      dispute.rating.valid = false;
+      await dispute.rating.save();
+      console.log('Rating marked as disputed and invalid:', dispute.rating._id);
+    }
+
+    res.json({
+      success: true,
+      dispute,
+      message: 'Dispute approved successfully'
+    });
+  } catch (error) {
+    console.error('Error approving dispute:', error);
+    next(error);
+  }
+};
+
 export const checkDispute = async (req, res, next) => {
   try {
     const { ratingId } = req.params;

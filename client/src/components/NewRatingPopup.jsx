@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaStar, FaUser } from 'react-icons/fa';
 import DisputeConfirmationPopup from './DisputeConfirmationPopup';
+import DisputeDoneAlreadyPopup from './DisputeDoneAlreadyPopup';
 import { useSelector } from 'react-redux';
 
 export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
@@ -11,6 +12,7 @@ export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
   const [validationError, setValidationError] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [disputeResponse, setDisputeResponse] = useState(null);
+  const [showDuplicateError, setShowDuplicateError] = useState(false);
 
   const isSubmitEnabled = selectedCategories.length > 0 && 
     selectedReason && 
@@ -156,7 +158,8 @@ export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
             categories: ratingCategories,
             comment: ratingData.comment,
             createdAt: ratingData.createdAt
-          }
+          },
+          notification: ratingData.notification // Pass the full notification object
         };
 
         console.log('Submitting dispute with data:', disputeData);
@@ -176,6 +179,10 @@ export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
         console.log('Response from server:', data);
 
         if (!response.ok) {
+          if (data.message && data.message.includes('E11000 duplicate key error')) {
+            setShowDuplicateError(true);
+            return;
+          }
           console.error('Server error details:', {
             status: response.status,
             statusText: response.statusText,
@@ -243,7 +250,8 @@ export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
           categories: formattedCategories,
           reasonType: reasonTypeMap[selectedReason],
           reason: selectedReason === 'other' ? otherReason : selectedReason,
-          raterName: ratingData.ratedBy?.username || 'Unknown User'
+          raterName: ratingData.ratedBy?.username || 'Unknown User',
+          notification: ratingData.notification // Pass the notification data to parent
         });
 
         setShowConfirmation(true);
@@ -254,6 +262,10 @@ export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
           message: error.message,
           stack: error.stack
         });
+        if (error.message && error.message.includes('E11000 duplicate key error')) {
+          setShowDuplicateError(true);
+          return;
+        }
         setValidationError(error.message || 'Failed to submit dispute. Please try again.');
       }
     } catch (error) {
@@ -262,6 +274,10 @@ export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
         message: error.message,
         stack: error.stack
       });
+      if (error.message && error.message.includes('E11000 duplicate key error')) {
+        setShowDuplicateError(true);
+        return;
+      }
       setValidationError(error.message || 'Failed to submit dispute. Please try again.');
     }
   };
@@ -277,6 +293,13 @@ export default function NewRatingPopup({ ratingData, onClose, onDispute }) {
   // Get the rating type and ensure we have valid categories
   const ratingType = ratingData.type || 'tenant';
   const categories = Array.isArray(ratingData.categories) ? ratingData.categories : [];
+
+  if (showDuplicateError) {
+    return <DisputeDoneAlreadyPopup onClose={() => {
+      setShowDuplicateError(false);
+      onClose();
+    }} />;
+  }
 
   return (
     <>

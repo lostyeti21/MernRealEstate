@@ -4,7 +4,8 @@ import {
   disputeRating,
   getDisputes,
   handleDisputeAction,
-  checkDispute
+  checkDispute,
+  approveDispute
 } from '../controllers/dispute.controller.js';
 
 const router = express.Router();
@@ -29,5 +30,6 @@ router.post('/create', verifyToken, disputeRating);  // Create new dispute
 router.get('/check/:ratingId', verifyToken, checkDispute);  // Check if rating is disputed
 router.get('/', verifySuperUser, getDisputes);  // Get all disputes (SuperUser only)
 router.put('/:id/:action', verifySuperUser, handleDisputeAction);  // Handle dispute actions (SuperUser only)
+router.put('/:id/approve', verifyToken, verifySuperUser, approveDispute);  // Approve dispute (SuperUser only)
 
 export default router;
