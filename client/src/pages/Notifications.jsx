@@ -551,6 +551,31 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
         }
       });
       setShowNewRatingPopup(true);
+    } else if (notification.type === 'dispute_received') {
+      console.log('Dispute received notification clicked:', notification);
+      
+      // Set the dispute submitted details to show in the popup
+      setDisputeSubmittedDetails({
+        id: notification.data?.disputeId || notification._id,
+        categories: notification.data?.categories 
+          ? notification.data.categories.map(cat => 
+              `${cat.category || 'Unknown Category'} (${cat.rating || 'N/A'})`
+          ).join(', ') 
+          : 'No categories specified',
+        reason: notification.data?.reason || 'No reason provided',
+        reasonType: notification.data?.reasonType || 'Not specified',
+        raterName: notification.data?.raterName || 'Unknown Rater',
+        date: new Date(notification.createdAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      });
+      
+      // Show the dispute submitted popup
+      setShowDisputeSubmittedPopup(true);
     } else if (
       notification.type === 'viewing_request' || 
       (notification.type === 'system' && 
@@ -985,6 +1010,55 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
               <p className="text-gray-900 font-medium">JustListIt Support</p>
               <p className="text-gray-600">{notification.message}</p>
               <p className="text-sm text-gray-500 mt-1">{formatDate(notification.createdAt)}</p>
+            </div>
+          </div>
+        );
+      }
+
+      // Dispute received notification rendering
+      if (notification.type === 'dispute_received') {
+        return (
+          <div className="bg-white shadow-md rounded-lg p-4 flex items-start space-x-4">
+            <div className="flex-shrink-0">
+              <img
+                src={logo}
+                alt="JustListIt Support"
+                className="w-10 h-10 rounded-full object-contain bg-white"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    Dispute Notification
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {format(new Date(notification.createdAt), 'MMM d, yyyy, h:mm a')}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                {notification.message && (
+                  <div>
+                    <p className="text-sm font-medium mb-1">Message:</p>
+                    <p className="text-sm text-gray-600 bg-white p-3 rounded">
+                      {notification.message}
+                    </p>
+                  </div>
+                )}
+                
+                {notification.data?.categories && (
+                  <div>
+                    <p className="text-sm font-medium mb-1">Disputed Categories:</p>
+                    <p className="text-sm text-gray-600">
+                      {notification.data.categories.map(cat => 
+                        `${cat.category || 'Unknown Category'} (${cat.rating || 'N/A'})`
+                      ).join(', ')}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         );

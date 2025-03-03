@@ -48,6 +48,8 @@ export default function DisputeNotificationHandler({ disputeData, onNotification
           type: 'dispute_received',
           to: currentUser._id,
           from: currentUser._id, 
+          title: 'Your dispute has been successfully submitted',
+          content: 'You have successfully submitted the dispute. After investigation, our team will reach out to you with the outcome.',
           message: `Your dispute against ${disputeData.raterName}'s rating has been successfully submitted. Our team is reviewing your dispute. Thank you for your patience. Dispute ID: ${disputeData.id}`,
           data: {
             disputeId: disputeData.id,
