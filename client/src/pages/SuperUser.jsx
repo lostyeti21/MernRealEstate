@@ -672,6 +672,85 @@ export default function SuperUser() {
         }
       }
 
+      // If rejected, send notification to the disputer
+      if (action === 'reject') {
+        try {
+          // Extract categories and format them
+          const categoryNames = (dispute.categories || []).map(cat => {
+            // If cat is an object, try to extract name or category
+            if (typeof cat === 'object') {
+              return cat.name || cat.category || cat.toString();
+            }
+            // If cat is already a string, return it
+            return cat.toString();
+          }).filter(Boolean);
+
+          // Get rating value safely
+          const ratingValue = dispute.rating?.value || 
+            (dispute.categories?.length > 0 && typeof dispute.categories[0] === 'object' 
+              ? dispute.categories[0].value 
+              : 'N/A');
+
+          console.log('Sending rejection notification to disputer:', {
+            disputerId: dispute.disputedBy?._id,
+            raterName: dispute.ratedBy?.username || dispute.raterName,
+            categories: categoryNames,
+            ratingValue: ratingValue
+          });
+
+          const notificationResponse = await fetch('/api/notifications/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentUser.token}`,
+              'x-super-user-auth': 'ishe'
+            },
+            body: JSON.stringify({
+              title: 'Dispute Rejected by JustListIt Support',
+              content: `Based on our investigation we have deemed that your dispute can not be approved and the rating will remain, if you feel this is wrong or you want more information please send an email to the justlistit@outlook.com`,
+              type: 'dispute_rejected',
+              to: dispute.disputedBy?._id,
+              from: currentUser._id,
+              data: {
+                disputeId: dispute._id,
+                ratingId: dispute.rating?._id,
+                categories: categoryNames,
+                ratingValue: ratingValue,
+                reasonType: dispute.reasonType,
+                detailedReason: dispute.detailedReason,
+                raterInfo: {
+                  id: dispute.ratedBy?._id,
+                  username: dispute.ratedBy?.username || dispute.raterName
+                },
+                disputerInfo: {
+                  id: dispute.disputedBy?._id,
+                  username: dispute.disputedBy?.username
+                },
+                dates: {
+                  disputeCreated: dispute.createdAt,
+                  disputeResolved: new Date().toISOString()
+                },
+                systemInfo: {
+                  name: 'JustListIt Support',
+                  role: 'System',
+                  avatar: '/support-avatar.png'
+                }
+              }
+            })
+          });
+
+          const notificationData = await notificationResponse.json();
+          if (!notificationResponse.ok) {
+            throw new Error(notificationData.message || 'Failed to send notification');
+          }
+
+          console.log('Successfully sent rejection notification:', notificationData);
+        } catch (notifError) {
+          console.error('Error sending rejection notification:', notifError);
+          toast.error('Dispute rejected but failed to send notification');
+        }
+      }
+
       // Show success message
       toast.success(`Dispute ${action}ed successfully`);
       
