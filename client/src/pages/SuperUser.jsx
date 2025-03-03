@@ -593,7 +593,7 @@ export default function SuperUser() {
         return updatedDisputes;
       });
 
-      // If approved, send notification to the disputer
+      // If approved, send notifications to both disputer and rater
       if (action === 'approve') {
         try {
           // Extract categories and format them
@@ -612,14 +612,29 @@ export default function SuperUser() {
               ? dispute.categories[0].value 
               : 'N/A');
 
-          console.log('Sending notification to disputer:', {
-            disputerId: dispute.disputedBy?._id,
-            raterName: dispute.ratedBy?.username || dispute.raterName,
+          // Log detailed dispute and user information
+          console.log('Dispute Approval Details:', {
+            disputeId: dispute._id,
+            disputedBy: {
+              id: dispute.disputedBy?._id,
+              username: dispute.disputedBy?.username
+            },
+            ratedBy: {
+              id: dispute.ratedBy?._id,
+              username: dispute.ratedBy?.username || dispute.raterName
+            },
             categories: categoryNames,
             ratingValue: ratingValue
           });
 
-          const notificationResponse = await fetch('/api/notifications/create', {
+          // Validate rater information before sending notification
+          if (!dispute.ratedBy?._id && !dispute.raterName) {
+            console.error('No rater information found. Cannot send rater notification.');
+            throw new Error('Missing rater information');
+          }
+
+          // Notification for Disputer
+          const disputerNotificationResponse = await fetch('/api/notifications/create', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -628,7 +643,7 @@ export default function SuperUser() {
             },
             body: JSON.stringify({
               title: 'Dispute Approved by JustListIt Support',
-              content: `Your dispute against ${dispute.ratedBy?.username || dispute.raterName}'s rating has been approved. The disputed rating categories (${categoryNames.join(', ')}) will be reverted. The rating value of ${ratingValue} will be removed from their profile.\n\nDispute Details:\nID: ${dispute._id}\nReason: ${dispute.reasonType}\n${dispute.detailedReason ? `Detailed Reason: ${dispute.detailedReason}\n` : ''}Date Submitted: ${new Date(dispute.createdAt).toLocaleDateString()}\n\nThank you for bringing this to our attention.`,
+              content: `Your dispute against ${dispute.ratedBy?.username || dispute.raterName}'s rating has been approved. The disputed rating categories (${categoryNames.join(', ')}) will be reverted. The rating value of ${ratingValue} will be removed from your profile.\n\nDispute Details:\nID: ${dispute._id}\nReason: ${dispute.reasonType}\n${dispute.detailedReason ? `Detailed Reason: ${dispute.detailedReason}\n` : ''}Date Submitted: ${new Date(dispute.createdAt).toLocaleDateString()}\n\nThank you for bringing this to our attention.`,
               type: 'dispute_approved',
               to: dispute.disputedBy?._id,
               from: currentUser._id,
@@ -660,15 +675,79 @@ export default function SuperUser() {
             })
           });
 
-          const notificationData = await notificationResponse.json();
-          if (!notificationResponse.ok) {
-            throw new Error(notificationData.message || 'Failed to send notification');
+          // Notification for Rater
+          const raterNotificationResponse = await fetch('/api/notifications/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentUser.token}`,
+              'x-super-user-auth': 'ishe'
+            },
+            body: JSON.stringify({
+              title: 'Rating Dispute Approved',
+              content: `The rating dispute made against you has been deemed reasonable and has been approved, the rating you gave "${dispute.disputedBy?.username || 'the disputer'}" will be reversed, if you feel this is not correct or unjustified please send an email to justlistit@outlook.com`,
+              type: 'dispute_approved',  // Changed from 'dispute_approved_rater'
+              to: dispute.ratedBy?._id,
+              from: currentUser._id,
+              data: {
+                disputeId: dispute._id,
+                ratingId: dispute.rating?._id,
+                categories: categoryNames,
+                ratingValue: ratingValue,
+                reasonType: dispute.reasonType,
+                detailedReason: dispute.detailedReason,
+                raterInfo: {
+                  id: dispute.ratedBy?._id,
+                  username: dispute.ratedBy?.username || dispute.raterName
+                },
+                disputerInfo: {
+                  id: dispute.disputedBy?._id,
+                  username: dispute.disputedBy?.username
+                },
+                dates: {
+                  disputeCreated: dispute.createdAt,
+                  disputeResolved: new Date().toISOString()
+                },
+                systemInfo: {
+                  name: 'JustListIt Support',
+                  role: 'System',
+                  avatar: '/support-avatar.png'
+                }
+              }
+            })
+          });
+
+          const disputerNotificationData = await disputerNotificationResponse.json();
+          const raterNotificationData = await raterNotificationResponse.json();
+
+          // Log detailed notification responses
+          console.log('Disputer Notification Response:', {
+            ok: disputerNotificationResponse.ok,
+            status: disputerNotificationResponse.status,
+            data: disputerNotificationData
+          });
+
+          console.log('Rater Notification Response:', {
+            ok: raterNotificationResponse.ok,
+            status: raterNotificationResponse.status,
+            data: raterNotificationData
+          });
+
+          if (!disputerNotificationResponse.ok || !raterNotificationResponse.ok) {
+            throw new Error(
+              (disputerNotificationData.message || 'Failed to send disputer notification') + 
+              ' | ' + 
+              (raterNotificationData.message || 'Failed to send rater notification')
+            );
           }
 
-          console.log('Successfully sent notification:', notificationData);
+          console.log('Successfully sent notifications:', {
+            disputerNotification: disputerNotificationData,
+            raterNotification: raterNotificationData
+          });
         } catch (notifError) {
-          console.error('Error sending notification:', notifError);
-          toast.error('Dispute approved but failed to send notification');
+          console.error('Error sending notifications:', notifError);
+          toast.error('Dispute approved but failed to send one or more notifications');
         }
       }
 
@@ -698,7 +777,8 @@ export default function SuperUser() {
             ratingValue: ratingValue
           });
 
-          const notificationResponse = await fetch('/api/notifications/create', {
+          // Notification for Disputer
+          const disputerNotificationResponse = await fetch('/api/notifications/create', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -739,15 +819,79 @@ export default function SuperUser() {
             })
           });
 
-          const notificationData = await notificationResponse.json();
-          if (!notificationResponse.ok) {
-            throw new Error(notificationData.message || 'Failed to send notification');
+          // Notification for Rater
+          const raterNotificationResponse = await fetch('/api/notifications/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${currentUser.token}`,
+              'x-super-user-auth': 'ishe'
+            },
+            body: JSON.stringify({
+              title: 'Rating Dispute Rejected',
+              content: `The rating dispute made for the rating you gave "${dispute.disputedBy?.username || 'the disputer'}" has been rejected, your rating will remain on their profile`,
+              type: 'dispute_rejected',
+              to: dispute.ratedBy?._id,
+              from: currentUser._id,
+              data: {
+                disputeId: dispute._id,
+                ratingId: dispute.rating?._id,
+                categories: categoryNames,
+                ratingValue: ratingValue,
+                reasonType: dispute.reasonType,
+                detailedReason: dispute.detailedReason,
+                raterInfo: {
+                  id: dispute.ratedBy?._id,
+                  username: dispute.ratedBy?.username || dispute.raterName
+                },
+                disputerInfo: {
+                  id: dispute.disputedBy?._id,
+                  username: dispute.disputedBy?.username
+                },
+                dates: {
+                  disputeCreated: dispute.createdAt,
+                  disputeResolved: new Date().toISOString()
+                },
+                systemInfo: {
+                  name: 'JustListIt Support',
+                  role: 'System',
+                  avatar: '/support-avatar.png'
+                }
+              }
+            })
+          });
+
+          const disputerNotificationData = await disputerNotificationResponse.json();
+          const raterNotificationData = await raterNotificationResponse.json();
+
+          // Log detailed notification responses
+          console.log('Disputer Notification Response:', {
+            ok: disputerNotificationResponse.ok,
+            status: disputerNotificationResponse.status,
+            data: disputerNotificationData
+          });
+
+          console.log('Rater Notification Response:', {
+            ok: raterNotificationResponse.ok,
+            status: raterNotificationResponse.status,
+            data: raterNotificationData
+          });
+
+          if (!disputerNotificationResponse.ok || !raterNotificationResponse.ok) {
+            throw new Error(
+              (disputerNotificationData.message || 'Failed to send disputer notification') + 
+              ' | ' + 
+              (raterNotificationData.message || 'Failed to send rater notification')
+            );
           }
 
-          console.log('Successfully sent rejection notification:', notificationData);
+          console.log('Successfully sent notifications:', {
+            disputerNotification: disputerNotificationData,
+            raterNotification: raterNotificationData
+          });
         } catch (notifError) {
-          console.error('Error sending rejection notification:', notifError);
-          toast.error('Dispute rejected but failed to send notification');
+          console.error('Error sending notifications:', notifError);
+          toast.error('Dispute rejected but failed to send one or more notifications');
         }
       }
 
