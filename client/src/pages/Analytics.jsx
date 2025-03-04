@@ -453,29 +453,62 @@ export default function Analytics() {
   // Fetch CTR analytics for user
   useEffect(() => {
     const fetchCTRAnalytics = async () => {
-      if (!currentUser?._id) return;
+      if (!currentUser?._id) {
+        console.warn('No current user ID for CTR analytics');
+        return;
+      }
       
       try {
-        const res = await fetch(`http://localhost:3000/api/analytics/ctr/user/${currentUser._id}`, {
+        console.log('Fetching CTR analytics for user:', currentUser._id);
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          console.error('No access token found');
+          return;
+        }
+
+        const res = await fetch(`/api/analytics/ctr/user/${currentUser._id}`, {
+          method: 'GET',
           credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         });
         
+        console.log('CTR Analytics Response Status:', res.status);
+        
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          const errorText = await res.text();
+          console.error('CTR Analytics Error Response:', errorText);
+          throw new Error(`HTTP error! status: ${res.status}, message: ${errorText}`);
         }
         
         const data = await res.json();
+        console.log('CTR Analytics Raw Response:', data);
+        
         if (data.success) {
+          console.log('CTR Listings:', data.listings);
           setCTRAnalytics(prev => ({
             ...prev,
-            overall: data.listings
+            overall: Array.isArray(data.listings) ? data.listings : []
+          }));
+        } else {
+          console.warn('CTR Analytics fetch was not successful:', data.message);
+          setCTRAnalytics(prev => ({
+            ...prev,
+            overall: []
           }));
         }
       } catch (error) {
-        console.error('Error fetching CTR analytics:', error);
+        console.error('Comprehensive error fetching CTR analytics:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+        setCTRAnalytics(prev => ({
+          ...prev,
+          overall: []
+        }));
       }
     };
 
@@ -926,7 +959,14 @@ export default function Analytics() {
             {selectedTab === 4 && (
               <div className='p-3 bg-white rounded-lg'>
                 <h2 className='text-2xl font-semibold mb-4'>Click-through Rate Analysis</h2>
-                {ctrAnalytics.overall.length > 0 ? (
+                {(ctrAnalytics.overall.length === 0 && !selectedListing) ? (
+                  <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                    <p className="text-lg mb-4">No CTR data available yet</p>
+                    <p className="text-sm">
+                      CTR data will be generated as your listings receive more views and interactions.
+                    </p>
+                  </div>
+                ) : (
                   <div className='overflow-x-auto'>
                     <table className='min-w-full divide-y divide-gray-200'>
                       <thead>
@@ -961,10 +1001,6 @@ export default function Analytics() {
                       </tbody>
                     </table>
                   </div>
-                ) : (
-                  <p className='text-gray-500 text-center py-4'>
-                    No CTR data available yet
-                  </p>
                 )}
               </div>
             )}

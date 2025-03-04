@@ -33,6 +33,7 @@ export default function Header() {
   const [showListingsDropdown, setShowListingsDropdown] = useState(false);
   const [showResourcesDropdown, setShowResourcesDropdown] = useState(false);
   const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
+  const [scheduleNotifications, setScheduleNotifications] = useState([]);
 
   // Dropdown management function
   const handleDropdownToggle = (dropdown) => {
@@ -200,6 +201,34 @@ export default function Header() {
       }
     };
   }, [user?._id, currentUser, isRealEstateCompany, isAgent]);
+
+  useEffect(() => {
+    const checkUnreadNotifications = async () => {
+      if (!currentUser?._id || !currentUser?.token) return;
+
+      try {
+        const res = await fetch(`/api/notifications/unread/${currentUser._id}`, {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch unread notifications');
+        }
+
+        const data = await res.json();
+        setHasUnreadNotifications(data.hasUnreadNotifications || false);
+      } catch (error) {
+        console.error('Error checking unread notifications:', error);
+      }
+    };
+
+    checkUnreadNotifications();
+    const intervalId = setInterval(checkUnreadNotifications, 60000); // Check every minute
+
+    return () => clearInterval(intervalId);
+  }, [currentUser]);
 
   // Messages page effect
   useEffect(() => {
@@ -520,6 +549,47 @@ export default function Header() {
     setIsDarkMode(!isDarkMode);
   };
 
+  useEffect(() => {
+    const fetchScheduleNotifications = async () => {
+      if (!currentUser?._id || !currentUser?.token) return;
+
+      try {
+        const res = await fetch(`/api/notifications/schedule/${currentUser._id}`, {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`
+          }
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to fetch schedule notifications');
+        }
+
+        const data = await res.json();
+        
+        if (data.success) {
+          // Process notifications to ensure consistent data structure
+          const processedNotifications = data.notifications.map(notification => {
+            // Ensure reservations is always an array
+            if (notification.data) {
+              notification.data.reservations = notification.data.reservations || 
+                (notification.data.reservation ? [notification.data.reservation] : []);
+            }
+            return notification;
+          });
+          
+          setScheduleNotifications(processedNotifications);
+        } else {
+          throw new Error(data.message || 'Failed to fetch schedule notifications');
+        }
+      } catch (error) {
+        console.error('Error fetching schedule notifications:', error);
+      }
+    };
+
+    fetchScheduleNotifications();
+  }, [currentUser]);
+
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
       <div className="flex justify-between items-center max-w-6xl mx-auto p-3 relative">
@@ -608,8 +678,8 @@ export default function Header() {
                   className="rounded-md h-[3.3rem] w-[3.3rem] object-cover cursor-pointer hover:opacity-90 transition-opacity duration-200"
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                 />
-                {shouldShowNotifications && (hasUnreadMessages || hasUnreadNotifications) && (
-                  <div className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white"></div>
+                {(scheduleNotifications?.length > 0 || shouldShowNotifications && hasUnreadMessages) && (
+                  <span className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 bg-red-500 rounded-full border-2 border-white"></span>
                 )}
               </div>
 
@@ -678,7 +748,7 @@ export default function Header() {
                             } transition-colors duration-200`}
                             onClick={() => setIsProfileDropdownOpen(false)}
                           >
-                            <div className="flex items-center">
+                            <div className="flex items-center justify-between">
                               <span>Notifications</span>
                               {hasUnreadNotifications && (
                                 <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
@@ -696,8 +766,32 @@ export default function Header() {
                             } transition-colors duration-200`}
                             onClick={() => setIsProfileDropdownOpen(false)}
                           >
-                            <div className="flex items-center">
+                            <div className="flex items-center justify-between">
                               <span>Schedule</span>
+                              {(() => {
+                                console.log('Debug - hasListings:', hasListings);
+                                console.log('Debug - scheduleNotifications:', JSON.stringify(scheduleNotifications, null, 2));
+                                
+                                return scheduleNotifications && (
+                                  hasListings ? (
+                                    scheduleNotifications.some(
+                                      notification => 
+                                        (!notification.status || 
+                                         notification.status === 'pending')
+                                    ) ? (
+                                      <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                        Pending
+                                      </span>
+                                    ) : null
+                                  ) : (
+                                    scheduleNotifications.length > 0 ? (
+                                      <span className="bg-green-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                        Upcoming
+                                      </span>
+                                    ) : null
+                                  )
+                                );
+                              })()}
                             </div>
                           </Link>
                         </>

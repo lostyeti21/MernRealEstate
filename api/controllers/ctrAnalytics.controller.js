@@ -181,32 +181,43 @@ export const getUserCTRAnalytics = async (req, res, next) => {
     }).populate('listingId', 'name');
 
     // Format analytics for each listing
-    const listingAnalytics = ctrAnalytics.map(analytics => {
-      const listing = userListings.find(l => l._id.toString() === analytics.listingId.toString());
-      return {
-        listingId: analytics.listingId,
-        name: listing.name,
-        impressions: analytics.impressions,
-        clicks: analytics.clicks,
-        ctr: analytics.impressions > 0 
-          ? (analytics.clicks / analytics.impressions * 100).toFixed(2)
-          : 0,
-        sources: analytics.sources.map(source => ({
-          name: source.name,
-          impressions: source.impressions,
-          clicks: source.clicks,
-          ctr: source.impressions > 0 
-            ? (source.clicks / source.impressions * 100).toFixed(2)
-            : 0
-        }))
-      };
-    });
+    const listingAnalytics = ctrAnalytics.length > 0 
+      ? ctrAnalytics.map(analytics => {
+          const listing = userListings.find(l => l._id.toString() === analytics.listingId.toString());
+          
+          // Fallback if listing not found
+          if (!listing) {
+            console.warn(`Listing not found for CTR analytics: ${analytics.listingId}`);
+            return null;
+          }
 
+          return {
+            listingId: analytics.listingId,
+            name: listing.name,
+            impressions: analytics.impressions || 0,
+            clicks: analytics.clicks || 0,
+            ctr: analytics.impressions > 0 
+              ? (analytics.clicks / analytics.impressions * 100).toFixed(2)
+              : 0,
+            sources: (analytics.sources || []).map(source => ({
+              name: source.name,
+              impressions: source.impressions || 0,
+              clicks: source.clicks || 0,
+              ctr: source.impressions > 0 
+                ? (source.clicks / source.impressions * 100).toFixed(2)
+                : 0
+            }))
+          };
+        }).filter(item => item !== null)
+      : [];
+
+    // If no CTR analytics found, create an empty array
     res.status(200).json({
       success: true,
       listings: listingAnalytics
     });
   } catch (error) {
+    console.error('Error in getUserCTRAnalytics:', error);
     next(error);
   }
 };

@@ -625,3 +625,30 @@ export const createSuperNotification = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getUserUnreadNotificationsStatus = async (req, res, next) => {
+  try {
+    const userId = req.params.userId;
+
+    // Verify that the requester is the same user or an admin
+    if (req.user.id !== userId && req.user.role !== 'admin') {
+      return next(errorHandler(403, 'Unauthorized to access this user\'s notifications'));
+    }
+
+    // Count unread notifications, excluding viewing_request type
+    const unreadCount = await Notification.countDocuments({ 
+      to: userId, 
+      read: false,
+      type: { $ne: 'viewing_request' }
+    });
+
+    res.json({
+      success: true,
+      hasUnreadNotifications: unreadCount > 0,
+      unreadCount
+    });
+  } catch (error) {
+    console.error('Error checking unread notifications:', error);
+    next(errorHandler(500, 'Error checking unread notifications'));
+  }
+};

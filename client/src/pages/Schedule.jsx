@@ -482,6 +482,9 @@ const Schedule = () => {
             return notification;
           });
           
+          console.log('Debug - Processed Notifications:', JSON.stringify(processedNotifications, null, 2));
+          console.log('Debug - User has listings:', hasListings);
+          
           setScheduleNotifications(processedNotifications);
         } else {
           throw new Error(data.message || 'Failed to fetch notifications');

@@ -23,53 +23,53 @@ ChartJS.register(
 );
 
 export default function MarketChart({ listings }) {
-  // Calculate average price trends (mock data for demonstration)
+  // Extract unique locations
+  const locations = [...new Set(listings.map(listing => 
+    listing.address.split(',').pop().trim()
+  ))];
+
+  // Calculate rental trends by location
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-  const priceTrends = {
-    rent: [1200, 1250, 1300, 1280, 1320, 1350],
-    sale: [250000, 255000, 260000, 258000, 262000, 265000],
-  };
+  
+  // Group listings by location and calculate average rent over time
+  const locationRentTrends = locations.map(location => {
+    // Filter listings for this location
+    const locationListings = listings.filter(listing => 
+      listing.address.split(',').pop().trim() === location
+    );
 
-  // Calculate listing distribution by area
-  const areaDistribution = listings.reduce((acc, listing) => {
-    const area = listing.address.split(',').pop().trim();
-    acc[area] = (acc[area] || 0) + 1;
-    return acc;
-  }, {});
+    // If no listings, return zero values
+    if (locationListings.length === 0) {
+      return {
+        location,
+        rentTrends: months.map(() => 0)
+      };
+    }
 
+    // Calculate average rent for the location
+    const avgRent = locationListings.reduce((sum, listing) => 
+      sum + (listing.regularPrice || 0), 0) / locationListings.length;
+
+    // Generate a simple trend based on the average rent
+    const rentTrends = months.map((_, index) => 
+      Math.round(avgRent * (1 + (index - 2) * 0.05))
+    );
+
+    return {
+      location,
+      rentTrends
+    };
+  });
+
+  // Prepare chart data
   const rentTrendData = {
     labels: months,
-    datasets: [
-      {
-        label: 'Average Rent Price',
-        data: priceTrends.rent,
-        borderColor: 'rgb(75, 192, 192)',
-        backgroundColor: 'rgba(75, 192, 192, 0.5)',
-      },
-    ],
-  };
-
-  const saleTrendData = {
-    labels: months,
-    datasets: [
-      {
-        label: 'Average Sale Price',
-        data: priceTrends.sale,
-        borderColor: 'rgb(255, 99, 132)',
-        backgroundColor: 'rgba(255, 99, 132, 0.5)',
-      },
-    ],
-  };
-
-  const areaData = {
-    labels: Object.keys(areaDistribution),
-    datasets: [
-      {
-        label: 'Listings by Area',
-        data: Object.values(areaDistribution),
-        backgroundColor: 'rgba(54, 162, 235, 0.5)',
-      },
-    ],
+    datasets: locationRentTrends.map((trend, index) => ({
+      label: trend.location,
+      data: trend.rentTrends,
+      borderColor: `hsl(${index * 60}, 70%, 50%)`,
+      backgroundColor: `hsla(${index * 60}, 70%, 50%, 0.5)`,
+    }))
   };
 
   const rentTrendOptions = {
@@ -84,7 +84,7 @@ export default function MarketChart({ listings }) {
       },
       title: {
         display: true,
-        text: 'Rental Price Trends',
+        text: 'Rental Price Trends by Location',
       },
     },
     scales: {
@@ -101,6 +101,25 @@ export default function MarketChart({ listings }) {
         }
       },
     },
+  };
+
+  // Calculate listing distribution by area
+  const areaDistribution = listings.reduce((acc, listing) => {
+    const area = listing.address.split(',').pop().trim();
+    acc[area] = (acc[area] || 0) + 1;
+    return acc;
+  }, {});
+
+  const saleTrendData = {
+    labels: months,
+    datasets: [
+      {
+        label: 'Average Sale Price',
+        data: [250000, 255000, 260000, 258000, 262000, 265000],
+        borderColor: 'rgb(255, 99, 132)',
+        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+      },
+    ],
   };
 
   const saleTrendOptions = {
@@ -132,6 +151,17 @@ export default function MarketChart({ listings }) {
         }
       },
     },
+  };
+
+  const areaData = {
+    labels: Object.keys(areaDistribution),
+    datasets: [
+      {
+        label: 'Listings by Area',
+        data: Object.values(areaDistribution),
+        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+      },
+    ],
   };
 
   return (

@@ -71,6 +71,17 @@ export default function Tutorials() {
                 <MdChevronRight className="mr-2" />
                 How Can I Rate a User
               </button>
+              <button 
+                onClick={() => setActiveSection('schedule-viewing')}
+                className={`w-full text-left px-4 py-2 rounded mb-2 flex items-center ${
+                  activeSection === 'schedule-viewing' 
+                    ? 'bg-[#009688] text-white' 
+                    : 'text-slate-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <MdChevronRight className="mr-2" />
+                How to Schedule a Viewing
+              </button>
             </nav>
           </div>
 
@@ -263,6 +274,46 @@ export default function Tutorials() {
                     <div className="mt-6 text-center">
                       <a 
                         href="https://app.supademo.com/demo/cm7nkv8rp08f8i0nh1gzielqe" 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="inline-flex items-center text-[#009688] hover:underline"
+                      >
+                        View Full Demo on Supademo
+                        <MdChevronRight className="ml-2" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'schedule-viewing' && (
+              <div>
+                <h1 className="text-4xl font-bold mb-8 text-slate-800 dark:text-white">
+                  How to Schedule a Viewing
+                </h1>
+                
+                <div className="space-y-8">
+                  <div className="bg-white dark:bg-dark-secondary shadow-md rounded-lg p-6">
+                    <h2 className="text-2xl font-semibold mb-4 text-slate-800 dark:text-white">
+                      Viewing Scheduling Process
+                    </h2>
+                    <div style={{position: 'relative', boxSizing: 'content-box', maxHeight: '80vh', width: '100%', aspectRatio: 1.7733990147783252, padding: '40px 0 40px 0'}}>
+                      <iframe 
+                        src="https://app.supademo.com/embed/cm7uqdl1z2u52hilgdduq5zwy?embed_v=2" 
+                        loading="lazy" 
+                        title="Supademo Demo" 
+                        allow="clipboard-write" 
+                        frameBorder="0" 
+                        webkitallowfullscreen="true" 
+                        mozallowfullscreen="true" 
+                        allowFullScreen 
+                        style={{position: 'absolute', top: 0, left: 0, width: '100%', height: '100%'}}
+                      ></iframe>
+                    </div>
+                    <div className="mt-6 text-center">
+                      <a 
+                        href="https://app.supademo.com/demo/cm7uqdl1z2u52hilgdduq5zwy" 
                         target="_blank" 
                         rel="noreferrer"
                         className="inline-flex items-center text-[#009688] hover:underline"
