@@ -166,7 +166,7 @@ const SignUp = () => {
         body: JSON.stringify({ 
           ...formData, 
           username: combinedUsername,
-          hashedPassword: formData.password // Fix password storage issue
+          password: formData.password // Correctly send the password
         }),
       });
 

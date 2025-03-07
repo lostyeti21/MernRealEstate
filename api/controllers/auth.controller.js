@@ -11,7 +11,9 @@ const generateToken = (user) => {
     { 
       id: user._id,
       isRealEstateCompany: false,
-      isAdmin: user.isAdmin 
+      isAdmin: user.isAdmin,
+      isAgent: user.isAgent || false,
+      companyId: user.realEstateCompany
     }, 
     process.env.JWT_SECRET,
     { expiresIn: '1d' }
@@ -103,11 +105,10 @@ export const signup = async (req, res, next) => {
       finalUsername = `${username}_${randomSuffix}`;
     }
 
-    const hashedPassword = bcryptjs.hashSync(password, 10);
     const newUser = new User({ 
       username: finalUsername, 
       email, 
-      password: hashedPassword,
+      password,  
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(finalUsername)}&background=random`
     });
 
@@ -138,7 +139,7 @@ export const signup = async (req, res, next) => {
 export const agentSignin = async (req, res, next) => {
   const { email, password } = req.body;
   try {
-    const validUser = await User.findOne({ email });
+    const validUser = await User.findOne({ email }).populate('realEstateCompany');
     if (!validUser) return next(errorHandler(404, 'User not found!'));
 
     if (!validUser.isAgent) {
@@ -148,15 +149,7 @@ export const agentSignin = async (req, res, next) => {
     const validPassword = bcryptjs.compareSync(password, validUser.password);
     if (!validPassword) return next(errorHandler(401, 'Wrong credentials!'));
 
-    const token = jwt.sign(
-      { 
-        id: validUser._id,
-        isRealEstateCompany: false,
-        isAgent: true 
-      }, 
-      process.env.JWT_SECRET
-    );
-    
+    const token = generateToken(validUser);
     setCookie(res, token);
     
     const { password: pass, ...rest } = validUser._doc;
@@ -164,6 +157,7 @@ export const agentSignin = async (req, res, next) => {
     res.status(200).json({
       success: true,
       access_token: token,
+      isAgent: true,
       ...rest
     });
   } catch (error) {
@@ -180,29 +174,23 @@ export const agentSignup = async (req, res, next) => {
       return next(errorHandler(400, 'Email already exists'));
     }
 
-    const hashedPassword = bcryptjs.hashSync(password, 10);
     const newUser = new User({ 
       username, 
       email, 
-      password: hashedPassword,
+      password,  // Remove manual hashing since model middleware handles it
       isAgent: true,
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random`
     });
 
     await newUser.save();
-    const token = jwt.sign(
-      { 
-        id: newUser._id,
-        isRealEstateCompany: false,
-        isAgent: true 
-      }, 
-      process.env.JWT_SECRET
-    );
+    const token = generateToken(newUser);
     setCookie(res, token);
     
     const { password: pass, ...rest } = newUser._doc;
     res.status(201).json({
       success: true,
+      access_token: token,
+      isAgent: true,
       ...rest
     });
   } catch (error) {

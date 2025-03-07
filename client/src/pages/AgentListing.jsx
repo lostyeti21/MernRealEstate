@@ -29,6 +29,7 @@ import {
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 import Loader from '../components/Loader';
+import { motion } from 'framer-motion';
 
 const AgentListing = () => {
   SwiperCore.use([Navigation]);

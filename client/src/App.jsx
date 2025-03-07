@@ -31,6 +31,7 @@ import AgentDashboard from "./pages/AgentDashboard";
 import AgentListings from './pages/AgentListings';
 import AddAgent from './pages/AddAgent';
 import AgentProfile from './pages/AgentProfile';
+import AgentDash from './pages/AgentDash';
 import RealEstateCompanies from './pages/RealEstateCompanies';
 import AgentCreateListing from './pages/AgentCreateListing';
 import AgentListing from "./pages/AgentListing";
@@ -242,6 +243,7 @@ const App = () => {
           <Route path="/landlord-profile" element={<LandlordProfile />} />
           <Route path="/create-listing" element={<CreateListing />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
+          <Route path="/agent-dash" element={<AgentDash />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/schedule" element={<Schedule />} />
         </Route>

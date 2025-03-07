@@ -15,6 +15,7 @@ import { initializeSocket } from './socket/socket.js';
 import cors from 'cors';
 import uploadRouter from './routes/upload.route.js';
 import agentRouter from './routes/agent.route.js';
+import agentProfileRouter from './routes/agentProfile.route.js';
 import companyRouter from './routes/real-estate.route.js';
 import codeRouter from './routes/code.route.js';
 import analyticsRouter from './routes/analytics.route.js';
@@ -77,7 +78,7 @@ app.use(cookieParser());
 
 // Add request logging middleware
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`, {
+  console.log(`🔍 [API] ${req.method} ${req.path}`, {
     query: req.query,
     body: req.body,
     headers: {
@@ -88,7 +89,31 @@ app.use((req, res, next) => {
   next();
 });
 
-// API routes
+console.log('📝 [API] Starting route registration...');
+
+// Debug: Print all registered routes
+const listEndpoints = (app) => {
+  const endpoints = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      endpoints.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          endpoints.push({
+            path: handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  return endpoints;
+};
+
 app.use('/api/user', userRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/listing', listingRouter);
@@ -97,6 +122,7 @@ app.use('/api/tenant-rating', tenantRatingRouter);
 app.use('/api/landlord-rating', landlordRatingRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/agent', agentRouter);
+app.use('/api/agent-profile', agentProfileRouter);
 app.use('/api/real-estate', companyRouter);
 app.use('/api/code', codeRouter);
 app.use('/api/analytics', analyticsRouter);
@@ -110,6 +136,18 @@ app.use('/api/notifications', notificationRouter);
 app.use('/api/dispute', disputeRouter);
 app.use('/api/reservation', reservationRouter);
 app.use('/api/rating-notifications', ratingNotificationRouter);
+
+console.log('📝 [API] Routes registered. Available endpoints:', listEndpoints(app));
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'An unexpected error occurred';
+  res.status(statusCode).json({
+    success: false,
+    message,
+  });
+});
 
 // Add global error handler middleware
 app.use((err, req, res, next) => {

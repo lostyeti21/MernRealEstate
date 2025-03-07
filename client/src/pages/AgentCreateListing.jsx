@@ -60,6 +60,7 @@ export default function AgentCreateListing() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   // Determine the correct user for listing creation
   const user = isAgent ? currentUser : null;
@@ -302,14 +303,24 @@ export default function AgentCreateListing() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Form submitted');
+    setShowSuccessPopup(true); // Show popup immediately
+    setTimeout(() => {
+      navigate('/agent-dashboard'); // Redirect after 5 seconds
+    }, 5000);
     try {
-      if (formData.imageUrls.length < 1)
+      if (formData.imageUrls.length < 1) {
+        console.log('No images uploaded');
         return setError('You must upload at least one image');
-      if (+formData.regularPrice < +formData.discountPrice)
+      }
+      if (+formData.regularPrice < +formData.discountPrice) {
+        console.log('Invalid price configuration');
         return setError('Discount price must be lower than regular price');
+      }
 
       // Validate apartment type
       if (!formData.apartmentType) {
+        console.log('Apartment type not selected');
         setError('Please select an apartment type');
         return;
       }
@@ -319,11 +330,13 @@ export default function AgentCreateListing() {
 
       // Ensure user is an agent before creating listing
       if (!user) {
+        console.log('User not found or not an agent');
         setError('User not found. Please log in as an agent.');
         setLoading(false);
         return;
       }
 
+      console.log('Sending request to create listing');
       const res = await fetch('/api/listing/create', {
         method: 'POST',
         headers: {
@@ -340,13 +353,14 @@ export default function AgentCreateListing() {
       const data = await res.json();
       setLoading(false);
 
-      if (!data.success) {
+      if (data.success) {
+        console.log('Listing creation successful');
+      } else {
+        console.log('Error creating listing:', data.message);
         setError(data.message);
-        return;
       }
-
-      navigate('/agent-dashboard');
     } catch (error) {
+      console.error('Error in handleSubmit:', error);
       setError(error.message);
       setLoading(false);
     }
@@ -354,6 +368,11 @@ export default function AgentCreateListing() {
 
   return (
     <main className='p-3 max-w-4xl mx-auto'>
+      {showSuccessPopup && (
+        <div className='success-popup'>
+          Listing created successfully!
+        </div>
+      )}
       <h1 className='text-3xl font-semibold text-center my-7'>
         Create a Listing
       </h1>

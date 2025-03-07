@@ -1572,7 +1572,7 @@ export default function SuperUser() {
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avatar</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username/Name</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -1583,7 +1583,7 @@ export default function SuperUser() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {renderUserAvatar(user)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">{user.username}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{user.username || user.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button

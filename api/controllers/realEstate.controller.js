@@ -132,6 +132,7 @@ export const addAgent = async (req, res, next) => {
       email,
       password: hashedPassword,
       contact,
+      isAgent: true,
       avatar: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
       ratings: [],
       averageRating: 0,
@@ -143,6 +144,16 @@ export const addAgent = async (req, res, next) => {
     company.agents.push(newAgent);
     await company.save();
 
+    // Generate token for the new agent
+    const token = jwt.sign(
+      { 
+        id: newAgent._id,
+        companyId: company._id,
+        isAgent: true 
+      },
+      process.env.JWT_SECRET
+    );
+
     // Get the newly added agent (exclude password)
     const addedAgent = company.agents[company.agents.length - 1];
     const agentResponse = {
@@ -151,6 +162,7 @@ export const addAgent = async (req, res, next) => {
       email: addedAgent.email,
       contact: addedAgent.contact,
       avatar: addedAgent.avatar,
+      isAgent: true,
       ratings: addedAgent.ratings,
       averageRating: addedAgent.averageRating,
       createdAt: addedAgent.createdAt,
@@ -162,7 +174,8 @@ export const addAgent = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Agent added successfully',
-      agent: agentResponse
+      agent: agentResponse,
+      token
     });
 
   } catch (error) {

@@ -109,3 +109,16 @@ export const getCompanyDetails = async (req, res) => {
     });
   }
 };
+
+export const getAllRealEstateCompanies = async (req, res, next) => {
+  try {
+    const companies = await RealEstateCompany.find({}, 'companyName'); // Fetch all companies with only companyName field
+    res.status(200).json({
+      success: true,
+      companies
+    });
+  } catch (error) {
+    console.error('Error fetching companies:', error);
+    next(errorHandler(500, 'Internal server error'));
+  }
+};

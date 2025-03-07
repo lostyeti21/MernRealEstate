@@ -15,6 +15,7 @@ export default function AgentDashboard() {
   const [file, setFile] = useState(undefined);
   const [uploading, setUploading] = useState(false);
   const [fileUploadError, setFileUploadError] = useState(false);
+  const [filePerc, setFilePerc] = useState(0);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState(currentUser?.contact || '');
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -54,7 +55,7 @@ export default function AgentDashboard() {
           token: currentUser.token ? 'present' : 'missing'
         });
 
-        const res = await fetch(`/api/agent/listings/${currentUser._id}`, {
+        const res = await fetch(`http://localhost:3000/api/agent/listings/${currentUser._id}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
@@ -94,7 +95,7 @@ export default function AgentDashboard() {
     const fetchCompanyRating = async () => {
       try {
         // Fetch agent data first
-        const agentRes = await fetch(`/api/agent/${currentUser._id}`, {
+        const agentRes = await fetch(`http://localhost:3000/api/agent/${currentUser._id}`, {
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json'
@@ -115,7 +116,7 @@ export default function AgentDashboard() {
         }
 
         // Fetch company data
-        const companyRes = await fetch(`/api/company/${companyId}`, {
+        const companyRes = await fetch(`http://localhost:3000/api/company/${companyId}`, {
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json'
@@ -158,11 +159,13 @@ export default function AgentDashboard() {
     }
   }, [currentUser, dispatch]);
 
+
+
   useEffect(() => {
     const fetchAgentRating = async () => {
       try {
         // Fetch agent data to get the most up-to-date rating
-        const agentRes = await fetch(`/api/agent/${currentUser._id}`, {
+        const agentRes = await fetch(`http://localhost:3000/api/agent/${currentUser._id}`, {
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json'
@@ -173,11 +176,11 @@ export default function AgentDashboard() {
           throw new Error('Failed to fetch agent data');
         }
 
-        const agentData = await agentRes.json();
+        const data = await agentRes.json();
         
         // Check if agent data exists and has a rating
-        if (agentData.agent && agentData.agent.averageRating !== undefined) {
-          const newRating = agentData.agent.averageRating;
+        if (data.success && data.agent && typeof data.agent.averageRating !== 'undefined') {
+          const newRating = data.agent.averageRating;
           setAgentRating(newRating);
 
           // Update Redux store if rating has changed
@@ -205,72 +208,174 @@ export default function AgentDashboard() {
   }, [currentUser, dispatch, isAgent]);
 
   useEffect(() => {
-    const handleFileChange = async () => {
-      if (!file) return;
-      
+    if (file) {
+      handleFileUpload(file);
+    }
+  }, [file]);
+
+  const handleFileUpload = async (file) => {
+    try {
+      // Reset states at the start
+      setFileUploadError(null);
+      setUpdateSuccess(false);
+      setFilePerc(0);
+
+      // Validate agent data and token
+      if (!currentUser) {
+        throw new Error('You must be logged in to update your avatar');
+      }
+
+      const { _id, companyId, token, isAgent } = currentUser;
+
+      if (!isAgent) {
+        throw new Error('Only agents can update their avatar');
+      }
+
+      if (!_id || !companyId) {
+        throw new Error('Missing agent credentials. Please log in again.');
+      }
+
+      // Check for token in multiple places
+      const authToken = token || 
+                       localStorage.getItem('access_token') || 
+                       localStorage.getItem('agent_token');
+
+      if (!authToken) {
+        throw new Error('Authentication token missing. Please log in again.');
+      }
+
+      console.log('Starting avatar upload process:', {
+        fileName: file?.name,
+        fileSize: file?.size,
+        agentId: _id,
+        companyId: companyId,
+        isAgent,
+        token: 'present'
+      });
+
+      // Validate file
+      if (!file) {
+        throw new Error('Please select a file');
+      }
+
+      if (file.size > 2 * 1024 * 1024) {
+        throw new Error('Image must be less than 2MB');
+      }
+
+      setUploading(true);
+      setFilePerc(10);
+
+      // Upload image
+      const formData = new FormData();
+      formData.append('image', file);
+
+      console.log('Uploading image...');
+      const uploadRes = await fetch('http://localhost:3000/api/upload/image', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        },
+        credentials: 'include'
+      });
+
+      let uploadData;
       try {
-        setUploading(true);
-        setFileUploadError(false);
+        const uploadText = await uploadRes.text();
+        uploadData = JSON.parse(uploadText);
         
-        const formData = new FormData();
-        formData.append('image', file);  
-        
-        // Upload to Cloudinary through our API
-        const uploadResponse = await fetch('/api/upload/image', {  
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${currentUser.token}`  
-          },
-          body: formData,
-        });
-
-        const uploadData = await uploadResponse.json();
-        
-        if (!uploadResponse.ok) {
-          throw new Error(uploadData.message || 'Failed to upload image');
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.message || `Upload failed: ${uploadRes.status}`);
         }
+      } catch (parseError) {
+        console.error('Error parsing upload response:', parseError);
+        throw new Error('Invalid response from upload server');
+      }
 
-        // Update agent's avatar with Cloudinary URL
-        const res = await fetch('/api/agent/update-avatar', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentUser.token}`
-          },
-          body: JSON.stringify({
-            avatar: uploadData.url,
-            agentId: currentUser._id,
-            isCloudinary: true
-          })
-        });
+      if (!uploadData?.url) {
+        throw new Error('No URL returned from image upload');
+      }
 
-        const data = await res.json();
-        if (data.success) {
-          setUpdateSuccess(true);
-          // Update the Redux store with the new avatar
-          dispatch(updateUserSuccess({
-            ...currentUser,
-            avatar: uploadData.url
-          }));
-        } else {
-          throw new Error(data.message || 'Failed to update avatar');
+      setFilePerc(50);
+      console.log('Image uploaded successfully:', { url: uploadData.url });
+
+      // Update agent profile
+      console.log('Updating agent profile...');
+      const updateRes = await fetch(`http://localhost:3000/api/agent/update-avatar/${_id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          avatar: uploadData.url,
+          companyId: companyId
+        }),
+        credentials: 'include'
+      });
+
+      let updateData;
+      try {
+        const updateText = await updateRes.text();
+        updateData = JSON.parse(updateText);
+
+        if (!updateRes.ok) {
+          throw new Error(updateData.message || 'Failed to update profile');
         }
-      } catch (error) {
-        console.error('Error updating avatar:', error);
-        setFileUploadError(true);
-      } finally {
+      } catch (parseError) {
+        console.error('Error parsing profile update response:', parseError);
+        throw new Error('Invalid response from server');
+      }
+
+      if (!updateData.success || !updateData.agent) {
+        throw new Error(updateData.message || 'Invalid response from server');
+      }
+
+      // Update Redux store with complete agent data
+      const updatedUser = {
+        ...currentUser,
+        ...updateData.agent,
+        token: updateData.token || currentUser.token // Use new token if provided
+      };
+      dispatch(updateUserSuccess(updatedUser));
+
+      // Store new token if provided
+      if (updateData.token) {
+        localStorage.setItem('access_token', updateData.token);
+        localStorage.setItem('agent_token', updateData.token); // Store in both places for compatibility
+      }
+
+      setFilePerc(100);
+      setUpdateSuccess(true);
+      console.log('Avatar update completed successfully:', updatedUser);
+
+      // Reset states after delay
+      setTimeout(() => {
+        setUpdateSuccess(false);
+        setFilePerc(0);
+        setUploading(false);
+      }, 3000);
+
+    } catch (error) {
+      console.error('Avatar update error:', error);
+      setFileUploadError(error.message || 'Failed to update avatar');
+      setUpdateSuccess(false);
+      setFilePerc(0);
+    } finally {
+      if (!updateSuccess) {
         setUploading(false);
       }
-    };
-
-    if (file) {
-      handleFileChange();
     }
-  }, [file, currentUser]);
+  };
+
+  const handleAvatarClick = () => {
+    if (uploading) return;
+    fileRef.current?.click();
+  };
 
   const handleDeleteListing = async (listingId) => {
     try {
-      const res = await fetch(`/api/agent/listing/${listingId}`, {
+      const res = await fetch(`http://localhost:3000/api/agent/listing/${listingId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${currentUser.token}`
@@ -292,7 +397,7 @@ export default function AgentDashboard() {
     try {
       setContactUpdateError(null);
       
-      const res = await fetch('/api/agent/update-phone', {
+      const res = await fetch('http://localhost:3000/api/agent/update-phone', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -337,7 +442,7 @@ export default function AgentDashboard() {
     }
 
     try {
-      const res = await fetch(`/api/agent/update-name/${currentUser._id}`, {
+      const res = await fetch(`http://localhost:3000/api/agent/update-name/${currentUser._id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -403,19 +508,35 @@ export default function AgentDashboard() {
         <div className="flex flex-col md:flex-row gap-6">
           {/* Agent Profile Section */}
           <div className="flex items-center gap-6">
+            {/* Hidden file input for avatar */}
             <input
-              onChange={(e) => setFile(e.target.files[0])}
-              type='file'
+              type="file"
               ref={fileRef}
               hidden
-              accept='image/*'
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files[0])}
             />
-            <img
-              onClick={() => fileRef.current.click()}
-              src={currentUser.avatar || "/default-profile.jpg"}
-              alt="profile"
-              className="w-24 h-24 rounded-full object-cover cursor-pointer"
-            />
+
+            {/* Avatar Section */}
+            <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+              <img
+                src={currentUser.avatar || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'}
+                alt="profile"
+                className="h-24 w-24 rounded-full object-cover transition-all duration-300 group-hover:opacity-80"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300">
+                <span className="text-white text-sm">{uploading ? 'Uploading...' : 'Change Photo'}</span>
+              </div>
+              {filePerc > 0 && filePerc < 100 && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 transition-all duration-300" 
+                    style={{ width: `${filePerc}%` }}
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-col gap-2">
               {/* Name Section */}
               <div className="flex items-center gap-2">
@@ -469,23 +590,33 @@ export default function AgentDashboard() {
               <p className="text-gray-500">{currentUser.email}</p>
               
               {/* Agent Rating */}
-              <div className="flex items-center gap-2">
+              {fileUploadError && (
+                <p className="text-red-500 text-sm mt-2">{fileUploadError}</p>
+              )}
+              {updateSuccess && (
+                <p className="text-green-500 text-sm mt-2">Profile picture updated successfully!</p>
+              )}
+
+              <div className="flex items-center gap-2 mt-4">
                 <span className="text-gray-700">Your Rating:</span>
                 <div className="flex items-center">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <FaStar
                       key={star}
                       className={`${
-                        star <= (agentRating || 0)
+                        star <= Math.round(agentRating || 0)
                           ? 'text-yellow-400'
                           : 'text-gray-300'
                       }`}
                     />
                   ))}
                   <span className="ml-1 text-gray-600">
-                    ({agentRating?.toFixed(1) || 'N/A'})
+                    {agentRating ? `(${agentRating.toFixed(1)})` : '(No ratings yet)'}
                   </span>
                 </div>
+                {agentRatingError && (
+                  <span className="text-red-500 text-sm ml-2">{agentRatingError}</span>
+                )}
               </div>
             </div>
           </div>

@@ -126,10 +126,18 @@ export default function AddAgent() {
         throw new Error('No agent data returned from server');
       }
 
+      // Store agent token if provided
+      if (data.token) {
+        localStorage.setItem('agent_token', data.token);
+      }
+
       // Update company data in localStorage with new agent
       const updatedCompanyData = {
         ...companyData,
-        agents: [...(companyData.agents || []), data.agent]
+        agents: [...(companyData.agents || []), {
+          ...data.agent,
+          isAgent: true  // Ensure isAgent flag is set
+        }]
       };
       localStorage.setItem('realEstateCompany', JSON.stringify(updatedCompanyData));
 

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import StarRating from '../components/StarRating';
 import { FaMapMarkerAlt } from 'react-icons/fa';
+import ReactApexChart from 'react-apexcharts';
 import { getStorage, ref, getDownloadURL } from "firebase/storage";
 import { app } from "../firebase";
 
@@ -31,6 +32,17 @@ export default function RealEstateDashboard() {
   const [listings, setListings] = useState([]);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [listingsError, setListingsError] = useState(null);
+  const [timeAnalytics, setTimeAnalytics] = useState({
+    hourlyClicks: Array(24).fill(0),
+    loading: false,
+    error: null
+  });
+  const [priceAnalytics, setPriceAnalytics] = useState({
+    salesPrices: [],
+    rentalPrices: [],
+    loading: false,
+    error: null
+  });
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -236,10 +248,44 @@ export default function RealEstateDashboard() {
   };
 
   const handleAvatarUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+    try {
+      const file = e.target.files[0];
+      console.log('Avatar upload started:', { 
+        fileName: file?.name, 
+        fileSize: file?.size,
+        currentUser: currentUser?.username,
+        companyId: realEstateCompany?._id,
+        storedCompanyId: JSON.parse(localStorage.getItem('realEstateCompany'))?._id
+      });
+      
+      if (!file) {
+        console.log('No file selected');
+        return;
+      }
+
+      if (file.size > 2 * 1024 * 1024) {
+        console.error('File too large:', { size: file.size });
+        setAvatarUploadError('Image must be less than 2MB');
+        return;
+      }
+
+      // Validate company ID availability
+      const companyId = realEstateCompany?._id || JSON.parse(localStorage.getItem('realEstateCompany'))?._id;
+      if (!companyId) {
+        console.error('Company ID not found:', {
+          reduxState: realEstateCompany,
+          localStorage: localStorage.getItem('realEstateCompany')
+        });
+        setAvatarUploadError('Unable to update avatar: Company information not found');
+        return;
+      }
+
       setAvatarFile(file);
+      setAvatarUploadError(null);
       handleImageUpload(file, 'avatar');
+    } catch (error) {
+      console.error('Error in handleAvatarUpload:', error);
+      setAvatarUploadError('Failed to process image upload');
     }
   };
 
@@ -296,9 +342,15 @@ export default function RealEstateDashboard() {
 
       const updateData = await updateRes.json();
 
-      // Update state and localStorage
-      setCompanyData(updateData.company);
+      // Update local state and storage with the entire updated company data
+      console.log('Updating local state with response data:', {
+        companyId: updateData.company._id,
+        hasBanner: !!updateData.company.banner,
+        bannerUrl: updateData.company.banner
+      });
+
       localStorage.setItem('realEstateCompany', JSON.stringify(updateData.company));
+      setCompanyData(updateData.company);
 
       // Force banner image update
       const bannerImg = document.querySelector('.company-banner');
@@ -315,132 +367,181 @@ export default function RealEstateDashboard() {
   };
 
   const handleImageUpload = async (file, type) => {
+    let progressInterval;
     try {
+      console.log('Starting image upload process:', { 
+        type, 
+        fileName: file.name, 
+        fileSize: file.size,
+        currentUser: currentUser,
+        realEstateCompany: realEstateCompany
+      });
+      
       // Use Cloudinary for new uploads
       const formData = new FormData();
       formData.append('image', file);
 
       // Get company info and token
-      const token = localStorage.getItem('realEstateToken');
-      let companyInfo;
-      try {
-        const storedInfo = localStorage.getItem('realEstateCompany');
-        companyInfo = JSON.parse(storedInfo);
-        console.log('Retrieved company info:', companyInfo);
-      } catch (e) {
-        console.error('Error parsing company info:', e);
-        throw new Error('Invalid company information');
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      console.log('Auth token available:', !!token);
+      
+      // Get company ID from Redux state first
+      let companyId = realEstateCompany?._id;
+      console.log('Company ID from Redux:', companyId);
+
+      // If not in Redux, try localStorage
+      if (!companyId) {
+        try {
+          const storedInfo = localStorage.getItem('realEstateCompany');
+          console.log('Stored company info:', storedInfo);
+          
+          if (storedInfo) {
+            const parsedInfo = JSON.parse(storedInfo);
+            companyId = parsedInfo?._id;
+            console.log('Company ID from localStorage:', companyId);
+          }
+        } catch (e) {
+          console.error('Error parsing stored company info:', e);
+        }
       }
 
-      if (!token || !companyInfo?._id) {
+      if (!token || !companyId) {
+        console.error('Authentication error:', { 
+          hasToken: !!token, 
+          companyId,
+          reduxCompanyId: realEstateCompany?._id,
+          storedCompanyData: localStorage.getItem('realEstateCompany')
+        });
         throw new Error('Missing authentication or company information');
       }
 
-      console.log('Starting image upload...', { type, companyId: companyInfo._id });
+      // Start progress simulation
+      progressInterval = setInterval(() => {
+        setAvatarUploadProgress(prev => Math.min(prev + 10, 90));
+      }, 500);
 
       // Upload to Cloudinary through our backend
+      console.log('Making upload request to:', '/api/upload/image', {
+        hasToken: !!token,
+        formDataSize: formData.get('image')?.size
+      });
+
       const uploadRes = await fetch('/api/upload/image', {
         method: 'POST',
         body: formData,
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        credentials: 'include'
       });
+      
+      console.log('Upload response status:', uploadRes.status);
 
       if (!uploadRes.ok) {
         const errorText = await uploadRes.text();
-        console.error('Upload response error:', errorText);
-        throw new Error('Failed to upload image');
+        console.error('Upload response error:', { status: uploadRes.status, error: errorText });
+        throw new Error(`Failed to upload image: ${uploadRes.status} ${errorText}`);
       }
 
       let uploadData;
       try {
         uploadData = await uploadRes.json();
-        console.log('Upload successful:', uploadData);
+        console.log('Upload response:', uploadData);
       } catch (e) {
         console.error('Error parsing upload response:', e);
         throw new Error('Invalid response from upload service');
       }
 
       if (!uploadData.success) {
+        console.error('Upload failed:', uploadData);
         throw new Error(uploadData.message || 'Failed to upload image');
       }
 
       // Update company profile with the new Cloudinary URL
-      const updateEndpoint = `/api/company/update/${companyInfo._id}`;
-      const updateBody = { [type]: uploadData.url };
+      const updateEndpoint = `/api/real-estate/update-avatar`;
+      const updateBody = { 
+        avatar: uploadData.url,
+        companyId: companyId
+      };
 
       console.log('Updating company profile...', {
         endpoint: updateEndpoint,
-        body: updateBody,
-        token: !!token
+        updateBody,
+        hasToken: !!token,
+        uploadDataUrl: uploadData.url,
+        companyId: companyId
       });
 
       const res = await fetch(updateEndpoint, {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify(updateBody)
       });
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('Update response error:', errorText);
-        throw new Error(`Failed to update ${type}`);
+        console.error('Update response error:', { status: res.status, error: errorText });
+        throw new Error(`Failed to update ${type}: ${res.status} ${errorText}`);
       }
 
       let responseData;
       try {
         responseData = await res.json();
-        console.log('Update successful:', responseData);
+        console.log('Update response:', responseData);
       } catch (e) {
         console.error('Error parsing update response:', e);
         throw new Error('Invalid response from update service');
       }
 
       if (!responseData.success) {
+        console.error('Update failed:', responseData);
         throw new Error(responseData.message || `Failed to update ${type}`);
       }
 
       // Update local state and storage with the entire updated company data
-      console.log('Updating local state with response data:', {
+      console.log('Update successful:', {
         companyId: responseData.company._id,
-        hasBanner: !!responseData.company.banner,
-        bannerUrl: responseData.company.banner
+        newAvatar: responseData.company.avatar
       });
 
       localStorage.setItem('realEstateCompany', JSON.stringify(responseData.company));
       setCompanyData(responseData.company);
 
-      // Show success message
-      alert(`${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`);
-      
-      if (type === 'banner') {
-        setBannerUploadProgress(100);
-        // Force a re-render of the banner
-        const bannerImg = document.querySelector('.company-banner');
-        if (bannerImg) {
-          console.log('Forcing banner image update with URL:', responseData.company.banner);
-          bannerImg.src = responseData.company.banner;
-        }
-      } else {
+      // Clear progress interval and set to 100%
+      clearInterval(progressInterval);
+      if (type === 'avatar') {
         setAvatarUploadProgress(100);
+        setTimeout(() => setAvatarUploadProgress(0), 1000);
+      } else {
+        setBannerUploadProgress(100);
+        setTimeout(() => setBannerUploadProgress(0), 1000);
       }
 
+      // Show success toast instead of alert
+      const message = `${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`;
+      console.log(message);
+      setAvatarUploadError(null);
+
     } catch (error) {
-      console.error(`Error uploading ${type}:`, error);
+      console.error(`Error in ${type} upload process:`, {
+        error: error.message,
+        stack: error.stack
+      });
+      
       if (type === 'avatar') {
         setAvatarUploadError(error.message);
-      } else {
-        setBannerUploadError(error.message);
-      }
-    } finally {
-      if (type === 'avatar') {
         setAvatarUploadProgress(0);
       } else {
+        setBannerUploadError(error.message);
         setBannerUploadProgress(0);
+      }
+    } finally {
+      if (typeof progressInterval !== 'undefined') {
+        clearInterval(progressInterval);
       }
     }
   };
@@ -650,7 +751,7 @@ export default function RealEstateDashboard() {
           // Fetch listings for each agent
           const listingPromises = companyData.agents.map(async agent => {
             console.log(`Fetching listings for agent: ${agent.name} (${agent._id})`);
-            const res = await fetch(`/api/listing/agent/${agent._id}`, {
+            const res = await fetch(`/api/agent/listings/${agent._id}`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
@@ -708,6 +809,100 @@ export default function RealEstateDashboard() {
 
     fetchListings();
   }, [activeTab, navigate, companyData, realEstateCompany]);
+
+  // Fetch time analytics data
+  useEffect(() => {
+    const fetchTimeAnalytics = async () => {
+      if (!realEstateCompany?._id || !listings.length) return;
+      
+      try {
+        setTimeAnalytics(prev => ({ ...prev, loading: true, error: null }));
+        
+        // Initialize hourly clicks array
+        const hourlyClicks = Array(24).fill(0);
+        
+        // Process each listing's clicks
+        listings.forEach(listing => {
+          // Get timestamps from listing views/clicks
+          const timestamps = listing.lastViewed ? [new Date(listing.lastViewed)] : [];
+          if (listing.views) {
+            timestamps.push(...listing.views.map(view => new Date(view.timestamp)));
+          }
+          if (listing.clicks) {
+            timestamps.push(...listing.clicks.map(click => new Date(click.timestamp)));
+          }
+          
+          // Count clicks per hour
+          timestamps.forEach(timestamp => {
+            const hour = timestamp.getHours();
+            hourlyClicks[hour]++;
+          });
+        });
+
+        setTimeAnalytics(prev => ({
+          ...prev,
+          hourlyClicks,
+          loading: false
+        }));
+
+      } catch (error) {
+        console.error('Error processing time analytics:', error);
+        setTimeAnalytics(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Unable to process time analytics'
+        }));
+      }
+    };
+
+    if (activeTab === 'analysis') {
+      fetchTimeAnalytics();
+    }
+  }, [realEstateCompany?._id, activeTab, listings]);
+
+  // Calculate price analytics from listings
+  useEffect(() => {
+    if (!listings.length || activeTab !== 'analysis') return;
+
+    try {
+      setPriceAnalytics(prev => ({ ...prev, loading: true, error: null }));
+
+      // Separate listings by type
+      const salesListings = listings.filter(listing => listing.type === 'sale');
+      const rentalListings = listings.filter(listing => listing.type === 'rent');
+
+      // Calculate price metrics for sales
+      const salesPrices = salesListings.map(listing => ({
+        price: listing.regularPrice,
+        location: listing.address,
+        type: 'sale',
+        title: listing.name
+      }));
+
+      // Calculate price metrics for rentals
+      const rentalPrices = rentalListings.map(listing => ({
+        price: listing.regularPrice,
+        location: listing.address,
+        type: 'rent',
+        title: listing.name
+      }));
+
+      setPriceAnalytics(prev => ({
+        ...prev,
+        salesPrices,
+        rentalPrices,
+        loading: false
+      }));
+
+    } catch (error) {
+      console.error('Error processing price analytics:', error);
+      setPriceAnalytics(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Unable to process price analytics'
+      }));
+    }
+  }, [listings, activeTab]);
 
   // Add this function to handle agent form submission
   const handleAgentSubmit = async (e) => {
@@ -872,7 +1067,16 @@ export default function RealEstateDashboard() {
 
       {/* Company Info Section */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-6">
+          {/* Hidden file input for avatar upload */}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarUpload}
+            ref={avatarRef}
+            className="hidden"
+          />
+          
           {(() => {
             console.log('Company Avatar Debug:', {
               avatarUrl: companyData.avatar,
@@ -880,18 +1084,46 @@ export default function RealEstateDashboard() {
             });
 
             return (
-              <img
-                src={getImageUrl(companyData.avatar, 'avatar')}
-                alt="Company Logo"
-                className="w-24 h-24 rounded-full mx-auto mb-3 object-cover"
-                onError={(e) => {
-                  console.error('Company avatar image error:', {
-                    originalSrc: e.target.src
-                  });
-                  e.target.onerror = null;
-                  e.target.src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
-                }}
-              />
+              <div 
+                onClick={() => avatarRef.current?.click()}
+                className="relative cursor-pointer group w-4/5 min-h-[200px] flex-shrink-0"
+              >
+                <img
+                  src={getImageUrl(companyData.avatar, 'avatar')}
+                  alt="Company Logo"
+                  className="w-full h-full min-h-[200px] rounded-lg object-cover transition-opacity group-hover:opacity-70"
+                  onError={(e) => {
+                    console.error('Company avatar image error:', {
+                      originalSrc: e.target.src
+                    });
+                    e.target.onerror = null;
+                    e.target.src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+                  }}
+                />
+                {/* Hover overlay with icon and text */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <p className="text-white font-medium">Change Avatar</p>
+                </div>
+                {/* Loading overlay */}
+                {avatarUploadProgress > 0 && avatarUploadProgress < 100 && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 rounded">
+                    <div className="text-center">
+                      <div className="w-12 h-12 border-4 border-t-4 border-white border-t-blue-500 rounded-full animate-spin mb-2"></div>
+                      <p className="text-white font-medium">{avatarUploadProgress}%</p>
+                    </div>
+                  </div>
+                )}
+                {/* Error message */}
+                {avatarUploadError && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-red-500 text-white p-2 text-center rounded-b-lg">
+                    <p className="text-sm font-medium">{avatarUploadError}</p>
+                  </div>
+                )}
+              </div>
             );
           })()}
           <div>
@@ -926,6 +1158,16 @@ export default function RealEstateDashboard() {
           }`}
         >
           All Listings
+        </button>
+        <button
+          onClick={() => setActiveTab('analysis')}
+          className={`px-4 py-2 rounded-lg font-medium ${
+            activeTab === 'analysis'
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Analysis
         </button>
       </div>
 
@@ -971,7 +1213,7 @@ export default function RealEstateDashboard() {
                   <img
                     src={getImageUrl(agent.avatar, 'avatar')}
                     alt={agent.name}
-                    className="w-20 h-20 rounded-full mx-auto mb-3 object-cover"
+                    className="w-full h-60 rounded mx-auto mb-3 object-cover"
                     onError={(e) => {
                       console.error('Agent avatar image error:', {
                         agentName: agent.name,
@@ -999,7 +1241,7 @@ export default function RealEstateDashboard() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'listings' ? (
         <div>
           <h2 className="text-xl font-semibold mb-4">All Agent Listings</h2>
           {listingsLoading ? (
@@ -1037,7 +1279,7 @@ export default function RealEstateDashboard() {
                         <img
                           src={listing.agent.avatar || '/default-profile.jpg'}
                           alt={listing.agent.name}
-                          className="w-8 h-8 rounded-full object-cover"
+                          className="w-full h-11 rounded object-cover"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = '/default-profile.jpg';
@@ -1060,7 +1302,7 @@ export default function RealEstateDashboard() {
                     {/* Rest of the listing details */}
                     <div className="flex items-center gap-2 mt-2">
                       <FaMapMarkerAlt className="text-gray-500" />
-                      <p className="text-gray-600 text-sm truncate">{listing.address}</p>
+                      <p className="text-gray-600">{listing.address}</p>
                     </div>
                     <div className="flex items-center gap-4 mt-2">
                       <div className="flex items-center gap-1">
@@ -1095,8 +1337,713 @@ export default function RealEstateDashboard() {
             </div>
           )}
         </div>
-      )}
+      ) : activeTab === 'analysis' ? (
+        <div>
+          <h2 className="text-2xl font-semibold mb-6" id="company-analytics">Company Analytics</h2>
+          
+          {/* Table of Contents */}
+          <div className="bg-white p-4 rounded-lg shadow mb-8">
+            <h3 className="text-lg font-semibold mb-4">Quick Navigation</h3>
+            <ul className="space-y-2">
+              <li>
+                <a 
+                  href="#time-analytics" 
+                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('time-analytics').scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  Time Analytics
+                </a>
+              </li>
+              <li>
+                <a 
+                  href="#price-competitiveness" 
+                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('price-competitiveness').scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  Price Competitiveness
+                </a>
+              </li>
+              <li>
+                <a 
+                  href="#agent-performance" 
+                  className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('agent-performance').scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  Agent Performance
+                </a>
+                <ul className="ml-4 mt-2 space-y-2">
+                  <li>
+                    <a 
+                      href="#performance-metrics" 
+                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById('performance-metrics').scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      Performance Metrics
+                    </a>
+                  </li>
+                  <li>
+                    <a 
+                      href="#listing-distribution" 
+                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById('listing-distribution').scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      Listing Distribution
+                    </a>
+                  </li>
+                  <li>
+                    <a 
+                      href="#agent-ratings" 
+                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById('agent-ratings').scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      Agent Ratings
+                    </a>
+                  </li>
+                  <li>
+                    <a 
+                      href="#portfolio-value" 
+                      className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        document.getElementById('portfolio-value').scrollIntoView({ behavior: 'smooth' });
+                      }}
+                    >
+                      Total Portfolio Value
+                    </a>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </div>
 
+          {/* Company Performance */}
+          <div className="mb-8">
+            <h3 className="text-xl font-semibold mb-4">Company Performance</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-gray-600">Total Listings</p>
+                <p className="text-2xl font-bold">{listings.length}</p>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <p className="text-gray-600">Active Agents</p>
+                <p className="text-2xl font-bold">{companyData?.agents?.length || 0}</p>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <p className="text-gray-600">Average Price</p>
+                <p className="text-2xl font-bold">
+                  ${listings.length > 0
+                    ? (listings.reduce((sum, listing) => sum + listing.regularPrice, 0) / listings.length).toLocaleString()
+                    : 0}
+                </p>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <p className="text-gray-600">Total Portfolio Value</p>
+                <p className="text-2xl font-bold">
+                  ${listings.reduce((sum, listing) => sum + listing.regularPrice, 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Agent Performance */}
+          <div className="mt-8" id="agent-performance">
+            <h3 className="text-xl font-semibold mb-4">Agent Performance</h3>
+            
+            {/* Performance Metrics Table - Full Width */}
+            <div id="performance-metrics" className="bg-white p-4 rounded-lg shadow mb-6">
+              <h4 className="text-lg font-semibold mb-3">Performance Metrics</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Listings</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {(companyData?.agents || []).map((agent) => {
+                      const agentListings = listings?.filter(listing => listing.agent?._id === agent._id) || [];
+                      const totalValue = agentListings.reduce((sum, listing) => sum + (listing.regularPrice || 0), 0);
+                      
+                      return (
+                        <tr key={agent._id}>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center">
+                              <div className="h-8 w-8 rounded-full overflow-hidden bg-gray-100">
+                                <img 
+                                  src={agent.avatar || 'https://via.placeholder.com/40'} 
+                                  alt={agent.name || 'Agent'}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                              <div className="ml-3">
+                                <p className="text-sm font-medium text-gray-900">{agent.name || 'Unknown Agent'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">{agentListings.length}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-center">
+                              {agent.averageRating ? (
+                                <StarRating rating={agent.averageRating} />
+                              ) : (
+                                <span className="text-gray-500">N/A</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {agentListings.length > 0 ? (
+                              `$${totalValue.toLocaleString()}`
+                            ) : (
+                              <span className="text-gray-500">N/A</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Listing Distribution Chart */}
+              {companyData?.agents?.length > 0 && listings?.length > 0 && (
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h4 className="text-lg font-semibold mb-3" id="listing-distribution">Listing Distribution</h4>
+                  <ReactApexChart
+                    options={{
+                      chart: {
+                        type: 'donut',
+                      },
+                      labels: companyData.agents.map(agent => agent.name || 'Unknown Agent'),
+                      legend: {
+                        position: 'bottom'
+                      },
+                      plotOptions: {
+                        pie: {
+                          donut: {
+                            size: '70%'
+                          }
+                        }
+                      },
+                      colors: ['#4C51BF', '#48BB78', '#F6AD55', '#FC8181', '#B794F4', '#63B3ED'],
+                      tooltip: {
+                        y: {
+                          formatter: function(value) {
+                            return value + ' listings'
+                          }
+                        }
+                      }
+                    }}
+                    series={companyData.agents.map(agent => 
+                      listings.filter(listing => listing.agent?._id === agent._id).length
+                    )}
+                    type="donut"
+                    height={300}
+                  />
+                </div>
+              )}
+
+              {/* Agent Ratings Chart */}
+              {companyData?.agents?.some(agent => agent.averageRating) && (
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h4 className="text-lg font-semibold mb-3" id="agent-ratings">Agent Ratings</h4>
+                  <ReactApexChart
+                    options={{
+                      chart: {
+                        type: 'bar',
+                        toolbar: {
+                          show: false
+                        }
+                      },
+                      plotOptions: {
+                        bar: {
+                          horizontal: true,
+                          dataLabels: {
+                            position: 'top',
+                          },
+                        }
+                      },
+                      colors: ['#4C51BF'],
+                      dataLabels: {
+                        enabled: true,
+                        formatter: function (val) {
+                          return (val || 0).toFixed(1) + ' ★';
+                        },
+                        offsetX: 30,
+                      },
+                      xaxis: {
+                        categories: companyData.agents
+                          .filter(agent => agent.averageRating)
+                          .map(agent => agent.name || 'Unknown Agent'),
+                        max: 5
+                      },
+                      tooltip: {
+                        y: {
+                          formatter: function(value) {
+                            return (value || 0).toFixed(1) + ' stars'
+                          }
+                        }
+                      }
+                    }}
+                    series={[{
+                      name: 'Rating',
+                      data: companyData.agents
+                        .filter(agent => agent.averageRating)
+                        .map(agent => agent.averageRating)
+                    }]}
+                    type="bar"
+                    height={300}
+                  />
+                </div>
+              )}
+
+              {/* Total Value by Agent Chart */}
+              {companyData?.agents?.some(agent => 
+                listings?.filter(listing => listing.agent?._id === agent._id).length > 0
+              ) && (
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h4 className="text-lg font-semibold mb-3" id="portfolio-value">Total Portfolio Value</h4>
+                  <ReactApexChart
+                    options={{
+                      chart: {
+                        type: 'bar',
+                        toolbar: {
+                          show: false
+                        }
+                      },
+                      plotOptions: {
+                        bar: {
+                          borderRadius: 4,
+                          columnWidth: '60%',
+                        }
+                      },
+                      colors: ['#48BB78'],
+                      dataLabels: {
+                        enabled: true,
+                        formatter: function (val) {
+                          return '$' + ((val || 0)/1000).toFixed(0) + 'k';
+                        },
+                        offsetY: -20,
+                        style: {
+                          fontSize: '12px',
+                        }
+                      },
+                      xaxis: {
+                        // Filter agents to only include those with listings
+                        categories: companyData.agents
+                          .filter(agent => 
+                            listings?.filter(listing => listing.agent?._id === agent._id).length > 0
+                          )
+                          .map(agent => agent.name || 'Unknown Agent'),
+                        position: 'bottom',
+                        axisBorder: {
+                          show: false
+                        },
+                        axisTicks: {
+                          show: false
+                        }
+                      },
+                      yaxis: {
+                        labels: {
+                          formatter: function (val) {
+                            return '$' + ((val || 0)/1000).toFixed(0) + 'k';
+                          }
+                        }
+                      },
+                      tooltip: {
+                        y: {
+                          formatter: function(value) {
+                            return '$' + (value || 0).toLocaleString()
+                          }
+                        }
+                      }
+                    }}
+                    series={[{
+                      name: 'Portfolio Value',
+                      // Filter agents to only include those with listings
+                      data: companyData.agents
+                        .filter(agent => 
+                          listings?.filter(listing => listing.agent?._id === agent._id).length > 0
+                        )
+                        .map(agent => 
+                          listings
+                            .filter(listing => listing.agent?._id === agent._id)
+                            .reduce((sum, listing) => sum + (listing.regularPrice || 0), 0)
+                        )
+                    }]}
+                    type="bar"
+                    height={300}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Listing Distribution */}
+          <div>
+            <h3 className="text-xl font-semibold mb-4">Listing Distribution</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-gray-600 mb-2">By Type</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Sale</span>
+                    <span>{listings.filter(l => !l.type.includes('rent')).length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Rent</span>
+                    <span>{listings.filter(l => l.type.includes('rent')).length}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-gray-600 mb-2">By Offer</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>With Offer</span>
+                    <span>{listings.filter(l => l.offer).length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Without Offer</span>
+                    <span>{listings.filter(l => !l.offer).length}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Time Analytics */}
+          <div id="time-analytics" className="mt-8">
+            <h3 className="text-xl font-semibold mb-4">Click Volume by Time of Day</h3>
+            {timeAnalytics.loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : timeAnalytics.error ? (
+              <div className="text-red-500 text-center py-4">
+                Error loading time analytics: {timeAnalytics.error}
+              </div>
+            ) : (
+              <div className="bg-white p-4 rounded-lg shadow">
+                <ReactApexChart
+                  options={{
+                    chart: {
+                      type: 'area',
+                    },
+                    dataLabels: {
+                      enabled: false
+                    },
+                    stroke: {
+                      curve: 'smooth',
+                      width: 2
+                    },
+                    xaxis: {
+                      categories: Array.from({ length: 24 }, (_, i) => 
+                        i === 0 ? '12 AM' : 
+                        i < 12 ? `${i} AM` : 
+                        i === 12 ? '12 PM' : 
+                        `${i - 12} PM`
+                      ),
+                      title: {
+                        text: 'Time of Day'
+                      }
+                    },
+                    yaxis: {
+                      title: {
+                        text: 'Number of Clicks'
+                      }
+                    },
+                    tooltip: {
+                      x: {
+                        formatter: function(value) {
+                          return value
+                        }
+                      }
+                    },
+                    fill: {
+                      type: 'gradient',
+                      gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.7,
+                        opacityTo: 0.2,
+                        stops: [0, 90, 100]
+                      }
+                    },
+                    colors: ['#3B82F6']
+                  }}
+                  series={[
+                    {
+                      name: 'Clicks',
+                      data: timeAnalytics.hourlyClicks
+                    }
+                  ]}
+                  type="area"
+                  height={320}
+                />
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-gray-600">Peak Click Time</p>
+                    <p className="text-lg font-semibold">
+                      {(() => {
+                        const maxClicks = Math.max(...timeAnalytics.hourlyClicks);
+                        const peakHour = timeAnalytics.hourlyClicks.indexOf(maxClicks);
+                        return peakHour === 0 ? '12 AM' : 
+                               peakHour < 12 ? `${peakHour} AM` : 
+                               peakHour === 12 ? '12 PM' : 
+                               `${peakHour - 12} PM`;
+                      })()}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <p className="text-gray-600">Total Daily Clicks</p>
+                    <p className="text-lg font-semibold">
+                      {timeAnalytics.hourlyClicks.reduce((a, b) => a + b, 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Price Competitiveness Analysis */}
+          <div id="price-competitiveness" className="mt-8">
+            <h3 className="text-xl font-semibold mb-4">Price Competitiveness Analysis</h3>
+            {priceAnalytics.loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : priceAnalytics.error ? (
+              <div className="text-red-500 text-center py-4">
+                Error loading price analytics: {priceAnalytics.error}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Sales Price Analysis */}
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h4 className="text-lg font-semibold mb-3">Sales Listings</h4>
+                  {priceAnalytics.salesPrices.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No sales listings available</p>
+                  ) : (
+                    <div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">vs. Avg</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {priceAnalytics.salesPrices.map((item, index) => {
+                              const avgPrice = priceAnalytics.salesPrices.reduce((sum, curr) => sum + curr.price, 0) / priceAnalytics.salesPrices.length;
+                              const priceDiff = ((item.price - avgPrice) / avgPrice) * 100;
+                              
+                              return (
+                                <tr key={index}>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{item.title}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-500">{item.location}</td>
+                                  <td className="px-4 py-3 text-sm text-right text-gray-900">${item.price.toLocaleString()}</td>
+                                  <td className={`px-4 py-3 text-sm text-right ${priceDiff > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                    {priceDiff > 0 ? '+' : ''}{priceDiff.toFixed(1)}%
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                        <div className="bg-blue-50 p-3 rounded-lg">
+                          <p className="text-gray-600">Average Price</p>
+                          <p className="text-lg font-semibold">
+                            ${(priceAnalytics.salesPrices.reduce((sum, curr) => sum + curr.price, 0) / priceAnalytics.salesPrices.length).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="bg-green-50 p-3 rounded-lg">
+                          <p className="text-gray-600">Price Range</p>
+                          <p className="text-lg font-semibold">
+                            ${Math.min(...priceAnalytics.salesPrices.map(item => item.price)).toLocaleString()} - ${Math.max(...priceAnalytics.salesPrices.map(item => item.price)).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Rental Price Analysis */}
+                <div className="bg-white p-4 rounded-lg shadow">
+                  <h4 className="text-lg font-semibold mb-3">Rental Listings</h4>
+                  {priceAnalytics.rentalPrices.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No rental listings available</p>
+                  ) : (
+                    <div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price/mo</th>
+                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">vs. Avg</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {priceAnalytics.rentalPrices.map((item, index) => {
+                              const avgPrice = priceAnalytics.rentalPrices.reduce((sum, curr) => sum + curr.price, 0) / priceAnalytics.rentalPrices.length;
+                              const priceDiff = ((item.price - avgPrice) / avgPrice) * 100;
+                              
+                              return (
+                                <tr key={index}>
+                                  <td className="px-4 py-3 text-sm text-gray-900">{item.title}</td>
+                                  <td className="px-4 py-3 text-sm text-gray-500">{item.location}</td>
+                                  <td className="px-4 py-3 text-sm text-right text-gray-900">${item.price.toLocaleString()}</td>
+                                  <td className={`px-4 py-3 text-sm text-right ${priceDiff > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                    {priceDiff > 0 ? '+' : ''}{priceDiff.toFixed(1)}%
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                        <div className="bg-blue-50 p-3 rounded-lg">
+                          <p className="text-gray-600">Average Price</p>
+                          <p className="text-lg font-semibold">
+                            ${(priceAnalytics.rentalPrices.reduce((sum, curr) => sum + curr.price, 0) / priceAnalytics.rentalPrices.length).toLocaleString()}/mo
+                          </p>
+                        </div>
+                        <div className="bg-green-50 p-3 rounded-lg">
+                          <p className="text-gray-600">Price Range</p>
+                          <p className="text-lg font-semibold">
+                            ${Math.min(...priceAnalytics.rentalPrices.map(item => item.price)).toLocaleString()} - ${Math.max(...priceAnalytics.rentalPrices.map(item => item.price)).toLocaleString()}/mo
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Location-based Price Analysis */}
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold mb-4">Price Analysis by Location</h3>
+            
+            {/* Sales Analysis */}
+            <div className="mb-8">
+              <h4 className="text-lg font-medium mb-3 text-blue-800">Sales Listings by Location</h4>
+              <div className="overflow-x-auto bg-white rounded-lg shadow">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-blue-50">
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Location</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Number of Listings</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Average Price</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Highest Price</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Lowest Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      // Get unique locations for sale listings
+                      const saleListings = listings.filter(l => !l.type.includes('rent'));
+                      const locations = [...new Set(saleListings.map(l => l.address))];
+                      
+                      return locations.map(location => {
+                        const locationListings = saleListings.filter(l => l.address === location);
+                        const prices = locationListings.map(l => l.regularPrice);
+                        const avgPrice = prices.reduce((acc, curr) => acc + curr, 0) / prices.length;
+                        const maxPrice = Math.max(...prices);
+                        const minPrice = Math.min(...prices);
+
+                        return (
+                          <tr key={location} className="border-t hover:bg-blue-50">
+                            <td className="px-4 py-3">{location}</td>
+                            <td className="px-4 py-3">{locationListings.length}</td>
+                            <td className="px-4 py-3">${avgPrice.toFixed(2)}</td>
+                            <td className="px-4 py-3">${maxPrice.toFixed(2)}</td>
+                            <td className="px-4 py-3">${minPrice.toFixed(2)}</td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Rentals Analysis */}
+            <div>
+              <h4 className="text-lg font-medium mb-3 text-green-800">Rental Listings by Location</h4>
+              <div className="overflow-x-auto bg-white rounded-lg shadow">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-green-50">
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-green-900">Location</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-green-900">Number of Listings</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-green-900">Average Price/mo</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-green-900">Highest Price/mo</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-green-900">Lowest Price/mo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      // Get unique locations for rental listings
+                      const rentalListings = listings.filter(l => l.type.includes('rent'));
+                      const locations = [...new Set(rentalListings.map(l => l.address))];
+                      
+                      return locations.map(location => {
+                        const locationListings = rentalListings.filter(l => l.address === location);
+                        const prices = locationListings.map(l => l.regularPrice);
+                        const avgPrice = prices.reduce((acc, curr) => acc + curr, 0) / prices.length;
+                        const maxPrice = Math.max(...prices);
+                        const minPrice = Math.min(...prices);
+
+                        return (
+                          <tr key={location} className="border-t hover:bg-green-50">
+                            <td className="px-4 py-3">{location}</td>
+                            <td className="px-4 py-3">{locationListings.length}</td>
+                            <td className="px-4 py-3">${avgPrice.toFixed(2)}/mo</td>
+                            <td className="px-4 py-3">${maxPrice.toFixed(2)}/mo</td>
+                            <td className="px-4 py-3">${minPrice.toFixed(2)}/mo</td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* File Input */}
       <input
         type="file"
@@ -1140,109 +2087,6 @@ export default function RealEstateDashboard() {
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white"></div>
         </div>
       )}
-
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Company Profile</h2>
-        
-        {/* Banner Section */}
-        <div className="relative w-full h-48 mb-8 overflow-hidden rounded-lg shadow-md">
-          <img
-            src={getImageUrl(companyData.banner, 'banner')}
-            alt="Company Banner"
-            className="company-banner w-full h-full object-cover"
-            onError={(e) => {
-              console.error('Banner load error:', {
-                src: e.target.src,
-                originalBanner: companyData.banner
-              });
-              e.target.onerror = null;
-              e.target.src = "https://images.unsplash.com/photo-1560518883-ce09059eeffa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1466&q=80";
-            }}
-          />
-          
-          {/* Banner Upload Button */}
-          <div className="absolute bottom-4 right-4">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleBannerUpload}
-              ref={bannerRef}
-              className="hidden"
-            />
-            <button
-              onClick={() => bannerRef.current.click()}
-              className="bg-white text-gray-700 px-4 py-2 rounded-lg shadow hover:bg-gray-100 transition-colors"
-              disabled={loading}
-            >
-              {loading ? 'Uploading...' : 'Change Banner'}
-            </button>
-          </div>
-
-          {/* Upload Progress */}
-          {bannerUploadProgress > 0 && bannerUploadProgress < 100 && (
-            <div className="absolute bottom-16 right-4 w-32 bg-white rounded-lg shadow p-2">
-              <div className="h-2 bg-gray-200 rounded">
-                <div
-                  className="h-full bg-blue-500 rounded"
-                  style={{ width: `${bannerUploadProgress}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {bannerUploadError && (
-            <div className="absolute bottom-16 right-4 bg-red-100 text-red-600 px-4 py-2 rounded-lg">
-              {bannerUploadError}
-            </div>
-          )}
-        </div>
-
-        {/* Avatar Section */}
-        <div className="flex items-center space-x-6 mt-8">
-          <div className="relative">
-            <img
-              src={getImageUrl(companyData?.avatar, 'avatar')}
-              alt="Company Avatar"
-              className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "https://via.placeholder.com/150?text=Company";
-              }}
-            />
-            <div className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-              <button
-                onClick={() => avatarRef.current.click()}
-                className="bg-black/70 text-white px-3 py-1 rounded-full text-sm hover:bg-black/80 transition-colors"
-              >
-                Change
-              </button>
-            </div>
-          </div>
-          <input
-            type="file"
-            ref={avatarRef}
-            hidden
-            accept="image/*"
-            onChange={handleAvatarUpload}
-          />
-          <div className="flex-1">
-            <h3 className="text-2xl font-semibold">{companyData?.companyName}</h3>
-            <p className="text-gray-600">{companyData?.email}</p>
-            {avatarUploadProgress > 0 && avatarUploadProgress < 100 && (
-              <div className="w-full max-w-xs bg-gray-200 rounded-full h-2.5 mt-2">
-                <div
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                  style={{ width: `${avatarUploadProgress}%` }}
-                ></div>
-              </div>
-            )}
-            {avatarUploadError && (
-              <p className="text-red-500 text-sm mt-1">{avatarUploadError}</p>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

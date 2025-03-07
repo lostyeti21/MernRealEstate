@@ -34,7 +34,9 @@ const StyledInput = styled.input`
   border: 2px solid #e2e8f0;
   border-radius: 5px;
   font-size: 16px;
+  width: 100%;
   transition: all 0.3s ease;
+  background-color: white;
 
   &:focus {
     border-color: #3b82f6;
@@ -190,7 +192,6 @@ export default function RealEstateAgentLogin() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // Fetch companies on component mount
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
@@ -209,9 +210,9 @@ export default function RealEstateAgentLogin() {
           // Fallback to hardcoded companies if fetch fails
           setCompanies([
             { _id: '1', companyName: 'Century 21' },
-            { _id: '2', companyName: 'Keller Williams' },
+            { _id: '2', companyName: 'Pam Golding Harare' },
             { _id: '3', companyName: 'Remax' },
-            { _id: '4', companyName: 'Coldwell Banker' }
+            { _id: '4', companyName: 'Kennan Properties' }
           ]);
         }
       } catch (err) {
@@ -277,16 +278,30 @@ export default function RealEstateAgentLogin() {
         return;
       }
 
-      // Store token and agent info
-      localStorage.setItem('agentToken', data.token);
-      localStorage.setItem('agentInfo', JSON.stringify(data.agent));
-
-      // Dispatch signin success with agent details
-      dispatch(signInSuccess({
+      // Store token and agent info with proper flags
+      const agentData = {
         ...data.agent,
         isAgent: true,
-        token: data.token
-      }));
+        token: data.token,
+        companyId: data.agent.companyId,
+        companyName: data.agent.companyName
+      };
+
+      // Store complete agent data
+      localStorage.setItem('mern_token', data.token);
+      localStorage.setItem('agentInfo', JSON.stringify(agentData));
+
+      // Log the data being stored
+      console.log('Storing agent data:', {
+        id: agentData._id,
+        isAgent: agentData.isAgent,
+        companyId: agentData.companyId,
+        companyName: agentData.companyName,
+        tokenPreview: data.token ? `${data.token.substring(0, 15)}...` : 'No token'
+      });
+
+      // Dispatch signin success with complete agent details
+      dispatch(signInSuccess(agentData));
       
       navigate('/agent-dashboard');
     } catch (error) {
