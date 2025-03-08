@@ -89,6 +89,107 @@ const StyledLoader = styled.div`
   z-index: 100;
 `;
 
+const StyledBubble = styled.div`
+  .bubble {
+    height: 2.8em;
+    width: 9em;
+    background: transparent;
+    border: 2px solid #016dd9;
+    outline: none;
+    color: #016dd9;
+    cursor: pointer;
+    font-size: 17px;
+  }
+
+  @keyframes squeeze3124 {
+    0% {
+      -webkit-transform: scale3d(1, 1, 1);
+      transform: scale3d(1, 1, 1);
+    }
+
+    30% {
+      -webkit-transform: scale3d(1.25, 0.75, 1);
+      transform: scale3d(1.25, 0.75, 1);
+    }
+
+    40% {
+      -webkit-transform: scale3d(0.75, 1.25, 1);
+      transform: scale3d(0.75, 1.25, 1);
+    }
+
+    50% {
+      -webkit-transform: scale3d(1.15, 0.85, 1);
+      transform: scale3d(1.15, 0.85, 1);
+    }
+
+    65% {
+      -webkit-transform: scale3d(0.95, 1.05, 1);
+      transform: scale3d(0.95, 1.05, 1);
+    }
+
+    75% {
+      -webkit-transform: scale3d(1.05, 0.95, 1);
+      transform: scale3d(1.05, 0.95, 1);
+    }
+
+    100% {
+      -webkit-transform: scale3d(1, 1, 1);
+      transform: scale3d(1, 1, 1);
+    }
+  }
+`;
+
+const StyledFeaturedBubble = styled.div`
+  .bubble {
+    height: 2.8em;
+    width: 9em;
+    background: transparent;
+    border: 2px solid #016dd9;
+    outline: none;
+    color: #016dd9;
+    cursor: pointer;
+    font-size: 17px;
+    animation: none; /* Ensure no initial animation */
+  }
+
+  @keyframes squeeze3124 {
+    0% {
+      -webkit-transform: scale3d(1, 1, 1);
+      transform: scale3d(1, 1, 1);
+    }
+
+    30% {
+      -webkit-transform: scale3d(1.25, 0.75, 1);
+      transform: scale3d(1.25, 0.75, 1);
+    }
+
+    40% {
+      -webkit-transform: scale3d(0.75, 1.25, 1);
+      transform: scale3d(0.75, 1.25, 1);
+    }
+
+    50% {
+      -webkit-transform: scale3d(1.15, 0.85, 1);
+      transform: scale3d(1.15, 0.85, 1);
+    }
+
+    65% {
+      -webkit-transform: scale3d(0.95, 1.05, 1);
+      transform: scale3d(0.95, 1.05, 1);
+    }
+
+    75% {
+      -webkit-transform: scale3d(1.05, 0.95, 1);
+      transform: scale3d(1.05, 0.95, 1);
+    }
+
+    100% {
+      -webkit-transform: scale3d(1, 1, 1);
+      transform: scale3d(1, 1, 1);
+    }
+  }
+`;
+
 export default function Home() {
   const [offerListings, setOfferListings] = useState([]);
   const [saleListings, setSaleListings] = useState([]);
@@ -127,20 +228,22 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const animationInterval = setInterval(() => {
+    let animationInterval;
+    let animationTimeout;
+
+    animationInterval = setInterval(() => {
       setIsAnimatingFeatured(true);
       setIsAnimatingRealEstate(true);
-      
-      const animationTimeout = setTimeout(() => {
+
+      animationTimeout = setTimeout(() => {
         setIsAnimatingFeatured(false);
         setIsAnimatingRealEstate(false);
       }, 900); // Duration of the animation
-      
-      return () => clearTimeout(animationTimeout);
     }, 5000); // Interval between animations
 
     return () => {
       clearInterval(animationInterval);
+      clearTimeout(animationTimeout);
     };
   }, []);
 
@@ -176,7 +279,7 @@ export default function Home() {
     // Show loader for 2 seconds
     const timer = setTimeout(() => {
       setLoading(false);
-    }, 2000);
+    }, 5000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -596,11 +699,14 @@ export default function Home() {
                   <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
                     Property
                   </h2>
-                  <div 
-                    className={`absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingFeatured ? 'animate-jello-once' : ''}`}
-                  >
-                    Recommended by Us
-                  </div>
+                  <StyledFeaturedBubble>
+                    <div 
+                      className={`absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingFeatured ? 'animate-jello-once' : ''}`}
+                      style={{ animation: 'squeeze3124 0.9s infinite' }}
+                    >
+                      Recommended by Us
+                    </div>
+                  </StyledFeaturedBubble>
                 </div>
                 <div className="mb-16">
                   <ListingCollage listing={collageListing} />
@@ -614,7 +720,7 @@ export default function Home() {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
               viewport={{ once: true }}
-              className="mb-16"
+              className='my-3'
             >
               <div className="relative h-[100px] mb-8">
                 <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
@@ -954,14 +1060,14 @@ export default function Home() {
               <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
                 Agents in Zimbabwe
               </h2>
-              <div 
-                className={`absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingRealEstate ? 'animate-jello-once' : ''} flex items-center gap-2`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 font-bold" viewBox="0 0 24 24" fill="white">
-                  <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.208Z" clipRule="evenodd" />
-                </svg>
-                Verified by Us
-              </div>
+              <StyledBubble>
+                <div 
+                  className={`absolute top-0 right-0 bg-[#0065ff] text-white text-sm font-semibold px-4 py-2 rounded-full ${isAnimatingRealEstate ? 'animate-jello-once' : ''}`}
+                  style={{ animation: 'squeeze3124 0.9s infinite' }}
+                >
+                  Verified by Us
+                </div>
+              </StyledBubble>
             </div>
 
             <div>

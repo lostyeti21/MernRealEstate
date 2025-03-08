@@ -1397,7 +1397,10 @@ export default function SuperUser() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="max-w-lg w-full bg-white p-8 rounded-lg shadow-lg">
-          <h1 className="text-3xl text-center font-semibold mb-8">SuperUser Login</h1>
+          <div className="text-center mb-4">
+            <img src={logo} alt="Logo" className="mx-auto" />
+          </div>
+          <h1 className="text-3xl text-center font-semibold mb-8">Admin Login</h1>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <input
               type="text"
@@ -1488,7 +1491,7 @@ export default function SuperUser() {
         <motion.div variants={itemVariants} className="flex justify-center mb-8">
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 mx-2 rounded flex items-center ${
+            className={`px-4 py-2 rounded-lg flex items-center ${
               activeTab === 'users'
                 ? 'bg-slate-700 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
@@ -1498,7 +1501,7 @@ export default function SuperUser() {
           </button>
           <button
             onClick={() => setActiveTab('listings')}
-            className={`px-4 py-2 mx-2 rounded flex items-center ${
+            className={`px-4 py-2 rounded-lg flex items-center ${
               activeTab === 'listings'
                 ? 'bg-slate-700 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
@@ -1508,7 +1511,7 @@ export default function SuperUser() {
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`px-4 py-2 mx-2 rounded flex items-center ${
+            className={`px-4 py-2 rounded-lg flex items-center ${
               activeTab === 'analytics'
                 ? 'bg-slate-700 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
