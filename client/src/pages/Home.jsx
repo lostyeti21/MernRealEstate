@@ -528,11 +528,25 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ source: 'search' })
+        body: JSON.stringify({ source: 'home' })
       });
     } catch (error) {
       console.error('Error recording click:', error);
     }
+  };
+
+  const renderListings = () => {
+    return listings.map((listing) => (
+      <motion.div 
+        key={listing._id}
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        onClick={() => handleListingClick(listing._id)}
+      >
+        <ListingItem listing={listing} />
+      </motion.div>
+    ));
   };
 
   if (randomListingsError) {
@@ -724,7 +738,7 @@ export default function Home() {
             >
               <div className="relative h-[100px] mb-8">
                 <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-                  <span style={{ color: '#009688', opacity: 0.2 }}>SOME</span> <span style={{ color: '#c9f2ac', opacity: 0.5 }}>LISTINGS</span>
+                  <span style={{ color: '#009688', opacity: 0.5 }}>SOME</span> <span style={{ color: '#c9f2ac', opacity: 0.5 }}>LISTINGS</span>
                 </h1>
                 <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
                   Just For You
@@ -743,76 +757,9 @@ export default function Home() {
                       whileInView={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.1 * index }}
                       viewport={{ once: true }}
-                      className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full cursor-pointer'
-                      onClick={() => navigate(`/listing/${listing._id}`)}
+                      onClick={() => handleListingClick(listing._id)}
                     >
-                      <div
-                        className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
-                          listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
-                        }`}
-                        style={{ zIndex: 10 }}
-                      >
-                        {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
-                      </div>
-                      <div
-                        className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full ${
-                          listing.apartmentType === 'House' ? 'bg-[#f14304]' :
-                          listing.apartmentType === 'Flat/Apartment' ? 'bg-[#212620]' :
-                          listing.apartmentType === 'Cluster' ? 'bg-[#39594D]' :
-                          listing.apartmentType === 'Cottage' ? 'bg-[#A6330A]' :
-                          listing.apartmentType === 'Garden Flat' ? 'bg-[#F26457]' :
-                          'bg-[#f14304]' // default to House color
-                        }`}
-                        style={{ zIndex: 10 }}
-                      >
-                        {listing.apartmentType || 'House'}
-                      </div>
-
-                      <div className="relative">
-                        <img
-                          src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                          alt='listing cover'
-                          className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                        />
-                        {listing.leaseAgreementUrl && (
-                          <div 
-                            className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
-                            style={{ zIndex: 10 }}
-                          >
-                            <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
-                          </div>
-                        )}
-                      </div>
-                      <div className='p-3 flex flex-col gap-2 w-full'>
-                        <p className='truncate text-lg font-semibold text-slate-700'>
-                          {listing.name}
-                        </p>
-                        <div className='flex items-center gap-1 text-sm text-slate-600'>
-                          <MdLocationOn className='h-4 w-4 text-green-700' />
-                          <p className='truncate w-full'>{listing.address}</p>
-                        </div>
-                        <p className='border border-[#16a349] bg-[#16a349] text-white w-fit px-4 py-2 rounded-full text-sm font-semibold mt-1'>
-                          ${listing.offer ? listing.discountPrice : listing.regularPrice}
-                          {listing.type === 'rent' && ' / month'}
-                        </p>
-                        <p className='text-sm text-gray-600 line-clamp-2'>
-                          {listing.description}
-                        </p>
-                        <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
-                          <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                            <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
-                          </div>
-                          <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                            <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className='absolute bottom-3 right-3 group'>
-                        <div className='absolute inset-0 bg-[#212620] opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform -translate-y-[0.2em] group-hover:-translate-y-[0.33em]'></div>
-                        <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white group-hover:translate-y-[-0.2em] transition-transform duration-300'>
-                          More Info
-                        </div>
-                      </div>
+                      <ListingItem listing={listing} />
                     </motion.div>
                   ))}
                 </div>
@@ -828,8 +775,8 @@ export default function Home() {
                 viewport={{ once: true }}
                 className='my-3'
               >
-                <div className="relative h-[100px] mb-8">
-                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                <div className="relative h-[100px] mb-8 top-10">
+                <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
                     <span style={{ color: '#c9f2ac', opacity: 0.5 }}>FOR RENT</span>
                   </h1>
                   <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
@@ -846,76 +793,9 @@ export default function Home() {
                         whileInView={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.1 * index }}
                         viewport={{ once: true }}
-                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full cursor-pointer'
-                        onClick={() => navigate(`/listing/${listing._id}`)}
+                        onClick={() => handleListingClick(listing._id)}
                       >
-                        <div
-                          className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
-                            listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
-                          }`}
-                          style={{ zIndex: 10 }}
-                        >
-                          {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
-                        </div>
-                        <div
-                          className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full ${
-                            listing.apartmentType === 'House' ? 'bg-[#f14304]' :
-                            listing.apartmentType === 'Flat/Apartment' ? 'bg-[#212620]' :
-                            listing.apartmentType === 'Cluster' ? 'bg-[#39594D]' :
-                            listing.apartmentType === 'Cottage' ? 'bg-[#A6330A]' :
-                            listing.apartmentType === 'Garden Flat' ? 'bg-[#F26457]' :
-                            'bg-[#f14304]' // default to House color
-                          }`}
-                          style={{ zIndex: 10 }}
-                        >
-                          {listing.apartmentType || 'House'}
-                        </div>
-
-                        <div className="relative">
-                          <img
-                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                            alt='listing cover'
-                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                          />
-                          {listing.leaseAgreementUrl && (
-                            <div 
-                              className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
-                              style={{ zIndex: 10 }}
-                            >
-                              <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
-                            </div>
-                          )}
-                        </div>
-                        <div className='p-3 flex flex-col gap-2 w-full'>
-                          <p className='truncate text-lg font-semibold text-slate-700'>
-                            {listing.name}
-                          </p>
-                          <div className='flex items-center gap-1 text-sm text-slate-600'>
-                            <MdLocationOn className='h-4 w-4 text-green-700' />
-                            <p className='truncate w-full'>{listing.address}</p>
-                          </div>
-                          <p className='border border-[#16a349] bg-[#16a349] text-white w-fit px-4 py-2 rounded-full text-sm font-semibold mt-1'>
-                            ${listing.offer ? listing.discountPrice : listing.regularPrice}
-                            {listing.type === 'rent' && ' / month'}
-                          </p>
-                          <p className='text-sm text-gray-600 line-clamp-2'>
-                            {listing.description}
-                          </p>
-                          <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
-                            </div>
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className='absolute bottom-3 right-3 group'>
-                          <div className='absolute inset-0 bg-[#212620] opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform -translate-y-[0.2em] group-hover:-translate-y-[0.33em]'></div>
-                          <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white group-hover:translate-y-[-0.2em] transition-transform duration-300'>
-                            More Info
-                          </div>
-                        </div>
+                        <ListingItem listing={listing} />
                       </motion.div>
                     ))}
                 </div>
@@ -962,76 +842,9 @@ export default function Home() {
                         whileInView={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.1 * index }}
                         viewport={{ once: true }}
-                        className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full cursor-pointer'
-                        onClick={() => navigate(`/listing/${listing._id}`)}
+                        onClick={() => handleListingClick(listing._id)}
                       >
-                        <div
-                          className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
-                            listing.type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
-                          }`}
-                          style={{ zIndex: 10 }}
-                        >
-                          {listing.type === 'sale' ? 'For Sale' : 'For Rent'}
-                        </div>
-                        <div
-                          className={`absolute top-3 left-3 px-3 py-1 text-white text-xs font-semibold rounded-full ${
-                            listing.apartmentType === 'House' ? 'bg-[#f14304]' :
-                            listing.apartmentType === 'Flat/Apartment' ? 'bg-[#212620]' :
-                            listing.apartmentType === 'Cluster' ? 'bg-[#39594D]' :
-                            listing.apartmentType === 'Cottage' ? 'bg-[#A6330A]' :
-                            listing.apartmentType === 'Garden Flat' ? 'bg-[#F26457]' :
-                            'bg-[#f14304]' // default to House color
-                          }`}
-                          style={{ zIndex: 10 }}
-                        >
-                          {listing.apartmentType || 'House'}
-                        </div>
-
-                        <div className="relative">
-                          <img
-                            src={listing.imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-                            alt='listing cover'
-                            className='h-[320px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-                          />
-                          {listing.leaseAgreementUrl && (
-                            <div 
-                              className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
-                              style={{ zIndex: 10 }}
-                            >
-                              <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
-                            </div>
-                          )}
-                        </div>
-                        <div className='p-3 flex flex-col gap-2 w-full'>
-                          <p className='truncate text-lg font-semibold text-slate-700'>
-                            {listing.name}
-                          </p>
-                          <div className='flex items-center gap-1 text-sm text-slate-600'>
-                            <MdLocationOn className='h-4 w-4 text-green-700' />
-                            <p className='truncate w-full'>{listing.address}</p>
-                          </div>
-                          <p className='border border-[#16a349] bg-[#16a349] text-white w-fit px-4 py-2 rounded-full text-sm font-semibold mt-1'>
-                            ${listing.offer ? listing.discountPrice.toLocaleString('en-US') : listing.regularPrice.toLocaleString('en-US')}
-                            {listing.type === 'rent' && ' / month'}
-                          </p>
-                          <p className='text-sm text-gray-600 line-clamp-2'>
-                            {listing.description}
-                          </p>
-                          <div className='flex flex-wrap gap-2 mt-3 text-xs font-medium'>
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaBed /> {listing.bedrooms} {listing.bedrooms > 1 ? 'Beds' : 'Bed'}
-                            </div>
-                            <div className='bg-[#d2d1e6] text-[#333333] px-3 py-1 rounded-full flex items-center gap-1'>
-                              <FaBath /> {listing.bathrooms} {listing.bathrooms > 1 ? 'Baths' : 'Bath'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className='absolute bottom-3 right-3 group'>
-                          <div className='absolute inset-0 bg-[#212620] opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform -translate-y-[0.2em] group-hover:-translate-y-[0.33em]'></div>
-                          <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white group-hover:translate-y-[-0.2em] transition-transform duration-300'>
-                            More Info
-                          </div>
-                        </div>
+                        <ListingItem listing={listing} />
                       </motion.div>
                     ))}
                 </div>

@@ -57,6 +57,7 @@ export default function ListingCollage({ listing }) {
   if (!listing) return null;
 
   const {
+    _id,
     imageUrls,
     name,
     address,
@@ -72,7 +73,9 @@ export default function ListingCollage({ listing }) {
     backupPower,
     backupWaterSupply,
     boreholeWater,
-    apartmentType
+    apartmentType,
+    userModel,
+    postedBy
   } = listing;
 
   // Format price with proper checks
@@ -80,6 +83,11 @@ export default function ListingCollage({ listing }) {
     if (typeof price !== 'number' || isNaN(price)) return '0';
     return price.toLocaleString('en-US');
   };
+
+  // Determine the listing route based on userModel or postedBy.isAgent
+  const listingRoute = userModel === 'Agent' || postedBy?.isAgent 
+    ? `/agent-listing/${_id}` 
+    : `/listing/${_id}`;
 
   // Determine the display price
   const displayPrice = offer ? formatPrice(discountPrice) : formatPrice(regularPrice);
@@ -120,9 +128,9 @@ export default function ListingCollage({ listing }) {
         </div>
 
         {/* Right side - Main Image and Features */}
-        <div className="grid grid-rows-1 h-full p-4">
+        <div className="grid grid-rows-1 h-full p-4 relative">
           {/* Main Image */}
-          <Link to={`/listing/${listing._id}`} className="relative h-full w-full overflow-hidden group cursor-pointer">
+          <Link to={listingRoute} className="relative h-full w-full overflow-hidden group cursor-pointer">
             <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold z-10 ${
               type === 'sale' 
                 ? 'bg-[#009688] text-white' 
@@ -157,11 +165,16 @@ export default function ListingCollage({ listing }) {
                   <MdLocationOn className='h-4 w-4 text-green-400' />
                   <p className="text-sm truncate">{address}</p>
                 </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <p className="bg-[#16a348] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                <div className="flex flex-col gap-2 mt-2">
+                  <p className="bg-[#16a348] text-white px-3 py-1 rounded-full text-sm font-semibold w-fit">
                     ${offer ? formatPrice(discountPrice) : formatPrice(regularPrice)}
                     {type === 'rent' && ' / month'}
                   </p>
+                  <div className='group w-fit'>
+                    <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white transition-transform duration-300 hover:scale-105'>
+                      More Info
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

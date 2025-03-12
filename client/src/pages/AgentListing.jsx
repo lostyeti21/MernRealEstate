@@ -52,6 +52,10 @@ const AgentListing = () => {
   const [hasUserRated, setHasUserRated] = useState(false);
   const [showMap, setShowMap] = useState(true);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const defaultLat = -1.2921;
   const defaultLng = 36.8219;
 

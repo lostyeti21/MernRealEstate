@@ -34,6 +34,8 @@ export default function Header() {
   const [showResourcesDropdown, setShowResourcesDropdown] = useState(false);
   const [isUsersMenuOpen, setIsUsersMenuOpen] = useState(false);
   const [scheduleNotifications, setScheduleNotifications] = useState([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [closeTimeout, setCloseTimeout] = useState(null);
 
   // Dropdown management function
   const handleDropdownToggle = (dropdown) => {
@@ -55,6 +57,22 @@ export default function Header() {
         break;
       default:
         break;
+    }
+  };
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const handleMouseLeave = () => {
+    const timeout = setTimeout(() => setIsMenuOpen(false), 2000);
+    setCloseTimeout(timeout);
+  };
+
+  const handleMouseEnter = () => {
+    if (closeTimeout) {
+      clearTimeout(closeTimeout);
+      setCloseTimeout(null);
     }
   };
 
@@ -590,10 +608,32 @@ export default function Header() {
     fetchScheduleNotifications();
   }, [currentUser]);
 
+  // Add logo styles
+  const logoStyles = {
+    width: 'auto',
+    height: '40px',
+    maxWidth: '100%',
+    objectFit: 'contain',
+    marginRight: 'auto',
+    '@media (max-width: 768px)': {
+      height: '30px',
+    },
+    '@media (max-width: 480px)': {
+      height: '20px',
+    },
+  };
+
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="flex justify-between items-center max-w-6xl mx-auto p-3 relative">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
+      <div className="flex justify-between items-center max-w-6xl mx-auto p-3 relative flex-wrap">
+        <button onClick={toggleMenu} className="md:hidden">
+          <span className="text-xl">☰</span>
+        </button>
+        <div 
+          className={`absolute left-0 md:static top-full mt-2 md:mt-0 bg-white md:bg-transparent shadow-lg md:shadow-none rounded-md flex flex-col md:flex-row items-center gap-4 ${isMenuOpen ? 'block' : 'hidden'} md:flex`}
+          onMouseLeave={handleMouseLeave}
+          onMouseEnter={handleMouseEnter}
+        >
           <Link to="/" className="text-slate-700 hover:text-[#009688] transition-colors flex items-center gap-1">
             Home
           </Link>
@@ -663,9 +703,9 @@ export default function Header() {
             </div>
           </div>
         </div>
-        <div className="mx-auto">
+        <div className="flex-1 flex justify-start ml-[16%]">
           <Link to="/">
-            <img src={logo} alt="Just List+It Logo" className="h-10 w-auto" />
+            <img src={logo} alt="Just List+It Logo" style={logoStyles} />
           </Link>
         </div>
         <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">

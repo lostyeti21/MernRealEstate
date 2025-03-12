@@ -1,9 +1,14 @@
 import { Link } from 'react-router-dom';
 
-export default function ListingCard({ listing }) {
+export default function ListingCard({ listing, navigatePath }) {
+  // Determine the listing route based on userModel or postedBy.isAgent
+  const listingRoute = listing.userModel === 'Agent' || listing.postedBy?.isAgent 
+    ? `/agent-listing/${listing._id}` 
+    : `/listing/${listing._id}`;
+
   return (
-    <div className="bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px]">
-      <Link to={`/listing/${listing._id}`}>
+    <div className="bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px] relative">
+      <Link to={navigatePath || listingRoute}>
         <img
           src={listing.imageUrls[0] || '/default-house.jpg'}
           alt="listing cover"
@@ -47,6 +52,12 @@ export default function ListingCard({ listing }) {
               Featured
             </span>
           )}
+        </div>
+        <div className='absolute bottom-3 right-3 group'>
+          <div className='absolute inset-0 bg-[#212620] opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform -translate-y-[0.2em] group-hover:-translate-y-[0.33em]'></div>
+          <div className='relative border border-[#212620] text-[#212620] px-3 py-1 text-xs font-semibold bg-white group-hover:translate-y-[-0.2em] transition-transform duration-300'>
+            More Info
+          </div>
         </div>
       </Link>
     </div>

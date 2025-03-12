@@ -41,7 +41,8 @@ export default function ListingItem({ listing }) {
     builtInCupboards = false,
     fittedKitchen = false,
     solarGeyser = false,
-    leaseAgreementUrl
+    leaseAgreementUrl,
+    postedBy
   } = listing;
 
   // Format price with proper checks
@@ -50,8 +51,10 @@ export default function ListingItem({ listing }) {
     return price.toLocaleString('en-US');
   };
 
-  // Determine the listing route based on userModel
-  const listingRoute = userModel === 'Agent' ? `/agent-listing/${_id}` : `/listing/${_id}`;
+  // Determine the listing route based on userModel or postedBy.isAgent
+  const listingRoute = userModel === 'Agent' || listing.postedBy?.isAgent 
+    ? `/agent-listing/${_id}` 
+    : `/listing/${_id}`;
 
   return (
     <div className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px] flex flex-col h-[430px]'>
