@@ -773,13 +773,13 @@ export default function Home() {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
                 viewport={{ once: true }}
-                className='my-3'
+                className='my-3 pb-12'
               >
-                <div className="relative h-[100px] mb-8 top-10">
-                <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                <div className="relative h-[100px] mb-20 mt-10 top-10">
+                <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left ">
                     <span style={{ color: '#c9f2ac', opacity: 0.5 }}>FOR RENT</span>
                   </h1>
-                  <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
+                  <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10 '>
                     Recently Added Places
                   </h2>
                 </div>
@@ -804,11 +804,11 @@ export default function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.5 }}
                   viewport={{ once: true }}
-                  className="mt-8 pb-16 flex justify-center"
+                  className="mt-8 pb-3 flex justify-center"
                 >
                   <Link 
                     to="/search?type=rent"
-                    className="bg-[#c9f2ac] hover:bg-[#c41212] text-black px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
+                    className="bg-[#c9f2ac] hover:bg-[#D2D1E6] text-black px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold transform hover:scale-110"
                   >
                     Show more places for rent
                   </Link>
@@ -853,11 +853,11 @@ export default function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.5 }}
                   viewport={{ once: true }}
-                  className="mt-8 pb-16 flex justify-center"
+                  className="mt-8 pb-10 flex justify-center"
                 >
                   <Link 
                     to="/search?type=sale"
-                    className="bg-[#c9f2ac] hover:bg-[#c41212] text-black px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold"
+                    className="bg-[#c9f2ac] hover:bg-[#D2D1E6] text-black px-6 py-3 rounded-lg transition duration-200 ease-in-out inline-flex items-center gap-2 text-sm font-semibold transform hover:scale-110"
                   >
                     Show more places for sale
                   </Link>
@@ -912,7 +912,6 @@ export default function Home() {
                   }
                 ]} 
               />
-              <div className="h-[12.8rem] bg-[#363386] w-screen -ml-[50vw] left-1/2 absolute"></div>
             </div>
 
           </div>
