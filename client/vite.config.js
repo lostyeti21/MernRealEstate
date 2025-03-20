@@ -22,4 +22,35 @@ export default defineConfig({
     },
   },
   plugins: [react()],
+  esbuild: {
+    loader: { '.js': 'jsx' },
+  },
+  build: {
+    // Enable minification for production builds
+    minify: 'terser',
+    // Configure code splitting
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor code into separate chunks
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['react-icons', 'react-hot-toast', 'framer-motion'],
+          'vendor-map': ['leaflet', 'react-leaflet'],
+          'vendor-redux': ['react-redux', '@reduxjs/toolkit'],
+        },
+        // Limit chunk size
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+      },
+    },
+    // Enable source maps for production (helps with debugging)
+    sourcemap: true,
+    // Configure chunk size warnings
+    chunkSizeWarningLimit: 1000,
+  },
+  // Optimize dependencies that are pre-bundled
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', 'react-redux', '@reduxjs/toolkit'],
+  },
 });

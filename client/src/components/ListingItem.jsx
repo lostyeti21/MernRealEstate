@@ -11,6 +11,7 @@ import {
   FaCouch,
   FaFileContract
 } from 'react-icons/fa';
+import ImageOptimizer from './ImageOptimizer';
 
 export default function ListingItem({ listing }) {
   if (!listing) return null;
@@ -42,6 +43,7 @@ export default function ListingItem({ listing }) {
     fittedKitchen = false,
     solarGeyser = false,
     leaseAgreementUrl,
+    leaseAgreement,
     postedBy
   } = listing;
 
@@ -57,7 +59,7 @@ export default function ListingItem({ listing }) {
     : `/listing/${_id}`;
 
   return (
-    <div className='relative bg-white shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg w-full sm:w-[330px] flex flex-col h-[430px]'>
+    <div className='listing-item relative bg-white shadow-md hover:shadow-[0_10px_20px_rgba(0,0,0,0.3)] hover:scale-105 transition-all duration-300 overflow-hidden rounded-lg w-full sm:w-[330px] flex flex-col h-[430px] z-10 hover:z-20'>
       <div
         className={`absolute top-3 right-3 px-3 py-1 text-xs font-semibold ${
           type === 'sale' ? 'bg-[#009688] text-white' : 'bg-[#C9F2AC] text-[#333333]'
@@ -68,17 +70,22 @@ export default function ListingItem({ listing }) {
       </div>
 
       <div className="relative">
-        <img
-          src={imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
-          alt='listing cover'
-          className='h-[300px] sm:h-[220px] w-full object-cover hover:scale-105 transition-scale duration-300'
-        />
-        {leaseAgreementUrl && (
+        <div className="overflow-hidden">
+          <ImageOptimizer
+            src={imageUrls?.[0] || 'https://via.placeholder.com/330x200'}
+            alt='listing cover'
+            className='listing-image h-[300px] sm:h-[220px] w-full object-cover transition-transform duration-700'
+            placeholderSrc='https://via.placeholder.com/330x200?text=Loading...'
+            width={330}
+            height={220}
+          />
+        </div>
+        {(leaseAgreementUrl || leaseAgreement) && (
           <div 
             className="absolute bottom-3 left-3 bg-white text-black px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 border border-gray-300"
             style={{ zIndex: 10 }}
           >
-            <FaFileContract className="mr-1 text-green-600" /> Lease Avaliable to View
+            <FaFileContract className="mr-1 text-green-600" /> Lease Available to View
           </div>
         )}
         <div

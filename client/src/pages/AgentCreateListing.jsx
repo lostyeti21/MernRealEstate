@@ -9,6 +9,8 @@ import {
 } from 'firebase/storage';
 import { app } from '../firebase';
 import axios from 'axios';
+import { FaFileContract } from 'react-icons/fa';
+import Loader from '../components/Loader';
 
 export default function AgentCreateListing() {
   const { currentUser, isAgent, realEstateCompany } = useSelector((state) => state.user);
@@ -33,6 +35,7 @@ export default function AgentCreateListing() {
     boreholeWater: false,
     apartmentType: 'House',
     lounges: 1,
+    leaseAgreementUrl: '',
     electricFence: false,
     walledOrFenced: false,
     electricGate: false,
@@ -61,6 +64,9 @@ export default function AgentCreateListing() {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [leaseAgreementFile, setLeaseAgreementFile] = useState(null);
+  const [leaseAgreementError, setLeaseAgreementError] = useState('');
+  const [uploadingLeaseAgreement, setUploadingLeaseAgreement] = useState(false);
 
   // Determine the correct user for listing creation
   const user = isAgent ? currentUser : null;
@@ -299,6 +305,95 @@ export default function AgentCreateListing() {
         )}
       </div>
     );
+  };
+
+  const handleLeaseAgreementUpload = async (e) => {
+    const file = e.target.files[0];
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const maxSize = 2 * 1024 * 1024;
+
+    console.log('Lease Agreement Upload - File details:', {
+      name: file?.name,
+      type: file?.type,
+      size: file?.size
+    });
+
+    if (!file) {
+      console.log('Lease Agreement Upload - No file selected');
+      setLeaseAgreementError('');
+      setLeaseAgreementFile(null);
+      return;
+    }
+
+    if (!allowedTypes.includes(file.type)) {
+      console.log('Lease Agreement Upload - Invalid file type:', file.type);
+      setLeaseAgreementError('Only PDF and DOCX files are allowed');
+      setLeaseAgreementFile(null);
+      return;
+    }
+
+    if (file.size > maxSize) {
+      console.log('Lease Agreement Upload - File too large:', file.size);
+      setLeaseAgreementError('File must be 2MB or smaller');
+      setLeaseAgreementFile(null);
+      return;
+    }
+
+    try {
+      console.log('Lease Agreement Upload - Starting upload process');
+      setUploadingLeaseAgreement(true);
+      setLeaseAgreementError('');
+
+      const leaseAgreementUrl = await storeLeasePdf(file);
+      console.log('Lease Agreement Upload - Upload successful:', leaseAgreementUrl);
+
+      setFormData(prevData => ({
+        ...prevData,
+        leaseAgreementUrl: leaseAgreementUrl
+      }));
+
+      setLeaseAgreementFile(null);
+    } catch (error) {
+      console.error('Lease Agreement Upload - Upload failed:', error);
+      setLeaseAgreementError(error.message || 'Failed to upload lease agreement');
+    } finally {
+      setUploadingLeaseAgreement(false);
+    }
+  };
+
+  const storeLeasePdf = async (file) => {
+    const formData = new FormData();
+    formData.append('document', file);
+
+    try {
+      const res = await fetch('/api/upload/document', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        },
+        body: formData
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to upload document');
+      }
+
+      const data = await res.json();
+      if (!data.success || !data.url) {
+        throw new Error('Failed to get document URL from server');
+      }
+      return data.url;
+    } catch (error) {
+      console.error('Lease Agreement Upload - Request failed:', error);
+      throw error;
+    }
+  };
+
+  const handleRemoveLeaseAgreement = () => {
+    setFormData(prevData => ({
+      ...prevData,
+      leaseAgreementUrl: ''
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -549,6 +644,83 @@ export default function AgentCreateListing() {
               <span>Solar Geyser</span>
             </div>
           </div>
+
+          <div className="flex flex-col gap-4">
+            <p className="text-lg font-semibold">Lease Agreement</p>
+            <div className="flex flex-col gap-2">
+              {formData.leaseAgreementUrl ? (
+                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                  <FaFileContract className="text-green-600" />
+                  <span className="text-green-600">Lease agreement uploaded</span>
+                  <button
+                    onClick={handleRemoveLeaseAgreement}
+                    className="ml-auto text-red-600 hover:text-red-700"
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4 mb-4">
+                  <label className="font-semibold">Lease Agreement (PDF or DOCX, max 2MB)</label>
+                  <input
+                    type="file"
+                    id="leaseAgreement"
+                    accept=".pdf,.docx"
+                    onChange={handleLeaseAgreementUpload}
+                    className="border p-3 rounded-lg"
+                  />
+                  {uploadingLeaseAgreement && <Loader />}
+                  {leaseAgreementError && (
+                    <p className='text-red-700 text-sm'>{leaseAgreementError}</p>
+                  )}
+                  {formData.leaseAgreementUrl && (
+                    <div className='flex flex-col gap-2'>
+                      <div className='flex items-center gap-2 text-green-700'>
+                        <FaFileContract className='text-2xl' />
+                        <span>Lease agreement uploaded</span>
+                      </div>
+                      <div className='flex items-center justify-between p-3 border rounded-lg bg-gray-50'>
+                        <div className='flex items-center gap-2'>
+                          <FaFileContract className='text-gray-600 text-xl' />
+                          <span className='text-sm text-gray-600'>
+                            {formData.leaseAgreementUrl.split('/').pop()}
+                          </span>
+                        </div>
+                        <div className='flex gap-2'>
+                          <a
+                            href={formData.leaseAgreementUrl}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='px-3 py-1 text-white bg-blue-600 rounded hover:bg-blue-700 transition'
+                          >
+                            Preview
+                          </a>
+                          <button
+                            onClick={handleRemoveLeaseAgreement}
+                            className='px-3 py-1 text-white bg-red-600 rounded hover:bg-red-700 transition'
+                            type='button'
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                      <object
+                        data={formData.leaseAgreementUrl}
+                        type="application/pdf"
+                        width="100%"
+                        height="500px"
+                        className="border rounded-lg mt-2"
+                      >
+                        <p>Unable to display PDF file. <a href={formData.leaseAgreementUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Download</a> instead.</p>
+                      </object>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className='flex flex-wrap gap-6'>
             <div className='flex items-center gap-2'>
               <input

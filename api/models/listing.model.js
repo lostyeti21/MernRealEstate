@@ -157,6 +157,10 @@ const listingSchema = new mongoose.Schema(
     flexibleViewingTime: {
       type: Boolean,
       default: false
+    },
+    leaseAgreement: {
+      type: String,
+      default: ''
     }
   },
   { timestamps: true }

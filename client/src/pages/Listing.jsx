@@ -24,6 +24,7 @@ import {
   FaWater,
   FaEnvelope,
   FaCheckCircle,
+  FaFileContract,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 import RateLandlord from "../components/RateLandlord"; // Import RateLandlord component
@@ -55,6 +56,7 @@ export default function Listing() {
   const [verificationError, setVerificationError] = useState('');
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
   const [hasShownDisclaimer, setHasShownDisclaimer] = useState(false);
+  const [showLeaseAgreement, setShowLeaseAgreement] = useState(false);
   const params = useParams();
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
@@ -87,6 +89,13 @@ export default function Listing() {
         }
 
         setListing(data.listing);
+        
+        // Check if lease agreement exists
+        if (data.listing.leaseAgreement || data.listing.leaseAgreementUrl) {
+          const leaseAgreementUrl = data.listing.leaseAgreement || data.listing.leaseAgreementUrl;
+          console.log('Lease agreement found:', leaseAgreementUrl);
+          setListing(prev => ({ ...prev, leaseAgreement: leaseAgreementUrl }));
+        }
 
         // Track view for the listing owner
         if (data.listing.userRef) {
@@ -713,7 +722,7 @@ export default function Listing() {
             )}
           </div>
         </div>
-        {currentUser && (
+        {listing.leaseAgreement && (
           <motion.button
             initial={{ opacity: 0, y: 10, scale: 1 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -721,6 +730,27 @@ export default function Listing() {
             transition={{ 
               duration: 0.3, 
               delay: 1.3,
+              scale: {
+                type: "spring",
+                damping: 15,
+                stiffness: 300
+              }
+            }}
+            onClick={() => window.open(listing.leaseAgreement, '_blank')}
+            className="mt-4 w-full bg-blue-500 text-white py-3 hover:bg-blue-600 transition-all duration-200 text-center font-medium flex items-center justify-center gap-2"
+          >
+            <FaFileContract className="text-lg" />
+            View Lease Agreement
+          </motion.button>
+        )}
+        {currentUser && (
+          <motion.button
+            initial={{ opacity: 0, y: 10, scale: 1 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            whileHover={{ scale: 1.02 }}
+            transition={{ 
+              duration: 0.3, 
+              delay: 1.4,
               scale: {
                 type: "spring",
                 damping: 15,
@@ -1136,6 +1166,11 @@ export default function Listing() {
               {listing.description}
             </p>
             <ul className="flex flex-wrap gap-4">
+              {listing.leaseAgreement && (
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2 cursor-pointer hover:bg-green-700" onClick={() => window.open(listing.leaseAgreement, '_blank')}>
+                  <FaFileContract /> View Lease
+                </li>
+              )}
               <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2">
                 <FaBed /> {listing.bedrooms} Beds
               </li>
@@ -1251,31 +1286,7 @@ export default function Listing() {
         </div>
       </div>
 
-      {/* Add Message button for landlords */}
-      {currentUser && 
-       currentUser._id === listing.userRef && 
-       listing.interestedUsers && 
-       listing.interestedUsers.length > 0 && (
-        <div className="mt-4">
-          <h3 className="text-xl font-semibold mb-2">Interested Users</h3>
-          <div className="space-y-2">
-            {listing.interestedUsers.map((user) => (
-              <div key={user._id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
-                <div>
-                  <p className="font-medium">{user.username}</p>
-                  <p className="text-sm text-gray-500">{user.email}</p>
-                </div>
-                <button
-                  onClick={() => startChat(user._id)}
-                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                >
-                  Message
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {contact && (
         <Contact

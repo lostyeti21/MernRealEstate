@@ -19,8 +19,14 @@ export const createListing = async (req, res, next) => {
     }
 
     // Create the listing
+    // Validate and handle lease agreement
+    const { leaseAgreementUrl, ...otherListingData } = listingData;
+    if (leaseAgreementUrl && !leaseAgreementUrl.startsWith('http')) {
+      return next(errorHandler(400, 'Invalid lease agreement URL'));
+    }
     const listing = new Listing({
-      ...listingData,
+      ...otherListingData,
+      leaseAgreement: leaseAgreementUrl || otherListingData.leaseAgreement || '',
       userRef,
       userModel
     });
@@ -110,8 +116,16 @@ export const updateListing = async (req, res, next) => {
     }
 
     // Prepare update data
+    const { leaseAgreementUrl, ...otherData } = req.body;
+    if (leaseAgreementUrl && !leaseAgreementUrl.startsWith('http')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lease agreement URL'
+      });
+    }
     const updateData = {
-      ...req.body,
+      ...otherData,
+      leaseAgreement: leaseAgreementUrl || otherData.leaseAgreement || listing.leaseAgreement,
       userRef: req.user.isAgent ? req.user._id : req.user.id,
       userModel: req.user.isAgent ? 'Agent' : 'User'
     };

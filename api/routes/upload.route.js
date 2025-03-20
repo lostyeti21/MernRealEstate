@@ -1,13 +1,15 @@
 import express from 'express';
 import multer from 'multer';
-import { uploadImage } from '../controllers/upload.controller.js';
+import { uploadImage, uploadDocument } from '../controllers/upload.controller.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
-const upload = multer({
+
+// Configure multer for images
+const imageUpload = multer({
   storage,
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
   fileFilter: (req, file, cb) => {
@@ -15,6 +17,20 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Not an image! Please upload an image file.'), false);
+    }
+  },
+});
+
+// Configure multer for documents
+const documentUpload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and DOCX files are allowed'), false);
     }
   },
 });
@@ -32,8 +48,15 @@ const logRequest = (req, res, next) => {
 router.post('/image', 
   verifyToken, 
   logRequest,
-  upload.single('image'), 
+  imageUpload.single('image'), 
   uploadImage
+);
+
+router.post('/document',
+  verifyToken,
+  logRequest,
+  documentUpload.single('document'),
+  uploadDocument
 );
 
 // Add this route to test Cloudinary configuration

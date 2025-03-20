@@ -14,6 +14,7 @@ import {
   FaWater,
   FaTint
 } from 'react-icons/fa';
+import ImageOptimizer from './ImageOptimizer';
 import { geocodeAddress } from "../../../api/utils/geocode";
 
 const customIcon = new L.Icon({
@@ -93,7 +94,7 @@ export default function ListingCollage({ listing }) {
   const displayPrice = offer ? formatPrice(discountPrice) : formatPrice(regularPrice);
 
   return (
-    <div className="mb-1 bg-white rounded-lg shadow-xl overflow-hidden relative z-40 mt-[40px]">
+    <div className="mb-1 bg-white rounded-lg shadow-md overflow-hidden relative z-40 mt-[40px] hover:scale-105 transform-gpu transition-all duration-300">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
         {/* Left side - Map */}
         <div className="relative h-full w-full rounded-lg overflow-hidden">
@@ -150,11 +151,14 @@ export default function ListingCollage({ listing }) {
             >
               {listing.apartmentType || 'House'}
             </div>
-            <img 
+            <ImageOptimizer 
               src={imageUrls[0]} 
               alt="Featured Property" 
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+              className="w-full h-full object-cover"
               style={{ objectPosition: 'center' }}
+              placeholderSrc='https://via.placeholder.com/400x300?text=Loading...'
+              width={400}
+              height={300}
             />
             <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
               <div className="bg-black/30 backdrop-blur-sm p-4 rounded-lg">

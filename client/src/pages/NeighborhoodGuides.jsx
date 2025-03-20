@@ -3,15 +3,16 @@ import { FaSearch, FaMapMarkerAlt, FaTimes } from 'react-icons/fa';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import bannerImage from '../assets/be.jpg';
+import { geocodeAddress } from '../../../api/utils/geocode';
+import bannerImage from '../assets/Locations/Most Popular Neighbourhoods.webp';
 
 // Import neighborhood images
-import sandtonImage from '/Users/ishe/Desktop/MERN-ESTATE/client/src/assets/Locations/Borrowdale Brook.jpg';
-import rosebanImage from '/Users/ishe/Desktop/MERN-ESTATE/client/src/assets/Locations/Borrowdale.jpg';
-import melvilleImage from '/Users/ishe/Desktop/MERN-ESTATE/client/src/assets/Locations/Chisipite.jpg';
-import fourwaysImage from '/Users/ishe/Desktop/MERN-ESTATE/client/src/assets/Locations/Greendale.jpg';
-import parkviewImage from '/Users/ishe/Desktop/MERN-ESTATE/client/src/assets/Locations/Harare city center.webp';
-import northcliffImage from '/Users/ishe/Desktop/MERN-ESTATE/client/src/assets/Locations/Highlands.jpg';
+import sandtonImage from '../assets/Locations/Borrowdale Brook.jpg';
+import rosebanImage from '../assets/Locations/Borrowdale.jpg';
+import melvilleImage from '../assets/Locations/Chisipite.jpg';
+import fourwaysImage from '../assets/Locations/Greendale.webp';
+import parkviewImage from '../assets/Locations/Harare City Center.webp';
+import northcliffImage from '../assets/Locations/Highlands.png';
 
 // Leaflet marker icons
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -43,6 +44,25 @@ const fetchNeighborhoodMetrics = async (latitude, longitude) => {
 export default function NeighborhoodGuides() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
+  const [coordinates, setCoordinates] = useState(null);
+
+  useEffect(() => {
+    const fetchCoordinates = async () => {
+      if (selectedNeighborhood && !selectedNeighborhood.location) {
+        try {
+          const coords = await geocodeAddress(selectedNeighborhood.address);
+          if (coords) {
+            setCoordinates(coords);
+          }
+        } catch (error) {
+          console.error('Error fetching coordinates:', error);
+        }
+      } else if (selectedNeighborhood && selectedNeighborhood.location) {
+        setCoordinates({ lat: selectedNeighborhood.location[0], lng: selectedNeighborhood.location[1] });
+      }
+    };
+    fetchCoordinates();
+  }, [selectedNeighborhood]);
 
   const neighborhoods = [
     {
@@ -50,7 +70,8 @@ export default function NeighborhoodGuides() {
       description: 'Borrowdale Brooke Golf Estate is an upmarket, plush and exclusive residential estate in the northern part of Harare,',
       image: sandtonImage,
       averagePrice: 'USD 200,000 - USD 2,900,000 ',
-      location: [-17.8252, 31.0335],
+      address: 'Borrowdale Brooke, Harare, Zimbabwe',
+      location: [-17.7125, 31.1436],
       areaMetrics: {
         schools: 5,
         shoppingCentres: 2,
@@ -65,7 +86,7 @@ export default function NeighborhoodGuides() {
       description: 'Borrowdale, situated in the northern suburbs of Harare, is renowned for its luxury real estate and lush, green surroundings.',
       image: rosebanImage,
       averagePrice: 'USD 40,500 - USD 1,400,000 ',
-      location: [-17.8089, 31.0521],
+      location: [-17.7491, 31.0942],
       areaMetrics: {
         schools: 7,
         shoppingCentres: 3,
@@ -80,13 +101,13 @@ export default function NeighborhoodGuides() {
       description: 'Chisipite, located to the northeast of Harare, is a family-oriented neighborhood known for its well-balanced living environment.',
       image: melvilleImage,
       averagePrice: 'USD 180,000 - USD 1,200,000',
-      location: [-17.8089, 31.0521],
+      location: [-17.7934, 31.1264],
       areaMetrics: {
-        schools: 6,
+        schools: 7,
         shoppingCentres: 2,
-        fuelStations: 3,
-        restaurants: 12,
-        parks: 2,
+        fuelStations: 5,
+        restaurants: 16,
+        parks: 0,
         hospitals: 1
       }
     },
@@ -95,7 +116,7 @@ export default function NeighborhoodGuides() {
       description: 'Greendale is a well-established suburb located in the eastern part of Harare.',
       image: fourwaysImage,
       averagePrice: 'USD 40,000 - USD 1,000,000',
-      location: [-17.8089, 31.0521],
+      location: [-17.8126, 31.1263],
       areaMetrics: {
         schools: 4,
         shoppingCentres: 1,
@@ -110,7 +131,7 @@ export default function NeighborhoodGuides() {
       description: 'Harare City Centre is the vibrant heart of Zimbabwes capital, offering visitors a unique blend of historical significance and contemporary allure',
       image: parkviewImage,
       averagePrice: 'USD 32,000 - USD 6,500,000',
-      location: [-17.8252, 31.0335],
+      location: [-17.8221, 31.0487],
       areaMetrics: {
         schools: 3,
         shoppingCentres: 5,
@@ -125,7 +146,7 @@ export default function NeighborhoodGuides() {
       description: 'Highlands is an upper-middle income, residential suburb nestled between Borrowdale and Newlands in the east of Harare',
       image: northcliffImage,
       averagePrice: 'USD 100,000 - USD 4,800,000',
-      location: [-17.8089, 31.0521],
+      location: [-17.8123, 31.1010],
       areaMetrics: {
         schools: 5,
         shoppingCentres: 2,
@@ -142,8 +163,13 @@ export default function NeighborhoodGuides() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-6 text-center">Neighborhood Guides</h1>
+    <div className="container mx-auto px-4 py-8 max-w-[1200px] w-full">
+      <div className="relative h-[100px] mb-8">
+        <h1 className="text-[99px] font-bold text-gray-100 uppercase absolute -top-10 left-0 w-full text-left">
+          <span style={{ color: '#D2D1E6', opacity: 0.6 }}>Neighborhood Guides</span>
+        </h1>
+      </div>
+
       
       <div className="max-w-xl mx-auto mb-8">
         <div className="relative">
@@ -159,11 +185,11 @@ export default function NeighborhoodGuides() {
       </div>
 
       {/* Banner Section */}
-      <div className="relative w-full h-[400px] mb-12 overflow-hidden">
+      <div className="relative w-full h-[2160px] max-h-[70vh] mb-12">
         <img 
           src={bannerImage} 
           alt="Neighborhood Landscape" 
-          className="w-full h-full object-cover"
+          className="w-[3840px] max-w-full h-full object-cover"
         />
         <div className="absolute bottom-0 right-0 p-8 bg-black bg-opacity-50 text-white">
           <h2 className="text-3xl font-bold">Most Popular Neighbourhoods</h2>
@@ -171,11 +197,11 @@ export default function NeighborhoodGuides() {
       </div>
 
       {/* Neighborhood Cards */}
-      <div className="grid md:grid-cols-3 gap-8">
+      <div className="grid md:grid-cols-3 gap-8 relative group">
         {filteredNeighborhoods.map((neighborhood) => (
           <div 
             key={neighborhood.name} 
-            className="border shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden cursor-pointer"
+            className="border shadow-md hover:shadow-[0_10px_20px_rgba(0,0,0,0.3)] hover:scale-105 transition-all duration-300 overflow-hidden cursor-pointer relative z-10 hover:z-20 group-hover:blur-[2px] hover:!blur-none"
             onClick={() => setSelectedNeighborhood(neighborhood)}
           >
             <div className="h-64 overflow-hidden">
@@ -192,7 +218,7 @@ export default function NeighborhoodGuides() {
               </h2>
               <p className="text-gray-600 mb-4">{neighborhood.description}</p>
               <div className="flex justify-between items-center">
-                <span className="font-bold text-[#009688]">Avg. Property Price</span>
+                <span className="font-bold text-[#009688]">Avg. Sale Property Price</span>
                 <span className="text-lg font-semibold">{neighborhood.averagePrice}</span>
               </div>
             </div>
@@ -206,7 +232,7 @@ export default function NeighborhoodGuides() {
           <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-auto grid md:grid-cols-2 gap-8 p-8 relative">
             <button 
               onClick={() => setSelectedNeighborhood(null)}
-              className="absolute top-4 right-4 text-3xl text-gray-600 hover:text-red-600"
+              className="absolute top-4 right-4 text-3xl text-gray-600 hover:text-red-600 z-[9999]"
             >
               <FaTimes />
             </button>
@@ -222,22 +248,32 @@ export default function NeighborhoodGuides() {
             
             {/* Map */}
             <div className="w-full h-[600px]">
-              <MapContainer 
-                center={selectedNeighborhood.location} 
-                zoom={13} 
-                scrollWheelZoom={false}
-                className="h-full w-full"
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <Marker position={selectedNeighborhood.location}>
-                  <Popup>
-                    {selectedNeighborhood.name}
-                  </Popup>
-                </Marker>
-              </MapContainer>
+              {coordinates ? (
+                <MapContainer 
+                  center={[coordinates.lat, coordinates.lng]} 
+                  zoom={13} 
+                  scrollWheelZoom={false}
+                  className="h-full w-full"
+                  key={`${coordinates.lat}-${coordinates.lng}`}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <Marker position={[coordinates.lat, coordinates.lng]}>
+                    <Popup>
+                      <div>
+                        <p className="font-semibold">{selectedNeighborhood.name}</p>
+                        <p>{selectedNeighborhood.address}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                </MapContainer>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <p>Loading map location...</p>
+                </div>
+              )}
             </div>
             
             {/* Neighborhood Details */}
@@ -245,7 +281,7 @@ export default function NeighborhoodGuides() {
               <h2 className="text-3xl font-bold mb-4">{selectedNeighborhood.name}</h2>
               <p className="text-gray-700 mb-4">{selectedNeighborhood.description}</p>
               <div className="flex justify-between items-center mb-6">
-                <span className="font-bold text-xl text-[#009688]">Average Property Price</span>
+                <span className="font-bold text-xl text-[#009688]">Average Sale Property Price</span>
                 <span className="text-2xl font-semibold">{selectedNeighborhood.averagePrice}</span>
               </div>
 

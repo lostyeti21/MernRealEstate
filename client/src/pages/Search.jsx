@@ -136,28 +136,40 @@ export default function Search() {
     setShowAmenitiesDropdown(!showAmenitiesDropdown);
   };
 
-  // Add batch processing for impressions
+  // Add batch processing for impressions with improved performance
   const recordImpressions = debounce(async (listings) => {
-    const batchSize = 5; // Process 5 listings at a time
-    for (let i = 0; i < listings.length; i += batchSize) {
-      const batch = listings.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map(listing =>
-          fetch(`http://localhost:3000/api/analytics/ctr/impression/${listing._id}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ source: 'search' })
-          }).catch(error => console.error('Error recording impression:', error))
-        )
-      );
-      // Add a small delay between batches
-      if (i + batchSize < listings.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+    if (!listings || listings.length === 0) return;
+    
+    const batchSize = 10; // Increased batch size for better performance
+    const recordBatch = async (startIndex) => {
+      const endIndex = Math.min(startIndex + batchSize, listings.length);
+      const batch = listings.slice(startIndex, endIndex);
+      
+      try {
+        await Promise.all(
+          batch.map(listing =>
+            fetch(`http://localhost:3000/api/analytics/ctr/impression/${listing._id}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ source: 'search' })
+            }).catch(error => console.error('Error recording impression:', error))
+          )
+        );
+        
+        // Process next batch if there are more listings
+        if (endIndex < listings.length) {
+          setTimeout(() => recordBatch(endIndex), 300); // Reduced delay between batches
+        }
+      } catch (error) {
+        console.error('Error in batch processing:', error);
       }
-    }
-  }, 1000);
+    };
+    
+    // Start processing the first batch
+    recordBatch(0);
+  }, 1500); // Increased debounce time to reduce server load
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
@@ -956,7 +968,7 @@ export default function Search() {
           Listing results:
         </h1>
 
-        <div className="p-3 flex flex-wrap gap-4 relative min-h-[calc(100vh-200px)]">
+        <div className="p-3 flex flex-wrap gap-4 relative min-h-[calc(100vh-200px)] hover:grid:blur-[2px] hover:grid:scale-98 hover:grid:opacity-80 transition-all duration-300">
           {!loading && listings.length === 0 && (
             <div className="w-full flex justify-center items-center">
               <p className="text-xl text-gray-500">No listings found</p>

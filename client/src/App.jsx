@@ -1,52 +1,59 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from 'react-hot-toast';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { useSelector } from 'react-redux';
-import Home from "./pages/Home";
-import SignIn from "./pages/SignIn";
-import SignUp from "./pages/SignUp";
-import About from "./pages/About";
-import Profile from "./pages/Profile";
+import { lazyLoadComponent } from './utils/lazyLoad';
 import Header from "./components/Header";
 import PrivateRoute from "./components/PrivateRoute";
-import CreateListing from "./pages/CreateListing";
-import UpdateListing from "./pages/UpdateListing";
-import Listing from "./pages/Listing";
-import Search from "./pages/Search";
-import Landlords from "./pages/Landlords";
-import Tenants from "./pages/Tenants";
-import LandlordListings from "./pages/LandlordListings";
-import TenantProfile from "./pages/TenantProfile";
-import Analytics from "./pages/Analytics";
-import ChangePassword from "./pages/ChangePassword";
-import RealEstateSignUp from "./pages/RealEstateSignUp";
-import AdminSignIn from "./pages/AdminSignIn";
-import Admin from "./pages/Admin";
-import HeroSection from "./pages/HeroSection";
-import RealEstateLogin from "./pages/RealEstateLogin";
-import RealEstateDashboard from "./pages/RealEstateDashboard";
-import UpdateCompany from './pages/UpdateCompany';
-import RealEstateAgentLogin from "./pages/RealEstateAgentLogin";
-import AgentDashboard from "./pages/AgentDashboard";
-import AgentListings from './pages/AgentListings';
-import AddAgent from './pages/AddAgent';
-import AgentProfile from './pages/AgentProfile';
-import AgentDash from './pages/AgentDash';
-import RealEstateCompanies from './pages/RealEstateCompanies';
-import AgentCreateListing from './pages/AgentCreateListing';
-import AgentListing from "./pages/AgentListing";
-import Messages from './pages/Messages';
-import LandlordProfile from './pages/LandlordProfile';
-import GeneratedCode from './pages/GeneratedCode';
-import VerifyCode from './pages/VerifyCode';
-import ResetPassword from './pages/ResetPassword';
-import Landing from "./pages/Landing";
-import Agents from './pages/Agents';
-import SuperUser from './pages/SuperUser';
-import Notifications from './pages/Notifications';
 import NotificationPopup from './components/NotificationPopup';
-import Schedule from './pages/Schedule';
-import Tutorials from "./pages/Tutorials";
+import Loader from './components/Loader';
+
+// Eagerly loaded components (critical for initial render)
+import Home from "./pages/Home";
+
+// Lazily loaded components (loaded on demand)
+const SignIn = lazyLoadComponent(() => import("./pages/SignIn"), <Loader />);
+const SignUp = lazyLoadComponent(() => import("./pages/SignUp"), <Loader />);
+const About = lazyLoadComponent(() => import("./pages/About"), <Loader />);
+const Profile = lazyLoadComponent(() => import("./pages/Profile"), <Loader />);
+const CreateListing = lazyLoadComponent(() => import("./pages/CreateListing"), <Loader />);
+const UpdateListing = lazyLoadComponent(() => import("./pages/UpdateListing"), <Loader />);
+const Listing = lazyLoadComponent(() => import("./pages/Listing"), <Loader />);
+const Search = lazyLoadComponent(() => import("./pages/Search"), <Loader />);
+const Landlords = lazyLoadComponent(() => import("./pages/Landlords"), <Loader />);
+const Tenants = lazyLoadComponent(() => import("./pages/Tenants"), <Loader />);
+const LandlordListings = lazyLoadComponent(() => import("./pages/LandlordListings"), <Loader />);
+const TenantProfile = lazyLoadComponent(() => import("./pages/TenantProfile"), <Loader />);
+const Analytics = lazyLoadComponent(() => import("./pages/Analytics"), <Loader />);
+const ChangePassword = lazyLoadComponent(() => import("./pages/ChangePassword"), <Loader />);
+const RealEstateSignUp = lazyLoadComponent(() => import("./pages/RealEstateSignUp"), <Loader />);
+const AdminSignIn = lazyLoadComponent(() => import("./pages/AdminSignIn"), <Loader />);
+const Admin = lazyLoadComponent(() => import("./pages/Admin"), <Loader />);
+const HeroSection = lazyLoadComponent(() => import("./pages/HeroSection"), <Loader />);
+const RealEstateLogin = lazyLoadComponent(() => import("./pages/RealEstateLogin"), <Loader />);
+const RealEstateDashboard = lazyLoadComponent(() => import("./pages/RealEstateDashboard"), <Loader />);
+const UpdateCompany = lazyLoadComponent(() => import('./pages/UpdateCompany'), <Loader />);
+const RealEstateAgentLogin = lazyLoadComponent(() => import("./pages/RealEstateAgentLogin"), <Loader />);
+const AgentDashboard = lazyLoadComponent(() => import("./pages/AgentDashboard"), <Loader />);
+const AgentListings = lazyLoadComponent(() => import('./pages/AgentListings'), <Loader />);
+const AddAgent = lazyLoadComponent(() => import('./pages/AddAgent'), <Loader />);
+const AgentProfile = lazyLoadComponent(() => import('./pages/AgentProfile'), <Loader />);
+const AgentDash = lazyLoadComponent(() => import('./pages/AgentDash'), <Loader />);
+const RealEstateCompanies = lazyLoadComponent(() => import('./pages/RealEstateCompanies'), <Loader />);
+const AgentCreateListing = lazyLoadComponent(() => import('./pages/AgentCreateListing'), <Loader />);
+const AgentListing = lazyLoadComponent(() => import("./pages/AgentListing"), <Loader />);
+const Messages = lazyLoadComponent(() => import('./pages/Messages'), <Loader />);
+const LandlordProfile = lazyLoadComponent(() => import('./pages/LandlordProfile'), <Loader />);
+const GeneratedCode = lazyLoadComponent(() => import('./pages/GeneratedCode'), <Loader />);
+const VerifyCode = lazyLoadComponent(() => import('./pages/VerifyCode'), <Loader />);
+const ResetPassword = lazyLoadComponent(() => import('./pages/ResetPassword'), <Loader />);
+const Landing = lazyLoadComponent(() => import("./pages/Landing"), <Loader />);
+const Agents = lazyLoadComponent(() => import('./pages/Agents'), <Loader />);
+const SuperUser = lazyLoadComponent(() => import('./pages/SuperUser'), <Loader />);
+const Notifications = lazyLoadComponent(() => import('./pages/Notifications'), <Loader />);
+const Schedule = lazyLoadComponent(() => import('./pages/Schedule'), <Loader />);
+const Tutorials = lazyLoadComponent(() => import("./pages/Tutorials"), <Loader />);
+const NeighborhoodGuides = lazyLoadComponent(() => import("./pages/NeighborhoodGuides"), <Loader />);
 
 function HeaderWrapper() {
   const location = useLocation();
@@ -236,12 +243,14 @@ const App = () => {
         <Route path="/superuser" element={<SuperUser />} />
         <Route path="/tutorials" element={<Tutorials />} />
         <Route path="/agent-listings/:agentId" element={<AgentListings />} />
+        <Route path="/NeighborhoodGuides" element={<NeighborhoodGuides />} />
 
         {/* Protected Routes */}
         <Route element={<PrivateRoute />}>
           <Route path="/profile" element={<Profile />} />
           <Route path="/landlord-profile" element={<LandlordProfile />} />
           <Route path="/create-listing" element={<CreateListing />} />
+          <Route path="/update-listing/:listingId" element={<UpdateListing />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
           <Route path="/agent-dash" element={<AgentDash />} />
           <Route path="/notifications" element={<Notifications />} />

@@ -7,7 +7,7 @@ import "swiper/css/bundle";
 import ListingItem from "../components/ListingItem";
 import ListingCollage from "../components/ListingCollage";
 import Loader from '../components/Loader';
-import { FaBook, FaBed, FaBath, FaParking, FaChair, FaBolt, FaWater, FaTint, FaHome, FaKey, FaFileContract } from 'react-icons/fa';
+import { FaBookReader, FaBed, FaBath, FaParking, FaChair, FaBolt, FaWater, FaTint, FaHome, FaKey, FaFileContract } from 'react-icons/fa';
 import { MdLocationOn } from 'react-icons/md';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
@@ -992,11 +992,11 @@ export default function Home() {
       )}
 
       <Link
-        to="/about"
+        to="/tutorials"
         className="fixed bottom-4 left-4 bg-[#c9f2ac] text-black p-3 rounded-full hover:bg-white transition-colors shadow-lg z-50"
-        title="About"
+        title="Tutorials"
       >
-        <FaBook className="text-3xl" />
+        <FaBookReader className="text-4xl text-black" />
       </Link>
     </>
   );

@@ -60,3 +60,23 @@ body {
 .animate-slide-up {
   animation: slide-up 0.3s ease-out forwards;
 }
+
+/* Listing item hover effects */
+.listing-item {
+  will-change: transform, z-index;
+  position: relative;
+}
+
+/* Apply blur to all listing items when any listing item is hovered */
+.grid:hover .listing-item:not(:hover) {
+  filter: blur(2px);
+  transform: scale(0.98);
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+/* Ensure the hovered item stays clear */
+.listing-item:hover {
+  filter: blur(0);
+  opacity: 1;
+}
