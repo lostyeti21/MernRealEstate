@@ -344,7 +344,7 @@ const StyledWrapper = styled.div`
   }
 
   .unread-count {
-    background-color: #9333e9;
+    background-color: #007bff;
     color: white;
     border-radius: 50%;
     padding: 2px 6px;

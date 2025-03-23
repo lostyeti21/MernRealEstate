@@ -691,12 +691,6 @@ export default function Header() {
               <Link to="/NeighborhoodGuides" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Neighborhood Guides
               </Link>
-              <Link to="/guides" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
-                Buying Guides
-              </Link>
-              <Link to="/market-trends" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
-                Market Trends
-              </Link>
               <Link to="/tutorials" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
                 Tutorials
               </Link>
