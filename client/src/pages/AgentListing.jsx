@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { Swiper, SwiperSlide } from "swiper/react";
 import SwiperCore from "swiper";
 import { Navigation } from "swiper/modules";
@@ -51,6 +53,11 @@ const AgentListing = () => {
   const [ratingHover, setRatingHover] = useState(0);
   const [hasUserRated, setHasUserRated] = useState(false);
   const [showMap, setShowMap] = useState(true);
+  const [showReservationModal, setShowReservationModal] = useState(false);
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+  const [selectedDay, setSelectedDay] = useState([]);
+  const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -58,6 +65,100 @@ const AgentListing = () => {
 
   const defaultLat = -1.2921;
   const defaultLng = 36.8219;
+
+  const handleReservationClick = () => {
+    if (!currentUser) {
+      navigate('/sign-in');
+      return;
+    }
+    setShowDisclaimerModal(true);
+  };
+
+  const handleDisclaimerConfirm = () => {
+    setShowDisclaimerModal(false);
+    setShowReservationModal(true);
+  };
+
+  const handleDaySelect = (day) => {
+    const schedule = listing.viewingSchedule[day.toLowerCase()];
+    if (schedule && schedule.available) {
+      const isDaySelected = selectedDay.includes(day.toLowerCase());
+      if (isDaySelected) {
+        setSelectedDay(prev => prev.filter(d => d !== day.toLowerCase()));
+        setSelectedTimeSlots(prev => prev.filter(slot => slot.day !== getFormattedDate(day)));
+      } else {
+        setSelectedDay(prev => [...prev, day.toLowerCase()]);
+        const formattedDate = getFormattedDate(day);
+        setSelectedTimeSlots(prev => [...prev, {
+          day: formattedDate,
+          start: schedule.start,
+          end: schedule.end
+        }]);
+      }
+    } else {
+      toast.error('This day is not available for viewing');
+    }
+  };
+
+  const getFormattedDate = (day) => {
+    const today = new Date();
+    const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      .indexOf(day.toLowerCase());
+    
+    let targetDate = new Date();
+    const currentDayIndex = today.getDay();
+    const daysToAdd = (dayIndex - currentDayIndex + 7) % 7;
+    targetDate.setDate(today.getDate() + daysToAdd);
+    
+    return targetDate.toISOString().split('T')[0];
+  };
+
+  const handleReservationSubmit = async () => {
+    if (selectedTimeSlots.length === 0) {
+      toast.error('Please select at least one viewing time');
+      return;
+    }
+
+    try {
+      const reservationData = {
+        listingId: listing._id,
+        userId: currentUser._id,
+        landlordId: listing.userRef,
+        selectedTimeSlots: selectedTimeSlots,
+        propertyName: listing.name,
+        viewerName: currentUser.username,
+        viewerEmail: currentUser.email,
+        viewerPhone: currentUser.phone || 'Not provided',
+        flexibleViewingTime: false
+      };
+
+      const response = await fetch('/api/reservation/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser.token}`
+        },
+        body: JSON.stringify(reservationData)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setShowSuccessPopup(true);
+        setShowReservationModal(false);
+        setSelectedTimeSlots([]);
+        setSelectedDay([]);
+        setTimeout(() => {
+          setShowSuccessPopup(false);
+        }, 3000);
+      } else {
+        toast.error(data.message || 'Failed to schedule viewing');
+      }
+    } catch (error) {
+      console.error('Error scheduling viewing:', error);
+      toast.error(error.message || 'Failed to schedule viewing');
+    }
+  };
 
   const checkIfUserHasRated = (agent, userId) => {
     if (!agent || !agent.ratedBy || !userId) return false;
@@ -417,6 +518,25 @@ const AgentListing = () => {
               <FaEnvelope className="text-green-700" />
               <span>{agent.email}</span>
             </div>
+            {currentUser && (
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ 
+                  duration: 0.3, 
+                  delay: 1.4,
+                  scale: {
+                    type: "spring",
+                    damping: 15,
+                    stiffness: 300
+                  }
+                }}
+                onClick={handleReservationClick}
+                className="mt-4 w-full bg-[#C9F2AC] text-black py-3 hover:opacity-90 transition-all duration-200 text-center font-medium"
+              >
+                Schedule a time to physically view the listing
+              </motion.button>
+            )}
           </div>
 
           {/* Viewing Schedule */}
@@ -518,8 +638,170 @@ const AgentListing = () => {
     );
   }
 
+  const renderViewingSchedule = () => {
+    if (!listing.viewingSchedule) return null;
+
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    
+    return (
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex justify-between items-end mb-2">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-700">Select Viewing Days</h2>
+            <p className="text-sm text-gray-500">Choose one or more days that work for you</p>
+          </div>
+          {selectedTimeSlots.length > 0 && (
+            <button
+              onClick={() => {
+                setSelectedTimeSlots([]);
+                setSelectedDay([]);
+              }}
+              className="text-sm text-red-500 hover:text-red-600"
+            >
+              Clear Selection
+            </button>
+          )}
+        </div>
+        
+        {listing.flexibleViewingTime ? (
+          <p className="text-sm text-blue-600 mb-4">
+            Viewing times are flexible and will be arranged based on the agent's availability
+          </p>
+        ) : (
+          <div className="grid gap-4">
+            {days.map((day) => {
+              const schedule = listing.viewingSchedule[day.toLowerCase()];
+              const isAvailable = schedule && schedule.available;
+              const isSelected = selectedDay.includes(day.toLowerCase());
+              
+              const targetDate = new Date();
+              const dayIndex = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+                .indexOf(day.toLowerCase());
+              const currentDayIndex = targetDate.getDay();
+              const daysToAdd = (dayIndex - currentDayIndex + 7) % 7;
+              targetDate.setDate(targetDate.getDate() + daysToAdd);
+              
+              const formattedDate = targetDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
+              });
+              
+              return (
+                <div 
+                  key={day}
+                  onClick={() => isAvailable && handleDaySelect(day)}
+                  className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${isAvailable ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'} ${
+                    isSelected ? 'bg-green-50 border-2 border-green-500' : 'bg-white border border-gray-200'
+                  }`}
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-medium text-gray-900">{formattedDate}</h3>
+                      {isAvailable && (
+                        <p className="text-sm text-gray-500">
+                          {schedule.start} - {schedule.end}
+                        </p>
+                      )}
+                    </div>
+                    {isAvailable && (
+                      <div className="h-5 w-5 rounded-full border-2 border-green-500 flex items-center justify-center">
+                        {isSelected && <div className="h-3 w-3 rounded-full bg-green-500" />}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <main>
+      {/* Disclaimer Modal */}
+      {showSuccessPopup && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 50 }}
+          className="fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center"
+        >
+          <FaCheckCircle className="mr-2" />
+          Viewing schedule submitted successfully!
+        </motion.div>
+      )}
+
+      {showDisclaimerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Important Information</h3>
+            <div className="text-gray-600 space-y-3">
+              <p>Before scheduling a viewing, please note:</p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>Viewing times are subject to agent availability</li>
+                <li>Please arrive on time for your scheduled viewing</li>
+                <li>Cancellations should be made at least 24 hours in advance</li>
+                <li>The agent may contact you to confirm or adjust the viewing time</li>
+              </ul>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowDisclaimerModal(false)}
+                className="px-4 py-2 text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDisclaimerConfirm}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reservation Modal */}
+      {showReservationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">Schedule a Viewing</h3>
+              <button
+                onClick={() => setShowReservationModal(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            
+            {renderViewingSchedule()}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowReservationModal(false)}
+                className="px-4 py-2 text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReservationSubmit}
+                disabled={selectedTimeSlots.length === 0}
+                className={`px-4 py-2 rounded ${selectedTimeSlots.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+              >
+                Confirm Viewing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+
       {listing && !loading && !error && (
         <div>
           <Swiper

@@ -266,8 +266,8 @@ const TenantProfile = () => {
             <h1 className="text-2xl font-bold">{tenant.username}</h1>
             <div className="flex items-center space-x-2 mt-2">
               {renderStars(currentRating?.averageRating)}
-              <span className="text-gray-600 ml-2">
-                ({currentRating?.totalRatings || 0} ratings)
+              <span className="text-sm text-gray-600">
+                ({currentRating?.averageRating || 0} / 5)
               </span>
             </div>
           </div>
@@ -281,9 +281,6 @@ const TenantProfile = () => {
                 <span className="capitalize">{category}</span>
                 <div className="flex items-center">
                   {renderStars(data.averageRating)}
-                  <span className="text-gray-600 ml-2">
-                    ({data.totalRatings || 0})
-                  </span>
                 </div>
               </div>
             </div>

@@ -1274,11 +1274,11 @@ const MeetingPopupWrapper = styled.div`
 `;
 
 const Schedule = () => {
-  const { currentUser } = useSelector((state) => state.user);
+  const { currentUser, isAgent } = useSelector((state) => state.user);
   const [scheduleNotifications, setScheduleNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('accepted');
   const [showRejectionReasonPopup, setShowRejectionReasonPopup] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [showAcceptMorePopup, setShowAcceptMorePopup] = useState(false);
@@ -1286,6 +1286,12 @@ const Schedule = () => {
   const [blurredNotifications, setBlurredNotifications] = useState(new Set());
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasListings, setHasListings] = useState(false);
+  const [showMessagingWidget, setShowMessagingWidget] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  useEffect(() => {
+    setActiveTab('accepted');
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('scheduleActiveTab', activeTab);
@@ -1352,11 +1358,6 @@ const Schedule = () => {
         });
         const data = await res.json();
         setHasListings(data.listings && data.listings.length > 0);
-        
-        // If user has no listings and activeTab is 'pending', switch to 'accepted'
-        if ((!data.listings || data.listings.length === 0) && activeTab === 'pending') {
-          setActiveTab('accepted');
-        }
       } catch (error) {
         console.error('Error checking listings:', error);
       }
@@ -1895,10 +1896,13 @@ const Schedule = () => {
         <div className="schedule-title-container">
           <div className="schedule-backdrop">SCHEDULE</div>
           <h1 className="schedule-title text-3xl font-semibold mt-11 mb-4"> Management</h1>
+          {showMessagingWidget && selectedUser && (
+            <MessagingWidget user={selectedUser} onClose={() => setShowMessagingWidget(false)} />
+          )}
         </div>
         <div className="mb-6">
           <div className="flex space-x-4">
-            {hasListings && (
+            {(isAgent || hasListings) && (
               <button
                 onClick={() => setActiveTab('pending')}
                 className={`px-4 py-2 rounded-lg ${
