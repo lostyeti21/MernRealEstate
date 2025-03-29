@@ -1,6 +1,6 @@
 import express from "express";
 import { signin, signup, google, signout, forgotPassword } from "../controllers/auth.controller.js";
-import { sendConfirmationCode } from "../controllers/email.controller.js"; // Import the controller for sending confirmation codes
+import { sendConfirmationCode, sendNotificationEmail } from "../controllers/email.controller.js"; // Import the controller for sending confirmation codes and notification emails
 import User from "../models/user.model.js"; // Import the User model for email checking
 import { verifyToken } from '../utils/verifyUser.js';
 import bcryptjs from 'bcryptjs';
@@ -24,6 +24,9 @@ router.get("/signout", signout);
 
 // Route to send confirmation codes
 router.post("/send-confirmation-code", sendConfirmationCode);
+
+// Route to send notification emails
+router.post("/send-notification-email", sendNotificationEmail);
 
 // Route to check if an email is already registered
 router.post("/check-email", async (req, res) => {

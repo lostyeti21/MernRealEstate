@@ -7,6 +7,7 @@ import Header from "./components/Header";
 import PrivateRoute from "./components/PrivateRoute";
 import NotificationPopup from './components/NotificationPopup';
 import Loader from './components/Loader';
+import { NotificationProvider } from './context/NotificationContext';
 
 // Eagerly loaded components (critical for initial render)
 import Home from "./pages/Home";
@@ -205,72 +206,74 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <HeaderWrapper unreadCount={unreadCount} onNotificationView={handleNotificationClose} />
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/hero" element={<HeroSection />} /> {/* Full-fledged Hero Page */}
-        <Route path="/landlords" element={<Landlords />} />
-        <Route path="/landlord/:userId" element={<LandlordListings />} />
-        <Route path="/tenants" element={<Tenants />} />
-        <Route path="/tenant/:tenantId" element={<TenantProfile />} />
-        <Route path="/sign-in" element={<SignIn />} />
-        <Route path="/sign-up" element={<SignUp />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/listing/:listingId" element={<Listing />} />
-        <Route path="/agent-listing/:listingId" element={<AgentListing />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/real-estate-signup" element={<RealEstateSignUp />} />
-        <Route path="/admin-sign-in" element={<AdminSignIn />} />
-        <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/real-estate-login" element={<RealEstateLogin />} />
-        <Route path="/real-estate-dashboard" element={<RealEstateDashboard />} />
-        <Route path="/update-company" element={<UpdateCompany />} />
-        <Route path="/real-estate-agent-login" element={<RealEstateAgentLogin />} />
-        <Route path="/agent/:agentId" element={<AgentProfile />} />
-        <Route path="/agent/:agentId/listings" element={<AgentListings />} />
-        <Route path="/add-agent" element={<AddAgent />} />
-        <Route path="/real-estate-companies" element={<RealEstateCompanies />} />
-        <Route path="/agent-create-listing" element={<AgentCreateListing />} />
-        <Route path="/messages" element={<Messages />} />
-        <Route path="/generated-code" element={<GeneratedCode />} />
-        <Route path="/verify-code/:userId/:code" element={<VerifyCode />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route path="/landing" element={<Landing />} />
-        <Route path="/agents" element={<Agents />} />
-        <Route path="/superuser" element={<SuperUser />} />
-        <Route path="/tutorials" element={<Tutorials />} />
-        <Route path="/agent-listings/:agentId" element={<AgentListings />} />
-        <Route path="/NeighborhoodGuides" element={<NeighborhoodGuides />} />
+      <NotificationProvider>
+        <HeaderWrapper unreadCount={unreadCount} onNotificationView={handleNotificationClose} />
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Home />} />
+          <Route path="/hero" element={<HeroSection />} /> {/* Full-fledged Hero Page */}
+          <Route path="/landlords" element={<Landlords />} />
+          <Route path="/landlord/:userId" element={<LandlordListings />} />
+          <Route path="/tenants" element={<Tenants />} />
+          <Route path="/tenant/:tenantId" element={<TenantProfile />} />
+          <Route path="/sign-in" element={<SignIn />} />
+          <Route path="/sign-up" element={<SignUp />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/listing/:listingId" element={<Listing />} />
+          <Route path="/agent-listing/:listingId" element={<AgentListing />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/real-estate-signup" element={<RealEstateSignUp />} />
+          <Route path="/admin-sign-in" element={<AdminSignIn />} />
+          <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/real-estate-login" element={<RealEstateLogin />} />
+          <Route path="/real-estate-dashboard" element={<RealEstateDashboard />} />
+          <Route path="/update-company" element={<UpdateCompany />} />
+          <Route path="/real-estate-agent-login" element={<RealEstateAgentLogin />} />
+          <Route path="/agent/:agentId" element={<AgentProfile />} />
+          <Route path="/agent/:agentId/listings" element={<AgentListings />} />
+          <Route path="/add-agent" element={<AddAgent />} />
+          <Route path="/real-estate-companies" element={<RealEstateCompanies />} />
+          <Route path="/agent-create-listing" element={<AgentCreateListing />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/generated-code" element={<GeneratedCode />} />
+          <Route path="/verify-code/:userId/:code" element={<VerifyCode />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
+          <Route path="/landing" element={<Landing />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/superuser" element={<SuperUser />} />
+          <Route path="/tutorials" element={<Tutorials />} />
+          <Route path="/agent-listings/:agentId" element={<AgentListings />} />
+          <Route path="/NeighborhoodGuides" element={<NeighborhoodGuides />} />
 
-        {/* Protected Routes */}
-        <Route element={<PrivateRoute />}>
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/landlord-profile" element={<LandlordProfile />} />
-          <Route path="/create-listing" element={<CreateListing />} />
-          <Route path="/update-listing/:listingId" element={<UpdateListing />} />
-          <Route path="/agent-dashboard" element={<AgentDashboard />} />
-          <Route path="/agent-dash" element={<AgentDash />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/agent-schedule" element={<AgentSchedule />} />
-        </Route>
-      </Routes>
-      <NotificationPopup unreadCount={unreadCount} onClose={handleNotificationClose} />
-      <Toaster 
-        position="top-center"
-        reverseOrder={false}
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: '#333',
-            color: '#fff',
-          },
-        }}
-      />
+          {/* Protected Routes */}
+          <Route element={<PrivateRoute />}>
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/landlord-profile" element={<LandlordProfile />} />
+            <Route path="/create-listing" element={<CreateListing />} />
+            <Route path="/update-listing/:listingId" element={<UpdateListing />} />
+            <Route path="/agent-dashboard" element={<AgentDashboard />} />
+            <Route path="/agent-dash" element={<AgentDash />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/schedule" element={<Schedule />} />
+            <Route path="/agent-schedule" element={<AgentSchedule />} />
+          </Route>
+        </Routes>
+        <NotificationPopup unreadCount={unreadCount} onClose={handleNotificationClose} />
+        <Toaster 
+          position="top-center"
+          reverseOrder={false}
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#333',
+              color: '#fff',
+            },
+          }}
+        />
+      </NotificationProvider>
     </BrowserRouter>
   );
 };

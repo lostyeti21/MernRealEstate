@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useNotifications } from '../context/NotificationContext';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import logo from '../assets/tiny logo.png';
@@ -14,7 +15,7 @@ import DisputeDoneAlreadyPopup from '../components/DisputeDoneAlreadyPopup';
 
 export default function Notifications({ superUserProps, onDisputeSubmit }) {
   const { currentUser } = useSelector((state) => state.user);
-  const [notifications, setNotifications] = useState([]);
+  const { notifications, loading: notificationsLoading } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingIds, setDeletingIds] = useState(new Set());
@@ -100,140 +101,18 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
     }
   };
 
-  const fetchNotifications = async () => {
-    try {
-      console.log('🔄 [Notifications] Starting notification fetch for user:', currentUser._id);
-      
-      // Fetch system notifications
-      const systemNotificationsResponse = await fetch('http://localhost:3000/api/notifications', {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${currentUser.token}`
-        }
-      });
-
-      console.log('📥 [Notifications] System notifications response:', {
-        status: systemNotificationsResponse.status,
-        ok: systemNotificationsResponse.ok
-      });
-
-      let systemNotifications = [];
-      if (systemNotificationsResponse.ok) {
-        const systemNotificationsData = await systemNotificationsResponse.json();
-        console.log('✅ [Notifications] System notifications data:', {
-          data: systemNotificationsData,
-          unseenCount: systemNotificationsData.unseen?.length || 0,
-          seenCount: systemNotificationsData.seen?.length || 0
-        });
-
-        // Handle different possible response formats
-        if (systemNotificationsData.unseen && systemNotificationsData.seen) {
-          systemNotifications = [...(systemNotificationsData.unseen || []), ...(systemNotificationsData.seen || [])];
-        } else if (Array.isArray(systemNotificationsData)) {
-          systemNotifications = systemNotificationsData;
-        } else if (systemNotificationsData.notifications) {
-          systemNotifications = systemNotificationsData.notifications;
-        } else {
-          console.warn('⚠️ [Notifications] Unexpected system notifications format:', systemNotificationsData);
-        }
-
-        console.log('📊 [Notifications] System notifications processed:', {
-          total: systemNotifications.length,
-          types: [...new Set(systemNotifications.map(n => n.type))],
-          sample: systemNotifications[0]
-        });
-      } else {
-        const errorText = await systemNotificationsResponse.text();
-        console.error('❌ [Notifications] Failed to fetch system notifications:', {
-          status: systemNotificationsResponse.status,
-          error: errorText
-        });
-      }
-
-      // Fetch rating notifications
-      const ratingNotificationsResponse = await fetch('http://localhost:3000/api/rating-notifications/user', {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${currentUser.token}`
-        }
-      });
-
-      console.log('📥 [Notifications] Rating notifications response:', {
-        status: ratingNotificationsResponse.status,
-        ok: ratingNotificationsResponse.ok
-      });
-
-      let ratingNotifications = [];
-      if (ratingNotificationsResponse.ok) {
-        ratingNotifications = await ratingNotificationsResponse.json();
-        console.log('✅ [Notifications] Rating notifications fetched:', {
-          total: ratingNotifications.length,
-          types: [...new Set(ratingNotifications.map(n => n.type))],
-          sample: ratingNotifications[0]
-        });
-      } else {
-        const errorText = await ratingNotificationsResponse.text();
-        console.error('❌ [Notifications] Failed to fetch rating notifications:', {
-          status: ratingNotificationsResponse.status,
-          error: errorText
-        });
-      }
-
-      // Combine and sort notifications
-      const combinedNotifications = [
-        ...(Array.isArray(systemNotifications) ? systemNotifications : []).map(n => ({ 
-          ...n, 
-          type: n.type || 'system',
-          _id: n._id || n.id // Ensure we have _id
-        })),
-        ...(Array.isArray(ratingNotifications) ? ratingNotifications : []).map(n => ({ 
-          ...n, 
-          type: 'rating', 
-          _id: n._id || n.id, // Ensure we have _id
-          createdAt: n.createdAt,
-          data: {
-            ratingDetails: n.ratingDetails,
-            ratedBy: n.ratedBy
-          }
-        }))
-      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-      console.log('🔄 [Notifications] Final notifications state:', {
-        total: combinedNotifications.length,
-        types: [...new Set(combinedNotifications.map(n => n.type))],
-        disputeConfirmations: combinedNotifications.filter(n => n.type === 'dispute_confirmation').length,
-        sample: combinedNotifications[0]
-      });
-
-      setNotifications(combinedNotifications);
-      setLoading(false);
-    } catch (error) {
-      console.error('❌ [Notifications] Error fetching notifications:', {
-        error: error.message,
-        stack: error.stack
-      });
-      setError(error.message || 'Failed to fetch notifications');
-      setLoading(false);
-      toast.error('Unable to load notifications. Please try again later.');
-    }
+  const isNotificationRecent = (createdAt) => {
+    const notificationTime = new Date(createdAt).getTime();
+    const currentTime = new Date().getTime();
+    const oneMinute = 60 * 1000; // 1 minute in milliseconds
+    return currentTime - notificationTime <= oneMinute;
   };
 
   useEffect(() => {
-    if (currentUser?.token) {
-      fetchNotifications();
+    if (notifications) {
+      setLoading(false);
     }
-  }, [currentUser]);
-
-  // Refresh notifications periodically
-  useEffect(() => {
-    if (!currentUser?.token) return;
-
-    const intervalId = setInterval(fetchNotifications, 300000); // Refresh every 30 seconds
-
-    return () => clearInterval(intervalId);
-  }, [currentUser]);
+  }, [notifications]);
 
   const handleDelete = async (notification) => {
     try {
