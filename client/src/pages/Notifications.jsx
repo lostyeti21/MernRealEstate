@@ -713,12 +713,13 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
       if (notification.type === 'system' && 
          (notification.data?.type === 'viewing_rejection' || notification.data?.type === 'viewing_accepted')) {
         const isRejection = notification.data.type === 'viewing_rejection';
+        const agentInfo = notification.data?.from || notification.from;
         return (
           <>
             <div className="flex items-start space-x-4">
               <img
-                src={notification.from?.avatar || notification.systemInfo?.avatar || '/default-avatar.png'}
-                alt={notification.from?.username || notification.systemInfo?.name || 'Landlord'}
+                src={agentInfo?.avatar || '/default-avatar.png'}
+                alt={agentInfo?.name || 'Agent'}
                 className="w-10 h-10 rounded-full object-cover"
               />
               <div className="flex-1 min-w-0">
@@ -734,7 +735,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                   {notification.data?.listing?.name || 'Unnamed Listing'}
                 </p>
                 <p className="text-sm text-gray-500 truncate">
-                  From: {notification.from?.username || notification.systemInfo?.name || 'Anonymous'}
+                  From: {agentInfo?.name || 'Anonymous'}
                 </p>
               </div>
             </div>
@@ -874,12 +875,14 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
               <img src={logo} alt="JustListIt Support" className="w-10 h-10 rounded-full" />
               <div className="flex-1">
                 <div className="flex items-baseline justify-between">
-                  <div className="flex items-center gap-2">
-                    <p className="text-gray-900 font-medium">JustListIt Support</p>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      JustListIt Support
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formatDate(notification.createdAt)}
+                    </p>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {formatDate(notification.createdAt)}
-                  </span>
                 </div>
                 <p className="text-gray-600 mt-1 whitespace-pre-wrap">
                   {notification.content || notification.message}
@@ -1217,7 +1220,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
             </button>
           </div>
 
-          <div className="mb-6 bg-gray-50 p-3 rounded-lg">
+          <div className="mb-6 bg-gray-50 p-3 rounded-lg space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-gray-600">Status:</span>
               <span className={`px-2 py-1 rounded text-sm font-medium ${

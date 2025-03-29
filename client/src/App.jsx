@@ -52,6 +52,7 @@ const Agents = lazyLoadComponent(() => import('./pages/Agents'), <Loader />);
 const SuperUser = lazyLoadComponent(() => import('./pages/SuperUser'), <Loader />);
 const Notifications = lazyLoadComponent(() => import('./pages/Notifications'), <Loader />);
 const Schedule = lazyLoadComponent(() => import('./pages/Schedule'), <Loader />);
+const AgentSchedule = lazyLoadComponent(() => import('./pages/AgentSchedule'), <Loader />);
 const Tutorials = lazyLoadComponent(() => import("./pages/Tutorials"), <Loader />);
 const NeighborhoodGuides = lazyLoadComponent(() => import("./pages/NeighborhoodGuides"), <Loader />);
 
@@ -255,6 +256,7 @@ const App = () => {
           <Route path="/agent-dash" element={<AgentDash />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/schedule" element={<Schedule />} />
+          <Route path="/agent-schedule" element={<AgentSchedule />} />
         </Route>
       </Routes>
       <NotificationPopup unreadCount={unreadCount} onClose={handleNotificationClose} />
