@@ -1584,7 +1584,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                   Unread
                 </motion.h2>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-500">Scroll to Read Notifications</span>
+                  <span className="text-sm text-slate-500">Scroll to read</span>
                   <motion.button 
                     initial={{ opacity: 0, x: 100 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -1662,7 +1662,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
                   Read
                 </motion.h2>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-500">Scroll to Unread Notifications</span>
+                  <span className="text-sm text-slate-500">Back to top</span>
                   <motion.button 
                     initial={{ opacity: 0, x: 100 }}
                     animate={{ opacity: 1, x: 0 }}

@@ -2,8 +2,10 @@ import jwt from 'jsonwebtoken';
 
 export const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
+  console.log('Token extracted:', token);
   
   if (!token) {
+    console.error('No token provided');
     return res.status(401).json({
       success: false,
       message: 'Access denied. No token provided.'

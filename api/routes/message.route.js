@@ -3,110 +3,150 @@ import { verifyToken } from '../middleware/auth.js';
 import Message from '../models/message.model.js';
 import Conversation from '../models/conversation.model.js';
 import mongoose from 'mongoose';
+import User from '../models/user.model.js';
+import Agent from '../models/agent.model.js';
+import RealEstateCompany from '../models/realEstateCompany.model.js';
 
 const router = express.Router();
 
 // Get all conversations for a user
 router.get('/conversations', verifyToken, async (req, res) => {
   try {
+    console.log('Incoming request to /conversations route');
+    
+    // Check if user exists in the request
+    if (!req.user) {
+      console.error('No user found in request');
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+    
     const userId = req.user.id;
     console.log('Fetching conversations for user:', userId);
     
     if (!userId) {
+      console.error('No user ID found');
       return res.status(401).json({
         success: false,
         message: 'User not authenticated'
       });
     }
 
-    // Convert userId to ObjectId
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-    
-    // Find conversations where the user is a participant
-    const conversations = await Conversation.find({
-      'participants.userId': userObjectId
-    })
-    .sort({ updatedAt: -1 })
-    .populate({
-      path: 'participants.userId',
-      select: 'username name email avatar',
-      refPath: 'participants.userModel'
-    })
-    .populate({
-      path: 'listingId',
-      select: 'name title address regularPrice discountPrice type offer',
-      model: 'Listing'
-    })
-    .lean();
+    try {
+      // Convert userId to ObjectId
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+      console.log('User ObjectId created:', userObjectId);
+      
+      // Find conversations where the user is a participant
+      const conversations = await Conversation.find({
+        'participants.userId': userObjectId
+      })
+      .sort({ updatedAt: -1 })
+      .populate({
+        path: 'participants.userId',
+        select: 'username name email avatar',
+        refPath: 'participants.userModel'
+      })
+      .populate({
+        path: 'listingId',
+        select: 'name title address regularPrice discountPrice type offer',
+        model: 'Listing'
+      })
+      .lean();
 
-    if (!conversations || conversations.length === 0) {
-      return res.status(200).json({
+      console.log('Conversations found:', conversations ? conversations.length : 0);
+
+      // Return empty array if no conversations found
+      if (!conversations || conversations.length === 0) {
+        console.log('No conversations found for user:', userId);
+        return res.status(200).json({
+          success: true,
+          conversations: []
+        });
+      }
+
+      // Get last message for each conversation
+      const conversationsWithLastMessage = await Promise.all(
+        conversations.map(async (conv) => {
+          try {
+            // Check if conversation ID exists
+            if (!conv._id) {
+              console.error('Conversation missing _id:', conv);
+              return {
+                ...conv,
+                lastMessage: '',
+                lastMessageTime: conv.createdAt || new Date(),
+                unreadCount: 0
+              };
+            }
+            
+            const lastMessage = await Message.findOne({ 
+              conversationId: conv._id 
+            })
+            .sort({ createdAt: -1 })
+            .select('content createdAt sender receiver read senderModel receiverModel')
+            .populate({
+              path: 'sender',
+              select: 'username name avatar',
+              refPath: 'senderModel'
+            })
+            .populate({
+              path: 'receiver',
+              select: 'username name avatar',
+              refPath: 'receiverModel'
+            })
+            .lean();
+            
+            // Get unread count for this conversation
+            const unreadCount = await Message.countDocuments({
+              conversationId: conv._id,
+              receiver: userObjectId,
+              read: false
+            });
+            
+            return {
+              ...conv,
+              lastMessage: lastMessage?.content || '',
+              lastMessageTime: lastMessage?.createdAt || conv.createdAt || new Date(),
+              lastMessageSender: lastMessage?.sender || null,
+              lastMessageReceiver: lastMessage?.receiver || null,
+              unreadCount
+            };
+          } catch (err) {
+            console.error('Error processing conversation:', err);
+            return {
+              ...conv,
+              lastMessage: '',
+              lastMessageTime: conv.createdAt || new Date(),
+              unreadCount: 0
+            };
+          }
+        })
+      );
+
+      // Sort by last message time
+      const sortedConversations = conversationsWithLastMessage.sort((a, b) => {
+        const timeA = a.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
+        const timeB = b.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
+        return timeB - timeA;
+      });
+
+      console.log('Found conversations:', sortedConversations.length);
+      
+      res.status(200).json({
         success: true,
-        conversations: []
+        conversations: sortedConversations
+      });
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: 'Database error',
+        error: dbError.message
       });
     }
-
-    // Get last message for each conversation
-    const conversationsWithLastMessage = await Promise.all(
-      conversations.map(async (conv) => {
-        try {
-          const lastMessage = await Message.findOne({ 
-            conversationId: conv._id 
-          })
-          .sort({ createdAt: -1 })
-          .select('content createdAt sender receiver read senderModel receiverModel')
-          .populate({
-            path: 'sender',
-            select: 'username name avatar',
-            refPath: 'senderModel'
-          })
-          .populate({
-            path: 'receiver',
-            select: 'username name avatar',
-            refPath: 'receiverModel'
-          })
-          .lean();
-          
-          // Get unread count for this conversation
-          const unreadCount = await Message.countDocuments({
-            conversationId: conv._id,
-            receiver: userObjectId,
-            read: false
-          });
-          
-          return {
-            ...conv,
-            lastMessage: lastMessage?.content || '',
-            lastMessageTime: lastMessage?.createdAt || conv.createdAt || new Date(),
-            lastMessageSender: lastMessage?.sender || null,
-            lastMessageReceiver: lastMessage?.receiver || null,
-            unreadCount
-          };
-        } catch (err) {
-          console.error('Error processing conversation:', err);
-          return {
-            ...conv,
-            lastMessage: '',
-            lastMessageTime: conv.createdAt || new Date(),
-            unreadCount: 0
-          };
-        }
-      })
-    );
-
-    // Sort by last message time
-    const sortedConversations = conversationsWithLastMessage.sort((a, b) => {
-      const timeA = a.lastMessageTime ? new Date(a.lastMessageTime) : new Date(0);
-      const timeB = b.lastMessageTime ? new Date(b.lastMessageTime) : new Date(0);
-      return timeB - timeA;
-    });
-
-    console.log('Found conversations:', sortedConversations.length);
-    
-    res.status(200).json({
-      success: true,
-      conversations: sortedConversations
-    });
   } catch (error) {
     console.error('Error fetching conversations:', error);
     res.status(500).json({

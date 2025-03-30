@@ -214,50 +214,46 @@ export default function Messages() {
     };
   }, [currentConversation, currentUser]);
 
-  const fetchParticipantDetails = async (userId, userModel) => {
-    try {
-      let endpoint;
-      if (userModel === 'Agent') {
-        endpoint = `/api/agent/${userId}`;
-      } else if (userModel === 'RealEstateCompany') {
-        endpoint = `/api/company/${userId}`;
-      } else {
-        endpoint = `/api/user/${userId}`;
-      }
-
-      const userRes = await fetch(endpoint, {
-        credentials: 'include'
-      });
-
-      if (!userRes.ok) {
-        throw new Error(`Failed to fetch user data: ${userRes.status}`);
-      }
-
-      const userData = await userRes.json();
-      console.log('Fetched user data:', userData);
-      return userData;
-    } catch (error) {
-      console.error('Error fetching participant details:', error);
-      return null;
-    }
-  };
-
   useEffect(() => {
     const fetchConversations = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        const res = await fetch('/api/messages/conversations', {
-          credentials: 'include'
+        // Check if user is logged in
+        if (!currentUser || !currentUser._id) {
+          setError('You must be logged in to view messages');
+          setLoading(false);
+          return;
+        }
+        
+        // Get the token from localStorage
+        const token = localStorage.getItem('access_token');
+        
+        if (!token) {
+          setError('Authentication token missing. Please log in again.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Fetching conversations for user:', currentUser._id);
+        
+        const res = await fetch('http://localhost:3000/api/messages/conversations', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
         });
 
         if (!res.ok) {
           const errorData = await res.json();
+          console.error('Conversation fetch error:', errorData);
           throw new Error(errorData.message || 'Failed to fetch conversations');
         }
 
         const data = await res.json();
+        console.log('Conversations data received:', data);
         
         if (data.success) {
           const sortedConversations = data.conversations.sort((a, b) => {
@@ -268,15 +264,7 @@ export default function Messages() {
           
           setConversations(sortedConversations);
           
-          // Check for conversation ID in URL
-          const conversationId = searchParams.get('conversation');
-          if (conversationId) {
-            const targetConversation = sortedConversations.find(conv => conv._id === conversationId);
-            if (targetConversation) {
-              setCurrentConversation(targetConversation);
-            }
-          }
-          
+          // Process participants data
           const participantsData = {};
           sortedConversations.forEach(conv => {
             const otherParticipant = conv.participants?.find(
@@ -293,13 +281,21 @@ export default function Messages() {
           });
           
           setParticipants(participantsData);
-          setError(null);
+          
+          // Check for conversation ID in URL
+          const conversationId = searchParams.get('conversation');
+          if (conversationId && sortedConversations.length > 0) {
+            const conversation = sortedConversations.find(c => c._id === conversationId);
+            if (conversation) {
+              setCurrentConversation(conversation);
+            }
+          }
         } else {
-          throw new Error(data.message || 'Error fetching conversations');
+          throw new Error(data.message || 'Failed to fetch conversations');
         }
       } catch (error) {
         console.error('Error fetching conversations:', error);
-        setError(error.message || 'Failed to load conversations');
+        setError(`Error fetching conversations: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -325,7 +321,7 @@ export default function Messages() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           },
           body: JSON.stringify({
             conversationId: currentConversation._id
@@ -370,7 +366,7 @@ export default function Messages() {
 
         const res = await fetch(`/api/messages/${currentConversation._id}`, {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           }
         });
 
@@ -446,6 +442,34 @@ export default function Messages() {
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       setError('Failed to send message');
+    }
+  };
+
+  const fetchParticipantDetails = async (userId, userModel) => {
+    try {
+      let endpoint;
+      if (userModel === 'Agent') {
+        endpoint = `/api/agent/${userId}`;
+      } else if (userModel === 'RealEstateCompany') {
+        endpoint = `/api/company/${userId}`;
+      } else {
+        endpoint = `/api/user/${userId}`;
+      }
+
+      const userRes = await fetch(endpoint, {
+        credentials: 'include'
+      });
+
+      if (!userRes.ok) {
+        throw new Error(`Failed to fetch user data: ${userRes.status}`);
+      }
+
+      const userData = await userRes.json();
+      console.log('Fetched user data:', userData);
+      return userData;
+    } catch (error) {
+      console.error('Error fetching participant details:', error);
+      return null;
     }
   };
 
@@ -544,7 +568,10 @@ export default function Messages() {
     try {
       const res = await fetch(`/api/messages/conversation/${conversationToDelete._id}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
       });
 
       const data = await res.json();
@@ -572,7 +599,10 @@ export default function Messages() {
     try {
       // Get the verification code first
       const codeRes = await fetch('/api/code/generate', {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
       });
 
       const codeData = await codeRes.json();
@@ -647,6 +677,9 @@ export default function Messages() {
         const uploadRes = await fetch('/api/upload/image', {
           method: 'POST',
           credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          },
           body: formData
         });
         
