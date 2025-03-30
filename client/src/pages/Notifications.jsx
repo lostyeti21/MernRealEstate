@@ -15,7 +15,7 @@ import DisputeDoneAlreadyPopup from '../components/DisputeDoneAlreadyPopup';
 
 export default function Notifications({ superUserProps, onDisputeSubmit }) {
   const { currentUser } = useSelector((state) => state.user);
-  const { notifications, loading: notificationsLoading } = useNotifications();
+  const { notifications, loading: notificationsLoading, fetchNotifications } = useNotifications();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingIds, setDeletingIds] = useState(new Set());
@@ -123,15 +123,13 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
 
       const notificationId = notification.id || notification._id;
       
-      // Optimistically remove the notification from the state
-      setNotifications(prev => prev.filter(n => (n.id !== notificationId && n._id !== notificationId)));
-
+      // Add to deleting set for loading state
       setDeletingIds(prev => new Set([...prev, notificationId]));
 
       // Use the new deletion endpoint that supports multiple deletion methods
       const deleteEndpoint = `/api/notifications/${notificationId}`;
 
-      const res = await fetch(deleteEndpoint, {
+      const res = await fetch(`http://localhost:3000${deleteEndpoint}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${currentUser?.token}`,
@@ -142,14 +140,16 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
 
       if (!res.ok) {
         const data = await res.json();
-        // If delete fails, revert the optimistic update
-        setNotifications(prev => [...prev, notification]);
         throw new Error(data.message || 'Failed to delete notification');
       }
 
+      // Refresh notifications through context
+      await fetchNotifications();
+      toast.success('Notification deleted successfully');
+
     } catch (error) {
       console.error('Error deleting notification:', error);
-      alert('Failed to delete notification: ' + error.message);
+      toast.error('Failed to delete notification: ' + error.message);
     } finally {
       setDeletingIds(prev => {
         const newSet = new Set(prev);
@@ -167,7 +167,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
 
     try {
       console.log('Marking notification as read:', notificationId);
-      const res = await fetch(`http://localhost:3000/api/notifications/read/${notificationId}`, {
+      const res = await fetch(`http://localhost:3000/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${currentUser.token}`,
@@ -181,14 +181,10 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
         throw new Error(`Failed to mark notification as read: ${errorText}`);
       }
 
-      // Update local state
-      setNotifications(prev => prev.map(notification => {
-        if (notification._id === notificationId) {
-          return { ...notification, read: true };
-        }
-        return notification;
-      }));
+      // Update local state through context
+      await fetchNotifications();
 
+      toast.success('Notification marked as read');
     } catch (error) {
       console.error('Error marking notification as read:', error);
       toast.error('Failed to mark notification as read');
@@ -368,121 +364,6 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
   const handleCloseConfirmationPopup = () => {
     setShowConfirmation(false);
     setDisputeDetails(null);
-  };
-
-  const handleNotificationClick = (notification) => {
-    console.log('Notification clicked:', notification);
-    
-    // Check if notification is valid
-    if (!notification) {
-      console.error('Invalid notification clicked');
-      return;
-    }
-    
-    // Mark as read if not already read
-    if (!notification.read) {
-      try {
-        handleMarkAsRead(notification._id || notification.id);
-      } catch (error) {
-        console.error('Error marking notification as read:', error);
-      }
-    }
-    
-    // Handle different notification types
-    if (notification.type === 'new_rating' || notification.type === 'rating') {
-      console.log('Rating notification clicked, showing rating details');
-      
-      // Extract rating data based on notification structure
-      const ratingData = notification.data?.ratingDetails || notification.data?.rating || notification.data;
-      console.log('Rating data:', ratingData);
-
-      // Get the rating type (tenant or landlord)
-      const ratingType = ratingData.type || 'tenant';
-      
-      // Define categories based on rating type
-      const categoryMap = {
-        tenant: ['communication', 'cleanliness', 'reliability', 'overall'],
-        landlord: ['responseTime', 'maintenance', 'experience', 'overall']
-      };
-
-      // Get the appropriate categories
-      const categories = categoryMap[ratingType] || categoryMap.tenant;
-
-      // Format the categories with their values
-      const formattedCategories = categories.map(category => ({
-        category: category.charAt(0).toUpperCase() + category.slice(1),
-        rating: ratingData[category] || 
-                ratingData.rating?.[category] || 
-                (Array.isArray(ratingData.ratings) && 
-                 ratingData.ratings.find(r => r.category === category)?.value) || 0
-      }));
-
-      console.log('Formatted categories:', formattedCategories);
-
-      setSelectedNotification({
-        ...notification,
-        data: {
-          ratingId: ratingData.ratingId || ratingData._id || notification._id,
-          categories: formattedCategories.filter(cat => cat.category !== 'Overall'),
-          comment: ratingData.comment || '',
-          ratedBy: notification.from || ratingData.ratedBy,
-          type: ratingType
-        }
-      });
-      setShowNewRatingPopup(true);
-    } else if (notification.type === 'dispute_received') {
-      console.log('Dispute received notification clicked:', notification);
-      
-      // Set the dispute submitted details to show in the popup
-      setDisputeSubmittedDetails({
-        id: notification.data?.disputeId || notification._id,
-        categories: notification.data?.categories 
-          ? notification.data.categories.map(cat => 
-              `${cat.category || 'Unknown Category'} (${cat.rating || 'N/A'})`
-          ).join(', ') 
-          : 'No categories specified',
-        reason: notification.data?.reason || 'No reason provided',
-        reasonType: notification.data?.reasonType || 'Not specified',
-        raterName: notification.data?.raterName || 'Unknown Rater',
-        date: new Date(notification.createdAt).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      });
-      
-      // Show the dispute submitted popup
-      setShowDisputeSubmittedPopup(true);
-    } else if (
-      notification.type === 'viewing_request' || 
-      (notification.type === 'system' && 
-        (notification.data?.type === 'viewing_rejection' || 
-         notification.data?.type === 'viewing_accepted'))
-    ) {
-      console.log('Opening viewing request/response popup:', notification);
-      console.log('Notification full data:', JSON.stringify(notification, null, 2));
-      
-      setViewingRequestPopup({
-        show: true,
-        notification: {
-          ...notification,
-          data: {
-            ...notification.data,
-            status: notification.data?.type === 'viewing_rejection' ? 'rejected' :
-                    notification.data?.type === 'viewing_accepted' ? 'accepted' :
-                    notification.data?.status || 
-                    (notification.title === 'Viewing Request Rejected' ? 'rejected' : 
-                     notification.title === 'Viewing Request Accepted' ? 'accepted' : 'pending'),
-            listingTitle: notification.data?.listing?.name || 
-                          notification.data?.listingTitle || 
-                          notification.listingTitle || 
-                          'Unknown Listing'
-          }
-        }
-      });
-    }
   };
 
   const getNotificationIcon = (notification) => {
@@ -1010,18 +891,16 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
     };
 
     return (
-      <>
-        <div
-          key={notification._id}
-          className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-          onClick={(e) => {
-            e.preventDefault();
-            handleNotificationClick(notification);
-          }}
-        >
-          {getNotificationContent()}
-        </div>
-      </>
+      <div 
+        key={notification._id}
+        className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+        onClick={(e) => {
+          e.preventDefault();
+          handleNotificationClick(notification);
+        }}
+      >
+        {getNotificationContent()}
+      </div>
     );
   };
 
@@ -1366,7 +1245,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
 
             <div className="flex justify-end mt-4">
               <button
-                onClick={onClose}
+                onClick={() => setViewingRequestPopup({ show: false, notification: null })}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-200"
               >
                 Close
@@ -1491,6 +1370,112 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
     );
   };
 
+  const handleNotificationClick = (notification) => {
+    console.log('Notification clicked:', notification);
+    
+    // Check if notification is valid
+    if (!notification) {
+      console.error('Invalid notification clicked');
+      return;
+    }
+    
+    // Handle different notification types
+    if (notification.type === 'new_rating' || notification.type === 'rating') {
+      console.log('Rating notification clicked, showing rating details');
+      
+      // Extract rating data based on notification structure
+      const ratingData = notification.data?.ratingDetails || notification.data?.rating || notification.data;
+      console.log('Rating data:', ratingData);
+
+      // Get the rating type (tenant or landlord)
+      const ratingType = ratingData.type || 'tenant';
+      
+      // Define categories based on rating type
+      const categoryMap = {
+        tenant: ['communication', 'cleanliness', 'reliability', 'overall'],
+        landlord: ['responseTime', 'maintenance', 'experience', 'overall']
+      };
+
+      // Get the appropriate categories
+      const categories = categoryMap[ratingType] || categoryMap.tenant;
+
+      // Format the categories with their values
+      const formattedCategories = categories.map(category => ({
+        category: category.charAt(0).toUpperCase() + category.slice(1),
+        rating: ratingData[category] || 
+                ratingData.rating?.[category] || 
+                (Array.isArray(ratingData.ratings) && 
+                 ratingData.ratings.find(r => r.category === category)?.value) || 0
+      }));
+
+      console.log('Formatted categories:', formattedCategories);
+
+      setSelectedNotification({
+        ...notification,
+        data: {
+          ratingId: ratingData.ratingId || ratingData._id || notification._id,
+          categories: formattedCategories.filter(cat => cat.category !== 'Overall'),
+          comment: ratingData.comment || '',
+          ratedBy: notification.from || ratingData.ratedBy,
+          type: ratingType
+        }
+      });
+      setShowNewRatingPopup(true);
+    } else if (notification.type === 'dispute_received') {
+      console.log('Dispute received notification clicked:', notification);
+      
+      // Set the dispute submitted details to show in the popup
+      setDisputeSubmittedDetails({
+        id: notification.data?.disputeId || notification._id,
+        categories: notification.data?.categories 
+          ? notification.data.categories.map(cat => 
+              `${cat.category || 'Unknown Category'} (${cat.rating || 'N/A'})`
+          ).join(', ') 
+          : 'No categories specified',
+        reason: notification.data?.reason || 'No reason provided',
+        reasonType: notification.data?.reasonType || 'Not specified',
+        raterName: notification.data?.raterName || 'Unknown Rater',
+        date: new Date(notification.createdAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      });
+      
+      // Show the dispute submitted popup
+      setShowDisputeSubmittedPopup(true);
+    } else if (
+      notification.type === 'viewing_request' || 
+      (notification.type === 'system' && 
+        (notification.data?.type === 'viewing_rejection' || 
+         notification.data?.type === 'viewing_accepted'))
+    ) {
+      console.log('Opening viewing request/response popup:', notification);
+      console.log('Notification full data:', JSON.stringify(notification, null, 2));
+      
+      setViewingRequestPopup({
+        show: true,
+        notification: {
+          ...notification,
+          data: {
+            ...notification.data,
+            status: notification.data?.type === 'viewing_rejection' ? 'rejected' :
+                    notification.data?.type === 'viewing_accepted' ? 'accepted' :
+                    notification.data?.status || 
+                    (notification.title === 'Viewing Request Rejected' ? 'rejected' : 
+                     notification.title === 'Viewing Request Accepted' ? 'accepted' : 'pending'),
+            listingTitle: notification.data?.listing?.name || 
+                          notification.data?.listingTitle || 
+                          notification.listingTitle || 
+                          'Unknown Listing'
+          }
+        }
+      });
+    }
+  };
+
   const style = document.createElement('style');
   style.textContent = `
     @keyframes popup {
@@ -1571,7 +1556,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
       ) : (
         <div>
           <div 
-            className="mb-8 notifications-section"
+            className="mb-8 notifications-section unread-notifications-section"
             style={{ 
               scrollSnapType: 'y mandatory',
               overflowY: 'scroll',
@@ -1589,21 +1574,128 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
               >
                 NOTIFICATIONS
               </motion.h1>
-              <motion.h2 
-                initial={{ opacity: 0, x: 100 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
-                className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'
-              >
-                Notifications
-              </motion.h2>
+              <div className="w-full flex justify-between items-center absolute bottom-0 left-0 z-10">
+                <motion.h2 
+                  initial={{ opacity: 0, x: 100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+                  className='text-2xl font-semibold text-slate-600'
+                >
+                  Unread
+                </motion.h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Scroll to Read Notifications</span>
+                  <motion.button 
+                    initial={{ opacity: 0, x: 100 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.7, delay: 0.4, ease: "easeOut" }}
+                    onClick={() => {
+                      const readSection = document.querySelector('.read-notifications-section');
+                      if (readSection) {
+                        readSection.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                    className="text-slate-500 hover:text-slate-700 transition-colors p-1 rounded-full hover:bg-slate-100 flex items-center"
+                    title="Scroll to read notifications"
+                  >
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      className="h-5 w-5" 
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M19 14l-7 7m0 0l-7-7m7 7V3" 
+                      />
+                    </svg>
+                  </motion.button>
+                </div>
+              </div>
             </div>
-            <h2 className="text-2xl font-bold mb-4 text-gray-800"></h2>
             <div className="space-y-4">
-              {notifications.flat().map((notification, index) => (
+              {notifications.filter(notification => !notification.read).map((notification, index) => (
                 <div 
                   key={notification._id || index} 
                   className="notification-item transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg"
+                  style={{
+                    scrollSnapAlign: 'start',
+                    willChange: 'transform, box-shadow'
+                  }}
+                >
+                  {renderNotification(notification)}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Read Notifications Section */}
+          <div 
+            className="mb-8 notifications-section read-notifications-section"
+            style={{ 
+              scrollSnapType: 'y mandatory',
+              overflowY: 'scroll',
+              position: 'relative',
+              paddingTop: '60px'
+            }}
+          >
+            <div className="relative h-[120px] mb-8 overflow-visible">
+              <motion.h1 
+                initial={{ opacity: 0, x: -100 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
+                className="text-[150px] font-bold text-gray-100 uppercase absolute -top-20 left-0 w-full text-left whitespace-nowrap overflow-visible"
+                style={{ color: '#d2d1e6', opacity: 0.1 }}
+              >
+                NOTIFICATIONS
+              </motion.h1>
+              <div className="w-full flex justify-between items-center absolute bottom-0 left-0 z-10">
+                <motion.h2 
+                  initial={{ opacity: 0, x: 100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+                  className='text-2xl font-semibold text-slate-600'
+                >
+                  Read
+                </motion.h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Scroll to Unread Notifications</span>
+                  <motion.button 
+                    initial={{ opacity: 0, x: 100 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.7, delay: 0.4, ease: "easeOut" }}
+                    onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="text-slate-500 hover:text-slate-700 transition-colors p-1 rounded-full hover:bg-slate-100 flex items-center"
+                    title="Scroll to top"
+                  >
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      className="h-5 w-5" 
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M5 10l7-7m0 0l7 7m-7-7v18" 
+                      />
+                    </svg>
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {notifications.filter(notification => notification.read).map((notification, index) => (
+                <div 
+                  key={notification._id || index} 
+                  className="notification-item transition-all duration-300 ease-in-out transform hover:scale-[1.02] hover:shadow-lg opacity-75"
                   style={{
                     scrollSnapAlign: 'start',
                     willChange: 'transform, box-shadow'
