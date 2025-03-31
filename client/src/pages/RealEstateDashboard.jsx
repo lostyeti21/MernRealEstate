@@ -1072,7 +1072,7 @@ export default function RealEstateDashboard() {
 
       {/* Company Info Section */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <div className="flex items-start gap-6">
+        <div className="flex flex-col items-center mb-6">
           {/* Hidden file input for avatar upload */}
           <input
             type="file"
@@ -1131,13 +1131,12 @@ export default function RealEstateDashboard() {
               </div>
             );
           })()}
-          <div>
-            <h2 className="text-2xl font-semibold">{companyData.companyName}</h2>
-            <p className="text-gray-600">{companyData.email}</p>
-            <div className="flex items-center mt-2">
-              <StarRating rating={companyData.companyRating || 0} />
-              <span className="ml-2">({companyData.companyRating?.toFixed(1) || 'N/A'})</span>
-            </div>
+        </div>
+        <div className="text-center mt-6">
+          <h2 className="text-2xl font-semibold text-gray-800">{companyData.companyName}</h2>
+          <div className="flex flex-col items-center justify-center mt-2">
+            <StarRating rating={companyData.companyRating || 0} />
+            <span className="text-center ml-2">({companyData.companyRating?.toFixed(1) || 'N/A'})</span>
           </div>
         </div>
       </div>
@@ -1230,9 +1229,9 @@ export default function RealEstateDashboard() {
                   />
                   <h3 className="text-lg font-semibold text-center">{agent.name}</h3>
                   <p className="text-gray-600 text-center">{agent.email}</p>
-                  <div className="flex items-center mt-2">
+                  <div className="flex flex-col items-center justify-center mt-2">
                     <StarRating rating={agent.averageRating || 0} />
-                    <span className="ml-2">({agent.averageRating?.toFixed(1) || 'N/A'})</span>
+                    <span className="text-center ml-2">({agent.averageRating?.toFixed(1) || 'N/A'})</span>
                   </div>
                   <button
                     onClick={() => handleDeleteAgent(agent._id, agent.name)}
@@ -1299,7 +1298,7 @@ export default function RealEstateDashboard() {
                         <div>
                           <p className="text-sm font-medium">{listing.agent.name}</p>
                           {listing.agent.averageRating && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-col items-center justify-center">
                               <StarRating rating={listing.agent.averageRating} size="small" />
                               <span className="text-xs text-gray-500">
                                 ({listing.agent.averageRating.toFixed(1)})
@@ -1514,7 +1513,7 @@ export default function RealEstateDashboard() {
                           </td>
                           <td className="px-4 py-3 text-center">{agentListings.length}</td>
                           <td className="px-4 py-3">
-                            <div className="flex justify-center">
+                            <div className="flex flex-col items-center justify-center">
                               {agent.averageRating ? (
                                 <StarRating rating={agent.averageRating} />
                               ) : (
