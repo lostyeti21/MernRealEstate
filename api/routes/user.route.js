@@ -1,5 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
+import User from "../models/user.model.js";
 import {
   getUser,
   getUserListings,
@@ -15,7 +16,6 @@ import {
   superUserDeleteUser
 } from "../controllers/user.controller.js";
 import { verifyToken } from "../utils/verifyUser.js";
-import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import Listing from "../models/listing.model.js";
 
@@ -164,6 +164,23 @@ router.post("/reset-password", async (req, res) => {
   } catch (error) {
     console.error("Error resetting password:", error.message);
     res.status(500).json({ success: false, message: "An unexpected error occurred." });
+  }
+});
+
+// Search users
+router.get('/search', verifyToken, async (req, res) => {
+  try {
+    const searchTerm = req.query.q || '';
+    const users = await User.find({
+      $or: [
+        { username: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } }
+      ]
+    }).select('username email avatar');
+
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 

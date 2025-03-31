@@ -516,3 +516,13 @@ export const verifyUser = (req, res, next) => {
     }
   });
 };
+
+// Generate token for user
+export const generateToken = (user) => {
+  const token = jwt.sign(
+    { id: user._id, name: user.name, username: user.username },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+  return token;
+};

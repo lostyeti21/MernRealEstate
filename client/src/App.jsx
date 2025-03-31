@@ -13,6 +13,8 @@ import { NotificationProvider } from './context/NotificationContext';
 import Home from "./pages/Home";
 import RegisteredCompanies from "./pages/RegisteredCompanies";
 import CompanyDetails from './pages/CompanyDetails';
+import Contract from './pages/Contract';
+import SentContracts from './pages/SentContracts';
 
 // Lazily loaded components (loaded on demand)
 const SignIn = lazyLoadComponent(() => import("./pages/SignIn"), <Loader />);
@@ -251,6 +253,8 @@ const App = () => {
           <Route path="/NeighborhoodGuides" element={<NeighborhoodGuides />} />
           <Route path="/companies" element={<RegisteredCompanies />} />
           <Route path="/company/:id" element={<CompanyDetails />} />
+          <Route path="/contract" element={<Contract />} />
+          <Route path="/sentcontracts" element={<SentContracts />} />
 
           {/* Protected Routes */}
           <Route element={<PrivateRoute />}>

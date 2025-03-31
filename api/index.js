@@ -29,6 +29,7 @@ import notificationRouter from './routes/notification.route.js';
 import disputeRouter from './routes/dispute.route.js';
 import reservationRouter from './routes/reservation.route.js';
 import ratingNotificationRouter from './routes/ratingNotification.route.js';
+import contractRouter from './routes/contract.route.js';
 
 // Load environment variables at the very start
 dotenv.config();
@@ -56,7 +57,7 @@ const httpServer = createServer(app);
 const io = initializeSocket(httpServer);
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Super-User-Auth']
@@ -136,8 +137,12 @@ app.use('/api/notifications', notificationRouter);
 app.use('/api/dispute', disputeRouter);
 app.use('/api/reservation', reservationRouter);
 app.use('/api/rating-notifications', ratingNotificationRouter);
+app.use('/api/contracts', contractRouter);
 
 console.log('📝 [API] Routes registered. Available endpoints:', listEndpoints(app));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
