@@ -6,6 +6,8 @@ export default function RealEstateCompanies() {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [agents, setAgents] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
   useEffect(() => {
     const fetchCompanies = async () => {
@@ -29,6 +31,23 @@ export default function RealEstateCompanies() {
 
     fetchCompanies();
   }, []);
+
+  const handleCompanyClick = async (companyId) => {
+    setSelectedCompanyId(companyId);
+    try {
+      const res = await fetch(`/api/real-estate/companies/${companyId}/agents`);
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch agents');
+      }
+
+      setAgents(data.agents);
+    } catch (err) {
+      console.error('Error fetching agents:', err);
+      setError(err.message);
+    }
+  };
 
   const renderRating = (rating) => {
     return (
@@ -66,7 +85,8 @@ export default function RealEstateCompanies() {
           {companies.map((company) => (
             <div
               key={company._id}
-              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => handleCompanyClick(company._id)}
             >
               <div className="p-4">
                 <div className="flex items-center gap-4 mb-4">
@@ -92,19 +112,35 @@ export default function RealEstateCompanies() {
                     <FaUser className="text-gray-400" />
                     <span>{company.agents?.length || 0} Agents</span>
                   </div>
-                  
-                  <Link
-                    to={`/company/${company._id}`}
-                    className="block text-center bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors mt-4"
-                  >
-                    View Details
-                  </Link>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {selectedCompanyId && agents.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold">Agents for this Company</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {agents.map((agent) => (
+              <div key={agent._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="p-4">
+                  <div className="flex items-center gap-4 mb-4">
+                    <FaUser className="text-gray-400" />
+                    <div>
+                      <h3 className="text-lg font-semibold">{agent.name}</h3>
+                      <div className="flex items-center gap-2">
+                        {renderRating(agent.rating)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
-} 
+}

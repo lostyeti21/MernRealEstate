@@ -11,6 +11,8 @@ import { NotificationProvider } from './context/NotificationContext';
 
 // Eagerly loaded components (critical for initial render)
 import Home from "./pages/Home";
+import RegisteredCompanies from "./pages/RegisteredCompanies";
+import CompanyDetails from './pages/CompanyDetails';
 
 // Lazily loaded components (loaded on demand)
 const SignIn = lazyLoadComponent(() => import("./pages/SignIn"), <Loader />);
@@ -247,6 +249,8 @@ const App = () => {
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/agent-listings/:agentId" element={<AgentListings />} />
           <Route path="/NeighborhoodGuides" element={<NeighborhoodGuides />} />
+          <Route path="/companies" element={<RegisteredCompanies />} />
+          <Route path="/company/:id" element={<CompanyDetails />} />
 
           {/* Protected Routes */}
           <Route element={<PrivateRoute />}>

@@ -24,23 +24,66 @@ router.use((req, res, next) => {
 // Get all real estate companies
 router.get('/companies', async (req, res) => {
   try {
-    console.log('[DEBUG] Fetching all companies...');
-    const companies = await RealEstateCompany.find({}, { companyName: 1, _id: 1 })
-      .lean()
-      .exec();
-      
-    console.log('[DEBUG] Found companies:', companies);
-    
-    return res.status(200).json({
+    console.log('Fetching all companies'); // Debug log
+    const companies = await RealEstateCompany.find({})
+      .select('companyName email avatar banner companyRating reviews agents')
+      .lean();
+
+    console.log('Found companies:', companies); // Debug log
+
+    // Calculate and format company data
+    const formattedCompanies = companies.map(company => {
+      console.log('Processing company:', company.companyName); // Debug log
+      return {
+        _id: company._id,
+        companyName: company.companyName,
+        email: company.email,
+        banner: company.banner, // Keep banner as is
+        avatarUrl: company.avatar,
+        companyRating: company.companyRating || 
+          (company.reviews?.length > 0 
+            ? company.reviews.reduce((acc, review) => acc + review.rating, 0) / company.reviews.length 
+            : 0),
+        totalReviews: company.reviews?.length || 0,
+        agents: company.agents || []
+      };
+    });
+
+    console.log('Formatted companies:', formattedCompanies); // Debug log
+
+    res.status(200).json({
       success: true,
-      companies: companies || []
+      companies: formattedCompanies
     });
   } catch (error) {
-    console.error('[ERROR] Error in /companies route:', error);
-    return res.status(500).json({
+    console.error('Error fetching companies:', error);
+    res.status(500).json({
       success: false,
-      message: 'Error fetching companies',
-      error: error.message
+      message: 'Error fetching companies'
+    });
+  }
+});
+
+// Get all real estate companies
+router.get('/companies-with-ratings', async (req, res) => {
+  try {
+    const companies = await RealEstateCompany.find({}, {
+      companyName: 1,
+      email: 1,
+      avatar: 1,
+      companyRating: 1,
+      ratedBy: 1
+    });
+
+    res.status(200).json({
+      success: true,
+      companies
+    });
+  } catch (error) {
+    console.error('Error fetching companies:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching companies'
     });
   }
 });
@@ -279,10 +322,18 @@ router.get('/company/:id', async (req, res) => {
       });
     }
 
+    // Ensure banner field exists and convert to object
+    const companyData = company.toObject();
+    if (!companyData.banner) {
+      companyData.banner = '';
+    }
+
     console.log('Found company:', {
       id: company._id,
       name: company.companyName,
-      agentsCount: company.agents?.length
+      agentsCount: company.agents?.length,
+      banner: companyData.banner,
+      hasAvatar: !!companyData.avatar
     });
 
     res.status(200).json({
@@ -293,7 +344,7 @@ router.get('/company/:id', async (req, res) => {
         email: company.email,
         agents: company.agents,
         avatar: company.avatar,
-        banner: company.banner,
+        banner: companyData.banner,
         isCloudinaryAvatar: company.isCloudinaryAvatar,
         isCloudinaryBanner: company.isCloudinaryBanner,
         companyRating: company.companyRating,
@@ -306,48 +357,6 @@ router.get('/company/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Error fetching company data'
-    });
-  }
-});
-
-// Get company by ID
-router.get('/company/:companyId', verifyToken, async (req, res) => {
-  try {
-    console.log('Fetching company details for:', req.params.companyId);
-    
-    const company = await RealEstateCompany.findById(req.params.companyId);
-    
-    if (!company) {
-      console.log('Company not found:', req.params.companyId);
-      return res.status(404).json({
-        success: false,
-        message: 'Company not found'
-      });
-    }
-
-    // Ensure banner field exists
-    const companyData = company.toObject();
-    if (!companyData.banner) {
-      companyData.banner = '';
-    }
-
-    console.log('Returning company data:', {
-      id: companyData._id,
-      banner: companyData.banner,
-      hasAvatar: !!companyData.avatar,
-      hasBanner: !!companyData.banner
-    });
-
-    res.status(200).json({
-      success: true,
-      company: companyData
-    });
-
-  } catch (error) {
-    console.error('Error fetching company:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
     });
   }
 });
