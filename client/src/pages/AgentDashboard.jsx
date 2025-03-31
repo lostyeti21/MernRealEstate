@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { FaStar, FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaStar, FaEdit, FaCheck, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { updateUserSuccess } from '../redux/user/userSlice';
+import { toast } from 'react-hot-toast';
 
 export default function AgentDashboard() {
   const { currentUser, isAgent } = useSelector((state) => state.user);
@@ -30,6 +31,23 @@ export default function AgentDashboard() {
   const [nameUpdateError, setNameUpdateError] = useState(null);
   const [agentRating, setAgentRating] = useState(currentUser?.averageRating || 0);
   const [agentRatingError, setAgentRatingError] = useState(null);
+  const [isEditingPassword, setIsEditingPassword] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordUpdateSuccess, setPasswordUpdateSuccess] = useState(false);
+  const [passwordUpdateError, setPasswordUpdateError] = useState(null);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordsMatch, setPasswordsMatch] = useState(true);
+  const [passwordStrength, setPasswordStrength] = useState({
+    length: false,
+    uppercase: false,
+    number: false,
+    special: false
+  });
 
   useEffect(() => {
     if (!isAgent) {
@@ -55,7 +73,7 @@ export default function AgentDashboard() {
           token: currentUser.token ? 'present' : 'missing'
         });
 
-        const res = await fetch(`http://localhost:3000/api/agent/listings/${currentUser._id}`, {
+        const res = await fetch(`/api/agent/listings/${currentUser._id}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
@@ -95,7 +113,7 @@ export default function AgentDashboard() {
     const fetchCompanyRating = async () => {
       try {
         // Fetch agent data first
-        const agentRes = await fetch(`http://localhost:3000/api/agent/${currentUser._id}`, {
+        const agentRes = await fetch(`/api/agent/${currentUser._id}`, {
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json'
@@ -116,7 +134,7 @@ export default function AgentDashboard() {
         }
 
         // Fetch company data
-        const companyRes = await fetch(`http://localhost:3000/api/company/${companyId}`, {
+        const companyRes = await fetch(`/api/company/${companyId}`, {
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json'
@@ -165,7 +183,7 @@ export default function AgentDashboard() {
     const fetchAgentRating = async () => {
       try {
         // Fetch agent data to get the most up-to-date rating
-        const agentRes = await fetch(`http://localhost:3000/api/agent/${currentUser._id}`, {
+        const agentRes = await fetch(`/api/agent/${currentUser._id}`, {
           headers: {
             'Authorization': `Bearer ${currentUser.token}`,
             'Content-Type': 'application/json'
@@ -206,6 +224,32 @@ export default function AgentDashboard() {
       fetchAgentRating();
     }
   }, [currentUser, dispatch, isAgent]);
+
+  useEffect(() => {
+    const checkPasswordsMatch = () => {
+      if (passwordData.newPassword || passwordData.confirmPassword) {
+        setPasswordsMatch(passwordData.newPassword === passwordData.confirmPassword);
+      } else {
+        setPasswordsMatch(true);
+      }
+    };
+
+    checkPasswordsMatch();
+  }, [passwordData.newPassword, passwordData.confirmPassword]);
+
+  useEffect(() => {
+    const checkPasswordStrength = () => {
+      const newPassword = passwordData.newPassword;
+      setPasswordStrength({
+        length: newPassword.length >= 6,
+        uppercase: /[A-Z]/.test(newPassword),
+        number: /[0-9]/.test(newPassword),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
+      });
+    };
+
+    checkPasswordStrength();
+  }, [passwordData.newPassword]);
 
   useEffect(() => {
     if (file) {
@@ -270,7 +314,7 @@ export default function AgentDashboard() {
       formData.append('image', file);
 
       console.log('Uploading image...');
-      const uploadRes = await fetch('http://localhost:3000/api/upload/image', {
+      const uploadRes = await fetch('/api/upload/image', {
         method: 'POST',
         body: formData,
         headers: {
@@ -301,7 +345,7 @@ export default function AgentDashboard() {
 
       // Update agent profile
       console.log('Updating agent profile...');
-      const updateRes = await fetch(`http://localhost:3000/api/agent/update-avatar/${_id}`, {
+      const updateRes = await fetch(`/api/agent/update-avatar/${_id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -375,7 +419,7 @@ export default function AgentDashboard() {
 
   const handleDeleteListing = async (listingId) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/agent/listing/${listingId}`, {
+      const res = await fetch(`/api/agent/listing/${listingId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${currentUser.token}`
@@ -397,7 +441,7 @@ export default function AgentDashboard() {
     try {
       setContactUpdateError(null);
       
-      const res = await fetch('http://localhost:3000/api/agent/update-phone', {
+      const res = await fetch('/api/agent/update-phone', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -442,7 +486,7 @@ export default function AgentDashboard() {
     }
 
     try {
-      const res = await fetch(`http://localhost:3000/api/agent/update-name/${currentUser._id}`, {
+      const res = await fetch(`/api/agent/update-name/${currentUser._id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -490,6 +534,69 @@ export default function AgentDashboard() {
     } else {
       console.error('Not authorized to create listings');
       navigate('/real-estate-agent-login');
+    }
+  };
+
+  const handlePasswordUpdate = async (e) => {
+    e.preventDefault();
+    
+    // Reset states
+    setPasswordUpdateError(null);
+    setPasswordUpdateSuccess(false);
+
+    // Validate passwords
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordUpdateError("New passwords don't match");
+      return;
+    }
+
+    if (!Object.values(passwordStrength).every(Boolean)) {
+      setPasswordUpdateError("Password does not meet the requirements");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/real-estate/agent/update-password/${currentUser._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser.token}`
+        },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update password');
+      }
+
+      setPasswordUpdateSuccess(true);
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setIsEditingPassword(false);
+
+      // Show success notification
+      toast.success('Password updated successfully', {
+        duration: 3000,
+        position: 'top-center',
+      });
+
+    } catch (error) {
+      console.error('Error updating password:', error);
+      setPasswordUpdateError(error.message);
+      
+      // Show error notification
+      toast.error(error.message || 'Failed to update password', {
+        duration: 3000,
+        position: 'top-center',
+      });
     }
   };
 
@@ -700,6 +807,141 @@ export default function AgentDashboard() {
           )}
           {contactUpdateError && (
             <p className="text-red-500 text-sm mt-1">{contactUpdateError}</p>
+          )}
+        </div>
+
+        {/* Password Update Section with Glassmorphism */}
+        <div className="mt-6">
+          <h2 className="text-2xl font-semibold mb-4">Security Settings</h2>
+          {isEditingPassword ? (
+            <div className="bg-white bg-opacity-20 backdrop-blur-lg rounded-xl p-6 shadow-lg border border-white border-opacity-30">
+              <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                <div>
+                  <label className="text-gray-700 font-medium mb-2 block">Current Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={passwordData.currentPassword}
+                      onChange={(e) =>
+                        setPasswordData({ ...passwordData, currentPassword: e.target.value })
+                      }
+                      className="w-full px-4 py-2 rounded-lg bg-white bg-opacity-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-gray-700 font-medium mb-2 block">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={passwordData.newPassword}
+                      onChange={(e) =>
+                        setPasswordData({ ...passwordData, newPassword: e.target.value })
+                      }
+                      className="w-full px-4 py-2 rounded-lg bg-white bg-opacity-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                  {/* Password Strength Indicators */}
+                  <div className="mt-2 space-y-1">
+                    <div className="text-sm flex items-center gap-2">
+                      <span className={`${passwordStrength.length ? 'text-green-500' : 'text-red-500'}`}>
+                        {passwordStrength.length ? <FaCheck /> : <FaTimes />}
+                      </span>
+                      <span className="text-gray-600">At least 6 characters</span>
+                    </div>
+                    <div className="text-sm flex items-center gap-2">
+                      <span className={`${passwordStrength.uppercase ? 'text-green-500' : 'text-red-500'}`}>
+                        {passwordStrength.uppercase ? <FaCheck /> : <FaTimes />}
+                      </span>
+                      <span className="text-gray-600">One uppercase letter</span>
+                    </div>
+                    <div className="text-sm flex items-center gap-2">
+                      <span className={`${passwordStrength.number ? 'text-green-500' : 'text-red-500'}`}>
+                        {passwordStrength.number ? <FaCheck /> : <FaTimes />}
+                      </span>
+                      <span className="text-gray-600">One number</span>
+                    </div>
+                    <div className="text-sm flex items-center gap-2">
+                      <span className={`${passwordStrength.special ? 'text-green-500' : 'text-red-500'}`}>
+                        {passwordStrength.special ? <FaCheck /> : <FaTimes />}
+                      </span>
+                      <span className="text-gray-600">One special character</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-gray-700 font-medium mb-2 block">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={passwordData.confirmPassword}
+                      onChange={(e) =>
+                        setPasswordData({ ...passwordData, confirmPassword: e.target.value })
+                      }
+                      className="w-full px-4 py-2 rounded-lg bg-white bg-opacity-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                </div>
+
+                {passwordUpdateError && (
+                  <div className="text-red-500 text-sm mt-2">{passwordUpdateError}</div>
+                )}
+
+                <div className="flex gap-4">
+                  <button
+                    type="submit"
+                    disabled={!Object.values(passwordStrength).every(Boolean)}
+                    className={`px-6 py-2 rounded-lg text-white font-medium transition duration-200 ${
+                      Object.values(passwordStrength).every(Boolean)
+                        ? 'bg-blue-500 hover:bg-blue-600'
+                        : 'bg-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Update Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingPassword(false)}
+                    className="px-6 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium transition duration-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsEditingPassword(true)}
+              className="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-medium transition duration-200"
+            >
+              Change Password
+            </button>
           )}
         </div>
 

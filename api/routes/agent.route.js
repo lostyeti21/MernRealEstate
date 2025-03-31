@@ -1164,4 +1164,36 @@ router.get('/:agentId', async (req, res) => {
   }
 });
 
+// Update password route
+router.put('/update-password/:id', verifyAgent, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { currentPassword, newPassword } = req.body;
+
+    // Find the user (agent)
+    const user = await User.findOne({ _id: id, isAgent: true });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Agent not found' });
+    }
+
+    // Verify current password
+    const validPassword = bcryptjs.compareSync(currentPassword, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedPassword = bcryptjs.hashSync(newPassword, 10);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Password update error:', error);
+    res.status(500).json({ success: false, message: 'Error updating password' });
+  }
+});
+
 export default router;

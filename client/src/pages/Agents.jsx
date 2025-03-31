@@ -115,10 +115,10 @@ const Agents = () => {
                   totalRatings: agent.ratedBy?.length || 0 
                 },
                 categories: agent.categoryRatings || {
-                  knowledge: { averageRating: 0, totalRatings: 0 },
-                  professionalism: { averageRating: 0, totalRatings: 0 },
-                  responsiveness: { averageRating: 0, totalRatings: 0 },
-                  helpfulness: { averageRating: 0, totalRatings: 0 }
+                  knowledge: { averageRating: 0, totalRatings: agent.knowledgeRatings?.length || 0 },
+                  professionalism: { averageRating: 0, totalRatings: agent.professionalismRatings?.length || 0 },
+                  responsiveness: { averageRating: 0, totalRatings: agent.responsivenessRatings?.length || 0 },
+                  helpfulness: { averageRating: 0, totalRatings: agent.helpfulnessRatings?.length || 0 }
                 }
               }
             };
@@ -379,7 +379,7 @@ const Agents = () => {
             >
               <Link to={`/agent/${agent._id}/listings`}>
                 {/* Company Banner Section */}
-                <div className="relative h-32 w-full bg-gray-100 flex items-center justify-center">
+                <div className="relative h-32 w-full bg-gray-100">
                   {(() => {
                     console.log('Agent company data:', agent.company);
                     console.log('Agent banner:', agent.company?.banner);
@@ -387,22 +387,32 @@ const Agents = () => {
                     
                     if (agent.company?.banner) {
                       return (
-                        <img
-                          src={agent.company.banner}
-                          alt={agent.companyName}
-                          className="w-full h-full object-cover"
-                        />
+                        <div className="w-full h-full">
+                          <img
+                            src={agent.company.banner}
+                            alt={agent.companyName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                       );
                     } else if (agent.company?.avatar) {
                       return (
-                        <img
-                          src={agent.company.avatar}
-                          alt={agent.companyName}
-                          className="h-16 w-16 object-contain"
-                        />
+                        <div className="w-full h-full">
+                          <img
+                            src={agent.company.avatar}
+                            alt={agent.companyName}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                       );
                     } else {
-                      return <span className="text-gray-500">No Company Logo</span>;
+                      return (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-gray-50 to-gray-100">
+                          <div className="text-gray-400 text-xl font-semibold">
+                            {agent.companyName || 'Company'}
+                          </div>
+                        </div>
+                      );
                     }
                   })()}
                 </div>
@@ -475,8 +485,8 @@ const Agents = () => {
                   <div className="space-y-2">
                     {ratingCategories.map((category) => {
                       const categoryData = agent.ratings?.categories?.[category] || {
-                        averageRating: 0,
-                        totalRatings: 0
+                        averageRating: agent[`${category}Rating`] || 0,
+                        totalRatings: agent[`${category}Ratings`]?.length || 0
                       };
 
                       return (
@@ -490,9 +500,17 @@ const Agents = () => {
                                 {renderStars(categoryData.averageRating)}
                               </div>
                               <span className="text-sm text-gray-500">
-                                {categoryData.averageRating.toFixed(1)} ({categoryData.totalRatings})
+                                {categoryData.averageRating.toFixed(1)} ({categoryData.totalRatings || 0})
                               </span>
                             </div>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                            <div 
+                              className="bg-yellow-400 h-1.5 rounded-full transition-all duration-300" 
+                              style={{ 
+                                width: `${(categoryData.averageRating / 5) * 100}%` 
+                              }}
+                            />
                           </div>
                         </div>
                       );

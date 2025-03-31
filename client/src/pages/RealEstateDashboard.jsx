@@ -6,6 +6,8 @@ import { FaMapMarkerAlt } from 'react-icons/fa';
 import ReactApexChart from 'react-apexcharts';
 import { getStorage, ref, getDownloadURL } from "firebase/storage";
 import { app } from "../firebase";
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import toast from 'react-hot-toast';
 
 const defaultProfilePic = "https://img.freepik.com/free-vector/user-circles-set_78370-4691.jpg";
 
@@ -59,6 +61,14 @@ export default function RealEstateDashboard() {
   const [bannerUploadError, setBannerUploadError] = useState(null);
   const avatarRef = useRef(null);
   const bannerRef = useRef(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupMessage, setPopupMessage] = useState('');
+  const [resetPasswordModal, setResetPasswordModal] = useState({ show: false, agentId: null });
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Authentication check
   useEffect(() => {
@@ -67,7 +77,7 @@ export default function RealEstateDashboard() {
         setLoading(true);
         
         // Get authentication data
-        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        const token = localStorage.getItem('mern_token') || localStorage.getItem('token');
         const storedCompany = safeJSONParse(localStorage.getItem('realEstateCompany'));
         
         if (!token || !storedCompany || !storedCompany._id) {
@@ -103,7 +113,7 @@ export default function RealEstateDashboard() {
       } catch (error) {
         console.error('Authentication error:', error);
         // Clear stored data and redirect to login
-        localStorage.removeItem('access_token');
+        localStorage.removeItem('mern_token');
         localStorage.removeItem('token');
         localStorage.removeItem('realEstateCompany');
         navigate('/real-estate-login');
@@ -168,7 +178,7 @@ export default function RealEstateDashboard() {
       const uploadData = await uploadRes.json();
       
       // Update company avatar
-      const token = localStorage.getItem('realEstateToken');
+      const token = localStorage.getItem('mern_token');
       const companyInfo = JSON.parse(localStorage.getItem('realEstateCompany'));
 
       const updateRes = await fetch('/api/real-estate/update-avatar', {
@@ -208,7 +218,7 @@ export default function RealEstateDashboard() {
 
     try {
       setDeleteLoading(true);
-      const token = localStorage.getItem('realEstateToken');
+      const token = localStorage.getItem('mern_token');
       
       const res = await fetch(`/api/real-estate/remove-agent/${agentToDelete._id}`, {
         method: 'DELETE',
@@ -282,7 +292,7 @@ export default function RealEstateDashboard() {
 
       setAvatarFile(file);
       setAvatarUploadError(null);
-      handleImageUpload(file, 'avatar');
+      handleAvatarChange(e, 'avatar');
     } catch (error) {
       console.error('Error in handleAvatarUpload:', error);
       setAvatarUploadError('Failed to process image upload');
@@ -304,7 +314,7 @@ export default function RealEstateDashboard() {
       const formData = new FormData();
       formData.append('image', file);
 
-      const token = localStorage.getItem('realEstateToken');
+      const token = localStorage.getItem('mern_token');
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -366,183 +376,109 @@ export default function RealEstateDashboard() {
     }
   };
 
-  const handleImageUpload = async (file, type) => {
-    let progressInterval;
+  const handleAvatarChange = async (e, type = 'avatar') => {
     try {
-      console.log('Starting image upload process:', { 
-        type, 
-        fileName: file.name, 
-        fileSize: file.size,
-        currentUser: currentUser,
-        realEstateCompany: realEstateCompany
-      });
-      
-      // Use Cloudinary for new uploads
-      const formData = new FormData();
-      formData.append('image', file);
+      const file = e.target.files[0];
+      if (!file) return;
 
-      // Get company info and token
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-      console.log('Auth token available:', !!token);
-      
-      // Get company ID from Redux state first
-      let companyId = realEstateCompany?._id;
-      console.log('Company ID from Redux:', companyId);
+      setIsUploading(true);
+      setAvatarUploadProgress(0);
+      let progressInterval;
 
-      // If not in Redux, try localStorage
-      if (!companyId) {
-        try {
-          const storedInfo = localStorage.getItem('realEstateCompany');
-          console.log('Stored company info:', storedInfo);
-          
-          if (storedInfo) {
-            const parsedInfo = JSON.parse(storedInfo);
-            companyId = parsedInfo?._id;
-            console.log('Company ID from localStorage:', companyId);
+      try {
+        // Get company ID from Redux first, then fallback to localStorage
+        let companyId = realEstateCompany?._id;
+        
+        if (!companyId) {
+          const storedCompany = localStorage.getItem('realEstateCompany');
+          if (storedCompany) {
+            const parsedCompany = safeJSONParse(storedCompany);
+            companyId = parsedCompany?._id;
           }
-        } catch (e) {
-          console.error('Error parsing stored company info:', e);
         }
-      }
 
-      if (!token || !companyId) {
-        console.error('Authentication error:', { 
-          hasToken: !!token, 
-          companyId,
-          reduxCompanyId: realEstateCompany?._id,
-          storedCompanyData: localStorage.getItem('realEstateCompany')
+        if (!companyId) {
+          throw new Error('Company ID not found');
+        }
+
+        // Get authentication token
+        const token = localStorage.getItem('mern_token');
+        if (!token) {
+          throw new Error('Authentication token not found');
+        }
+
+        // Create form data
+        const formData = new FormData();
+        formData.append('image', file);
+
+        // Start progress simulation
+        progressInterval = setInterval(() => {
+          setAvatarUploadProgress(prev => Math.min(prev + 10, 90));
+        }, 500);
+
+        // Upload to Cloudinary
+        const uploadRes = await fetch('/api/upload/image', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          credentials: 'include'
         });
-        throw new Error('Missing authentication or company information');
-      }
 
-      // Start progress simulation
-      progressInterval = setInterval(() => {
-        setAvatarUploadProgress(prev => Math.min(prev + 10, 90));
-      }, 500);
+        if (!uploadRes.ok) {
+          throw new Error(`Upload failed with status ${uploadRes.status}`);
+        }
 
-      // Upload to Cloudinary through our backend
-      console.log('Making upload request to:', '/api/upload/image', {
-        hasToken: !!token,
-        formDataSize: formData.get('image')?.size
-      });
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success) {
+          throw new Error(uploadData.message || 'Upload failed');
+        }
 
-      const uploadRes = await fetch('/api/upload/image', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include'
-      });
-      
-      console.log('Upload response status:', uploadRes.status);
+        // Update company profile
+        const updateRes = await fetch('/api/real-estate/update-avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            avatar: uploadData.url,
+            companyId: companyId
+          })
+        });
 
-      if (!uploadRes.ok) {
-        const errorText = await uploadRes.text();
-        console.error('Upload response error:', { status: uploadRes.status, error: errorText });
-        throw new Error(`Failed to upload image: ${uploadRes.status} ${errorText}`);
-      }
+        if (!updateRes.ok) {
+          throw new Error(`Profile update failed with status ${updateRes.status}`);
+        }
 
-      let uploadData;
-      try {
-        uploadData = await uploadRes.json();
-        console.log('Upload response:', uploadData);
-      } catch (e) {
-        console.error('Error parsing upload response:', e);
-        throw new Error('Invalid response from upload service');
-      }
+        const updateData = await updateRes.json();
+        if (!updateData.success) {
+          throw new Error(updateData.message || 'Profile update failed');
+        }
 
-      if (!uploadData.success) {
-        console.error('Upload failed:', uploadData);
-        throw new Error(uploadData.message || 'Failed to upload image');
-      }
+        // Update local state
+        setCompanyData(prev => ({
+          ...prev,
+          avatar: uploadData.url
+        }));
 
-      // Update company profile with the new Cloudinary URL
-      const updateEndpoint = `/api/real-estate/update-avatar`;
-      const updateBody = { 
-        avatar: uploadData.url,
-        companyId: companyId
-      };
-
-      console.log('Updating company profile...', {
-        endpoint: updateEndpoint,
-        updateBody,
-        hasToken: !!token,
-        uploadDataUrl: uploadData.url,
-        companyId: companyId
-      });
-
-      const res = await fetch(updateEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify(updateBody)
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Update response error:', { status: res.status, error: errorText });
-        throw new Error(`Failed to update ${type}: ${res.status} ${errorText}`);
-      }
-
-      let responseData;
-      try {
-        responseData = await res.json();
-        console.log('Update response:', responseData);
-      } catch (e) {
-        console.error('Error parsing update response:', e);
-        throw new Error('Invalid response from update service');
-      }
-
-      if (!responseData.success) {
-        console.error('Update failed:', responseData);
-        throw new Error(responseData.message || `Failed to update ${type}`);
-      }
-
-      // Update local state and storage with the entire updated company data
-      console.log('Update successful:', {
-        companyId: responseData.company._id,
-        newAvatar: responseData.company.avatar
-      });
-
-      localStorage.setItem('realEstateCompany', JSON.stringify(responseData.company));
-      setCompanyData(responseData.company);
-
-      // Clear progress interval and set to 100%
-      clearInterval(progressInterval);
-      if (type === 'avatar') {
         setAvatarUploadProgress(100);
-        setTimeout(() => setAvatarUploadProgress(0), 1000);
-      } else {
-        setBannerUploadProgress(100);
-        setTimeout(() => setBannerUploadProgress(0), 1000);
-      }
-
-      // Show success toast instead of alert
-      const message = `${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully!`;
-      console.log(message);
-      setAvatarUploadError(null);
-
-    } catch (error) {
-      console.error(`Error in ${type} upload process:`, {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      if (type === 'avatar') {
-        setAvatarUploadError(error.message);
-        setAvatarUploadProgress(0);
-      } else {
-        setBannerUploadError(error.message);
-        setBannerUploadProgress(0);
-      }
-    } finally {
-      if (typeof progressInterval !== 'undefined') {
+        setPopupMessage('Avatar successfully changed');
+        setShowPopup(true);
+        setTimeout(() => {
+          setShowPopup(false);
+          setPopupMessage('');
+        }, 3000);
+      } finally {
         clearInterval(progressInterval);
+        setIsUploading(false);
       }
+    } catch (error) {
+      console.error('Error in avatar upload process:', error);
+      setError(error.message || 'Failed to update avatar');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
@@ -595,7 +531,7 @@ export default function RealEstateDashboard() {
         setError(null);
 
         // Get token and stored company info
-        const token = localStorage.getItem('realEstateToken');
+        const token = localStorage.getItem('mern_token');
         const storedCompanyInfo = localStorage.getItem('realEstateCompany');
         
         console.log('Initial stored company info:', storedCompanyInfo);
@@ -626,7 +562,7 @@ export default function RealEstateDashboard() {
           const errorText = await response.text();
           console.error('Server response:', errorText);
           if (response.status === 401) {
-            localStorage.removeItem('realEstateToken');
+            localStorage.removeItem('mern_token');
             localStorage.removeItem('realEstateCompany');
             navigate('/real-estate-login', { replace: true });
             return;
@@ -659,7 +595,7 @@ export default function RealEstateDashboard() {
         console.error('Error loading company data:', error);
         setError(error.message);
         if (error.message.includes('Authentication') || error.message.includes('token')) {
-          localStorage.removeItem('realEstateToken');
+          localStorage.removeItem('mern_token');
           localStorage.removeItem('realEstateCompany');
           navigate('/real-estate-login', { replace: true });
         }
@@ -733,7 +669,7 @@ export default function RealEstateDashboard() {
         setListingsLoading(true);
         setListingsError(null);
         
-        const token = localStorage.getItem('realEstateToken');
+        const token = localStorage.getItem('mern_token');
         const companyInfo = safeJSONParse(localStorage.getItem('realEstateCompany'));
 
         if (!token || !companyInfo?._id) {
@@ -913,7 +849,7 @@ export default function RealEstateDashboard() {
       setLoading(true);
       setError(null);
 
-      const token = localStorage.getItem('realEstateToken');
+      const token = localStorage.getItem('mern_token');
       if (!token) {
         throw new Error('Authentication required');
       }
@@ -977,7 +913,7 @@ export default function RealEstateDashboard() {
 
     try {
       // Get authentication token from the correct source
-      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const token = localStorage.getItem('mern_token') || localStorage.getItem('token');
       const companyData = safeJSONParse(localStorage.getItem('realEstateCompany'));
       
       if (!token || !companyData) {
@@ -1023,6 +959,61 @@ export default function RealEstateDashboard() {
     }
   };
 
+  // Add this function to handle password reset
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setResetError('');
+
+    // Get token from localStorage
+    const token = localStorage.getItem('mern_token');
+    console.log('Token:', token);
+
+    if (!token) {
+      toast.error('Please sign in to reset passwords');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setResetError("Passwords don't match");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setResetError("Password must be at least 6 characters");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/real-estate/admin/reset-agent-password/${resetPasswordModal.agentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to reset password');
+      }
+
+      // Show success message
+      toast.success('Password reset successfully');
+      
+      // Reset form and close modal
+      setNewPassword('');
+      setConfirmPassword('');
+      setResetPasswordModal({ show: false, agentId: null });
+
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      setResetError(error.message);
+      toast.error(error.message);
+    }
+  };
+
   // Render loading state
   if (loading) {
     return (
@@ -1061,6 +1052,20 @@ export default function RealEstateDashboard() {
 
   return (
     <div className="p-3 max-w-4xl mx-auto">
+      {showPopup && (
+        <div className="fixed top-4 right-4 z-50 bg-white rounded-lg shadow-lg p-4 animate-fade-in-down">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-gray-900">{popupMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <h1 className="text-3xl font-semibold text-center my-7">
         {companyData.companyName} Dashboard
       </h1>
@@ -1103,7 +1108,7 @@ export default function RealEstateDashboard() {
                 {/* Hover overlay with icon and text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-white mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0118.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   <p className="text-white font-medium">Change Avatar</p>
@@ -1183,7 +1188,7 @@ export default function RealEstateDashboard() {
                 className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                 onClick={(e) => {
                   e.preventDefault();
-                  const token = localStorage.getItem('realEstateToken');
+                  const token = localStorage.getItem('mern_token');
                   const companyData = localStorage.getItem('realEstateCompany');
                   
                   if (!token || !companyData) {
@@ -1234,6 +1239,12 @@ export default function RealEstateDashboard() {
                     className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 mt-4"
                   >
                     Delete Agent
+                  </button>
+                  <button
+                    onClick={() => setResetPasswordModal({ show: true, agentId: agent._id })}
+                    className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition duration-200 mt-2"
+                  >
+                    Reset Password
                   </button>
                 </div>
                 );
@@ -2077,6 +2088,83 @@ export default function RealEstateDashboard() {
                 {deleteLoading ? 'Deleting...' : 'Delete Agent'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Reset Modal */}
+      {resetPasswordModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white bg-opacity-20 backdrop-blur-lg rounded-xl p-6 shadow-lg border border-white border-opacity-30 max-w-md w-full mx-4">
+            <h3 className="text-2xl font-semibold mb-4 text-white">Reset Agent Password</h3>
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="text-white font-medium mb-2 block">New Password</label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white bg-opacity-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 text-white"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showNewPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-white font-medium mb-2 block">Confirm Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white bg-opacity-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 text-white"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
+
+              {resetError && (
+                <div className="text-red-400 text-sm">{resetError}</div>
+              )}
+
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  className="px-6 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-medium transition duration-200"
+                >
+                  Reset Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetPasswordModal({ show: false, agentId: null });
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setResetError('');
+                  }}
+                  className="px-6 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium transition duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -21,6 +21,30 @@ router.use((req, res, next) => {
   next();
 });
 
+// Get all real estate companies
+router.get('/companies', async (req, res) => {
+  try {
+    console.log('[DEBUG] Fetching all companies...');
+    const companies = await RealEstateCompany.find({}, { companyName: 1, _id: 1 })
+      .lean()
+      .exec();
+      
+    console.log('[DEBUG] Found companies:', companies);
+    
+    return res.status(200).json({
+      success: true,
+      companies: companies || []
+    });
+  } catch (error) {
+    console.error('[ERROR] Error in /companies route:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching companies',
+      error: error.message
+    });
+  }
+});
+
 // Real Estate Company Sign Up endpoint
 router.post('/company-signup', async (req, res) => {
   try {
@@ -958,5 +982,75 @@ router.get('/:id', verifyToken, getRealEstateCompany);
 // Agent Management Routes
 router.post('/:companyId/agents', verifyToken, addAgent);
 router.delete('/:companyId/agents/:agentId', verifyToken, removeAgent);
+
+// Update agent password
+router.put('/agent/update-password/:agentId', verifyToken, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { currentPassword, newPassword } = req.body;
+
+    // Find the company containing this agent
+    const company = await RealEstateCompany.findOne({ 'agents._id': agentId });
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Agent not found' });
+    }
+
+    // Get the agent from the company
+    const agent = company.agents.id(agentId);
+    if (!agent) {
+      return res.status(404).json({ success: false, message: 'Agent not found' });
+    }
+
+    // Verify current password
+    const validPassword = bcryptjs.compareSync(currentPassword, agent.password);
+    if (!validPassword) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedPassword = bcryptjs.hashSync(newPassword, 10);
+
+    // Update password
+    agent.password = hashedPassword;
+    await company.save();
+
+    res.status(200).json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Password update error:', error);
+    res.status(500).json({ success: false, message: 'Error updating password' });
+  }
+});
+
+// Admin reset agent password
+router.put('/admin/reset-agent-password/:agentId', verifyToken, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { newPassword } = req.body;
+
+    // Find the company containing this agent
+    const company = await RealEstateCompany.findOne({ 'agents._id': agentId });
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Agent not found' });
+    }
+
+    // Get the agent from the company
+    const agent = company.agents.id(agentId);
+    if (!agent) {
+      return res.status(404).json({ success: false, message: 'Agent not found' });
+    }
+
+    // Hash new password
+    const hashedPassword = bcryptjs.hashSync(newPassword, 10);
+
+    // Update password
+    agent.password = hashedPassword;
+    await company.save();
+
+    res.status(200).json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ success: false, message: 'Error resetting password' });
+  }
+});
 
 export default router;

@@ -826,6 +826,41 @@ export default function Header() {
                           })()}
                         </div>
                       </Link>
+                      {isAgent && (
+                        <Link
+                          to="/agent-schedule"
+                          className={`block px-4 py-2 text-sm ${
+                            location.pathname === '/agent-schedule'
+                              ? 'bg-slate-100 text-[#009688]'
+                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                          } transition-colors duration-200`}
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          Schedule
+                        </Link>
+                      )}
+                      {isAgent && (
+                        <Link
+                          to="/notifications"
+                          className={`block px-4 py-2 text-sm ${
+                            location.pathname === '/notifications'
+                              ? 'bg-slate-100 text-[#009688]'
+                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                          } transition-colors duration-200`}
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          Notifications
+                        </Link>
+                      )}
+                      {isAgent && (
+                        <Link
+                          to="/messages"
+                          className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
+                          onClick={() => setIsProfileDropdownOpen(false)}
+                        >
+                          Messages
+                        </Link>
+                      )}
                       {currentUser && currentUser.role === 'admin' && (
                         <Link
                           to="/admin-center"

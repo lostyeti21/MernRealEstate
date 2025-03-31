@@ -30,35 +30,29 @@ export default function RealEstateAgentLogin() {
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        console.log('Attempting to fetch companies...');
-        const res = await fetch('/api/real-estate/companies');
-        console.log('Response status:', res.status);
+        const res = await fetch('/api/real-estate/companies', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
         
         const data = await res.json();
-        console.log('Received data:', data);
-
-        if (data.success) {
-          console.log('Companies fetched:', data.companies);
+        
+        if (!res.ok) {
+          throw new Error(data.message || `HTTP error! status: ${res.status}`);
+        }
+        
+        if (data.success && Array.isArray(data.companies)) {
           setCompanies(data.companies);
         } else {
-          console.error('Failed to fetch companies:', data.message);
-          // Fallback to hardcoded companies if fetch fails
-          setCompanies([
-            { _id: '1', companyName: 'Century 21' },
-            { _id: '2', companyName: 'Pam Golding Harare' },
-            { _id: '3', companyName: 'Remax' },
-            { _id: '4', companyName: 'Kennan Properties' }
-          ]);
+          console.error('Invalid data format:', data);
+          throw new Error('Invalid response format from server');
         }
       } catch (err) {
         console.error('Error fetching companies:', err);
-        // Fallback to hardcoded companies if fetch fails
-        setCompanies([
-          { _id: '1', companyName: 'Century 21' },
-          { _id: '2', companyName: 'Keller Williams' },
-          { _id: '3', companyName: 'Remax' },
-          { _id: '4', companyName: 'Coldwell Banker' }
-        ]);
+        // Set empty array to avoid undefined errors in the dropdown
+        setCompanies([]);
       }
     };
 
