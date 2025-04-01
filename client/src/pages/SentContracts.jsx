@@ -13,13 +13,42 @@ export default function SentContracts() {
   const [processingContracts, setProcessingContracts] = useState(false);
   const [contractsNeedingSignature, setContractsNeedingSignature] = useState(0);
   const [signedContracts, setSignedContracts] = useState([]);
+  const [fullySignedContracts, setFullySignedContracts] = useState([]);
   const [loadingSignedContracts, setLoadingSignedContracts] = useState(false);
+  const [loadingFullySignedContracts, setLoadingFullySignedContracts] = useState(false);
   const location = useLocation();
+
+  // Add a state to store user information for signatures
+  const [signatureUsers, setSignatureUsers] = useState({});
 
   useEffect(() => {
     fetchContracts();
     fetchContractsNeedingSignature();
     fetchSignedContracts();
+    
+    // If user is an agent, also fetch agent-specific contracts
+    if (currentUser?.isAgent) {
+      console.log('User is an agent, fetching agent contracts');
+      fetchAgentContracts();
+    }
+    
+    // Set up polling to periodically check for contracts needing signature
+    const intervalId = setInterval(fetchContractsNeedingSignature, 60000); // Check every minute
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetchContracts();
+    fetchContractsNeedingSignature();
+    fetchSignedContracts();
+    
+    // If user is an agent, also fetch agent-specific contracts
+    if (currentUser?.isAgent) {
+      console.log('User is an agent, fetching agent contracts');
+      fetchAgentContracts();
+    }
     
     // Set up polling to periodically check for contracts needing signature
     const intervalId = setInterval(fetchContractsNeedingSignature, 60000); // Check every minute
@@ -52,8 +81,246 @@ export default function SentContracts() {
     };
   }, []);
 
+  useEffect(() => {
+    // Function to fetch user information for a signature ID
+    const fetchSignatureUserInfo = async (signatureId) => {
+      try {
+        // Don't fetch if signatureId is 'find' or not a valid ID
+        if (signatureId === 'find' || !signatureId || typeof signatureId !== 'string') {
+          console.log('Skipping invalid signature ID:', signatureId);
+          return;
+        }
+        
+        // First try to get user from regular users
+        let response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/${signatureId}`, {
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('Found user data:', userData);
+          
+          // Add isAgent flag if not present
+          if (userData && !('isAgent' in userData)) {
+            userData.isAgent = false;
+          }
+          
+          setSignatureUsers(prev => ({
+            ...prev,
+            [signatureId]: userData
+          }));
+        } else {
+          // If not found in regular users, try to get from agents
+          console.log('User not found in regular users, trying agents API');
+          response = await fetch(`${import.meta.env.VITE_API_URL}/api/agent/${signatureId}`, {
+            credentials: 'include',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          
+          if (response.ok) {
+            const agentData = await response.json();
+            console.log('Found agent data:', agentData);
+            
+            // Format agent data to match user data structure
+            const formattedAgentData = {
+              _id: agentData._id || signatureId,
+              username: agentData.name || agentData.username || 'Agent',
+              name: agentData.name || agentData.username || 'Agent',
+              avatar: agentData.avatar || '',
+              isAgent: true
+            };
+            
+            setSignatureUsers(prev => ({
+              ...prev,
+              [signatureId]: formattedAgentData
+            }));
+          } else {
+            console.log('User not found in agents either');
+            
+            // Special handling for agent IDs - check if this is an agent ID that matches the contract
+            const contracts = [...(contracts || []), ...(signedContracts || [])];
+            const matchingContract = contracts.find(c => 
+              c.agentId === signatureId || 
+              (c.agentFirstname && c.agentSurname)
+            );
+            
+            if (matchingContract && matchingContract.agentFirstname && matchingContract.agentSurname) {
+              // Create a placeholder agent entry using contract information
+              setSignatureUsers(prev => ({
+                ...prev,
+                [signatureId]: { 
+                  _id: signatureId,
+                  username: `${matchingContract.agentFirstname} ${matchingContract.agentSurname}`,
+                  name: `${matchingContract.agentFirstname} ${matchingContract.agentSurname}`,
+                  avatar: '',
+                  isAgent: true
+                }
+              }));
+            } else {
+              // Set a placeholder for the user to avoid repeated failed lookups
+              setSignatureUsers(prev => ({
+                ...prev,
+                [signatureId]: { 
+                  _id: signatureId,
+                  username: 'Unknown User', 
+                  name: 'Unknown User', 
+                  avatar: '',
+                  isAgent: false
+                }
+              }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user info for signature:', error);
+        // Set a placeholder for the user to avoid repeated failed lookups
+        setSignatureUsers(prev => ({
+          ...prev,
+          [signatureId]: { 
+            _id: signatureId,
+            username: 'Unknown User', 
+            name: 'Unknown User', 
+            avatar: '',
+            isAgent: false
+          }
+        }));
+      }
+    };
+
+    // Collect all signature IDs from all contracts
+    const signatureIds = new Set();
+    
+    // Add IDs from contracts
+    contracts.forEach(contract => {
+      if (contract.signatures) {
+        contract.signatures.forEach(sig => {
+          const sigId = typeof sig === 'object' ? sig.userId : sig?.toString();
+          if (sigId && sigId !== 'find') signatureIds.add(sigId);
+        });
+      }
+      
+      // Also add agent ID if present
+      if (contract.agentId && contract.agentId !== 'find') {
+        signatureIds.add(contract.agentId.toString());
+      }
+    });
+    
+    // Add IDs from signed contracts
+    signedContracts.forEach(contract => {
+      if (contract.signatures) {
+        contract.signatures.forEach(sig => {
+          const sigId = typeof sig === 'object' ? sig.userId : sig?.toString();
+          if (sigId && sigId !== 'find') signatureIds.add(sigId);
+        });
+      }
+      
+      // Also add agent ID if present
+      if (contract.agentId && contract.agentId !== 'find') {
+        signatureIds.add(contract.agentId.toString());
+      }
+    });
+    
+    // Fetch user info for each signature ID
+    signatureIds.forEach(id => {
+      if (!signatureUsers[id]) {
+        fetchSignatureUserInfo(id);
+      }
+    });
+  }, [contracts, signedContracts]);
+
+  useEffect(() => {
+    // Function to fetch all users for signatures
+    const fetchAllSignatureUsers = async () => {
+      try {
+        // Get all contracts to extract signature IDs
+        const allContracts = [...contracts, ...signedContracts, ...fullySignedContracts];
+        const signatureIds = new Set();
+        
+        // Collect all signature and pending signature IDs
+        allContracts.forEach(contract => {
+          // Add signatures
+          if (contract.signatures) {
+            contract.signatures.forEach(sig => {
+              if (typeof sig === 'string') {
+                signatureIds.add(sig);
+              } else if (sig && sig.userId) {
+                signatureIds.add(sig.userId);
+              }
+            });
+          }
+          
+          // Add pending signatures
+          if (contract.pendingSignatures) {
+            contract.pendingSignatures.forEach(sig => {
+              if (typeof sig === 'string') {
+                signatureIds.add(sig);
+              } else if (sig && sig.userId) {
+                signatureIds.add(sig.userId);
+              }
+            });
+          }
+          
+          // Add landlord, agent, and tenant IDs if available
+          if (contract.landlordId) signatureIds.add(contract.landlordId.toString());
+          if (contract.agentId) signatureIds.add(contract.agentId.toString());
+          if (contract.tenantId) signatureIds.add(contract.tenantId.toString());
+        });
+        
+        // Fetch user information for each signature ID
+        const uniqueIds = Array.from(signatureIds).filter(id => 
+          id && id !== 'placeholder' && id !== 'find' && typeof id === 'string'
+        );
+        
+        console.log('Fetching user information for signature IDs:', uniqueIds);
+        
+        // Fetch in parallel for better performance
+        await Promise.all(uniqueIds.map(id => fetchSignatureUserInfo(id)));
+        
+      } catch (error) {
+        console.error('Error fetching signature users:', error);
+      }
+    };
+
+    fetchAllSignatureUsers();
+  }, [contracts, signedContracts, fullySignedContracts]);
+
+  // Function to filter contracts by search term
+  const filterContractsBySearchTerm = (contracts, searchTerm) => {
+    if (!searchTerm) return contracts;
+    
+    return contracts.filter(contract => {
+      // Check if contract title contains search term
+      const titleMatch = contract.title && contract.title.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Check if contract description contains search term
+      const descriptionMatch = contract.description && contract.description.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Check if any user name in the contract contains search term
+      const username = searchTerm.toLowerCase();
+      const isNameIncluded = 
+        (contract.landlordFirstname && username && 
+         contract.landlordFirstname.toLowerCase().includes(username.toLowerCase())) ||
+        (contract.landlordSurname && username && 
+         contract.landlordSurname.toLowerCase().includes(username.toLowerCase())) ||
+        (contract.tenantFirstname && username && 
+         contract.tenantFirstname.toLowerCase().includes(username.toLowerCase())) ||
+        (contract.tenantSurname && username && 
+         contract.tenantSurname.toLowerCase().includes(username.toLowerCase())) ||
+        (contract.agentFirstname && username && 
+         contract.agentFirstname.toLowerCase().includes(username.toLowerCase()));
+      
+      return titleMatch || descriptionMatch || isNameIncluded;
+    });
+  };
+
   const fetchContracts = async () => {
     try {
+      console.log('Fetching contracts for user:', currentUser?._id, 'isAgent:', currentUser?.isAgent);
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contracts`, {
         credentials: 'include',
         headers: {
@@ -63,31 +330,60 @@ export default function SentContracts() {
       });
       
       if (!response.ok) {
-        let errorText;
-        try {
-          const errorData = await response.text();
-          errorText = JSON.parse(errorData).message || errorData;
-        } catch {
-          errorText = await response.text();
-        }
-        throw new Error(errorText || 'Failed to fetch contracts');
+        throw new Error('Failed to fetch contracts');
       }
       
       const data = await response.json();
+      console.log('Fetched contracts:', data.length);
       setContracts(data);
-      
-      // Only process contracts if we're not already processing
-      if (!processingContracts) {
-        await processNewContracts(data);
-      }
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching contracts:', error);
       setError(error.message);
-    } finally {
       setLoading(false);
     }
   };
   
+  // Add a new function to fetch contracts specifically for agents
+  const fetchAgentContracts = async () => {
+    if (!currentUser?.isAgent) return;
+    
+    try {
+      console.log('Fetching agent contracts for:', currentUser?._id);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contracts/agent-contracts`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch agent contracts');
+      }
+      
+      const data = await response.json();
+      console.log('Fetched agent contracts:', data.length);
+      
+      // Merge with existing contracts, avoiding duplicates
+      setContracts(prevContracts => {
+        const combinedContracts = [...prevContracts];
+        
+        // Add agent contracts that aren't already in the array
+        data.forEach(contract => {
+          if (!combinedContracts.some(c => c._id === contract._id)) {
+            combinedContracts.push(contract);
+          }
+        });
+        
+        return combinedContracts;
+      });
+    } catch (error) {
+      console.error('Error fetching agent contracts:', error);
+      // Don't set error state here as it would override the main contracts
+    }
+  };
+
   // Fetch contracts that need the user's signature from the dedicated endpoint
   const fetchContractsNeedingSignature = async () => {
     try {
@@ -237,23 +533,285 @@ export default function SentContracts() {
 
   // Filter contracts based on active tab
   const getFilteredContracts = () => {
+    console.log('Filtering contracts for tab:', activeTab);
+    console.log('Current user:', currentUser?._id, 'isAgent:', currentUser?.isAgent);
+    console.log('Total contracts available:', contracts.length);
+    console.log('Total signed contracts available:', signedContracts.length);
+    
     if (activeTab === 'signedByYou') {
       return signedContracts;
+    } else if (activeTab === 'fullySigned') {
+      // For the Fully Signed tab, combine contracts from both sources:
+      // 1. Contracts the user sent that are fully signed
+      // 2. Contracts from the signedContracts array that are fully signed
+      
+      // First, get contracts the user sent that are fully signed
+      const sentAndFullySigned = contracts.filter(contract => 
+        contract.fullySignedAt || 
+        (contract.pendingSignatures && contract.pendingSignatures.length === 0)
+      );
+      
+      // Then, get contracts the user signed that are fully signed
+      const receivedAndFullySigned = signedContracts.filter(contract =>
+        contract.fullySignedAt || 
+        (contract.pendingSignatures && contract.pendingSignatures.length === 0)
+      );
+      
+      // Combine both arrays, avoiding duplicates by checking IDs
+      const combinedContracts = [...sentAndFullySigned];
+      
+      // Add contracts from receivedAndFullySigned that aren't already in combinedContracts
+      receivedAndFullySigned.forEach(contract => {
+        if (!combinedContracts.some(c => c._id === contract._id)) {
+          combinedContracts.push(contract);
+        }
+      });
+      
+      return combinedContracts;
+    } else if (activeTab === 'inProgress') {
+      // Get all contracts that need signatures (from both sources)
+      const allContractsNeedingSignatures = [...contracts, ...signedContracts].filter((contract, index, self) => 
+        // Remove duplicates
+        index === self.findIndex(c => c._id === contract._id) &&
+        // Only include contracts that need signatures
+        !contract.fullySignedAt && 
+        (contract.pendingSignatures && contract.pendingSignatures.length > 0)
+      );
+      
+      console.log('All contracts needing signatures:', allContractsNeedingSignatures.length);
+      
+      // For agents, we need to include contracts where they are mentioned as the agent
+      if (currentUser?.isAgent) {
+        console.log('User is an agent, applying agent-specific filtering');
+        
+        const agentContracts = allContractsNeedingSignatures.filter(contract => {
+          // Check if agent is the sender
+          if (contract.userId === currentUser._id) {
+            console.log('Agent is sender of contract:', contract._id);
+            return true;
+          }
+          
+          // Check if agent is in pendingSignatures or signatures
+          const pendingSignatureIds = Array.isArray(contract.pendingSignatures) 
+            ? contract.pendingSignatures.map(sig => 
+                typeof sig === 'object' ? sig.userId || sig : sig
+              )
+            : [];
+            
+          const signatureIds = Array.isArray(contract.signatures)
+            ? contract.signatures.map(sig => 
+                typeof sig === 'object' ? sig.userId || sig : sig
+              )
+            : [];
+            
+          if (pendingSignatureIds.some(id => id === currentUser._id || id === currentUser._id?.toString()) ||
+              signatureIds.some(id => id === currentUser._id || id === currentUser._id?.toString())) {
+            console.log('Agent is in signatures/pendingSignatures of contract:', contract._id);
+            return true;
+          }
+          
+          // Check if agent ID matches contract's agentId
+          if (contract.agentId && 
+              (contract.agentId === currentUser._id || 
+               contract.agentId.toString() === currentUser._id.toString())) {
+            console.log('Agent ID matches contract agentId:', contract._id);
+            return true;
+          }
+          
+          // Check agent name against contract fields
+          const userFirstName = currentUser?.name?.split(' ')[0] || '';
+          const userLastName = currentUser?.name?.split(' ').slice(1).join(' ') || '';
+          const username = currentUser?.username || '';
+          
+          // Check if agent name matches contract agent fields (case insensitive)
+          if (contract.agentFirstname || contract.agentSurname) {
+            const isAgentNameMatch = 
+              (userFirstName && contract.agentFirstname && 
+               contract.agentFirstname.toLowerCase().includes(userFirstName.toLowerCase())) ||
+              (userLastName && contract.agentSurname && 
+               contract.agentSurname.toLowerCase().includes(userLastName.toLowerCase())) ||
+              (username && contract.agentFirstname && 
+               contract.agentFirstname.toLowerCase().includes(username.toLowerCase()));
+               
+            if (isAgentNameMatch) {
+              console.log('Agent name matches contract agent fields:', contract._id);
+              return true;
+            }
+          }
+          
+          // If none of the above conditions are met, don't include this contract
+          return false;
+        });
+        
+        console.log('Filtered agent contracts:', agentContracts.length);
+        return agentContracts;
+      }
+      
+      // For regular users, filter contracts to only include those where the user's name is in the contract
+      // or they are in the pendingSignatures or signatures arrays
+      const contractsInvolvingUser = allContractsNeedingSignatures.filter(contract => {
+        // Check if user is the sender
+        if (contract.userId === currentUser?._id) {
+          console.log('User is sender of contract:', contract._id);
+          return true;
+        }
+        
+        // Check if user is in pendingSignatures
+        const pendingSignatureIds = Array.isArray(contract.pendingSignatures) 
+          ? contract.pendingSignatures.map(sig => 
+              typeof sig === 'object' ? sig.userId || sig : sig
+            )
+          : [];
+          
+        if (pendingSignatureIds.some(id => id === currentUser?._id || id === currentUser?._id?.toString())) {
+          console.log('User is in pendingSignatures of contract:', contract._id);
+          return true;
+        }
+        
+        // Check if user is in signatures
+        const signatureIds = Array.isArray(contract.signatures)
+          ? contract.signatures.map(sig => 
+              typeof sig === 'object' ? sig.userId || sig : sig
+            )
+          : [];
+          
+        if (signatureIds.some(id => id === currentUser?._id || id === currentUser?._id?.toString())) {
+          console.log('User is in signatures of contract:', contract._id);
+          return true;
+        }
+        
+        // Check if user's name is in the contract details
+        const userFirstName = currentUser?.name?.split(' ')[0] || '';
+        const userLastName = currentUser?.name?.split(' ').slice(1).join(' ') || '';
+        const username = currentUser?.username || '';
+        
+        const isNameIncluded = 
+          // Check landlord fields
+          (contract.landlordFirstname && userFirstName && 
+           contract.landlordFirstname.toLowerCase().includes(userFirstName.toLowerCase())) ||
+          (contract.landlordSurname && userLastName && 
+           contract.landlordSurname.toLowerCase().includes(userLastName.toLowerCase())) ||
+          // Check agent fields
+          (contract.agentFirstname && userFirstName && 
+           contract.agentFirstname.toLowerCase().includes(userFirstName.toLowerCase())) ||
+          (contract.agentSurname && userLastName && 
+           contract.agentSurname.toLowerCase().includes(userLastName.toLowerCase())) ||
+          // Check tenant fields
+          (contract.tenantFirstname && userFirstName && 
+           contract.tenantFirstname.toLowerCase().includes(userFirstName.toLowerCase())) ||
+          (contract.tenantSurname && userLastName && 
+           contract.tenantSurname.toLowerCase().includes(userLastName.toLowerCase())) ||
+          // Check username
+          (contract.tenantFirstname && username && 
+           contract.tenantFirstname.toLowerCase().includes(username.toLowerCase())) ||
+          (contract.landlordFirstname && username && 
+           contract.landlordFirstname.toLowerCase().includes(username.toLowerCase())) ||
+          (contract.agentFirstname && username && 
+           contract.agentFirstname.toLowerCase().includes(username.toLowerCase()));
+        
+        return isNameIncluded;
+      });
+      
+      console.log('Contracts involving user:', contractsInvolvingUser.length);
+      
+      return contractsInvolvingUser;
     }
     
-    return contracts.filter(contract => {
-      if (activeTab === 'inProgress') {
-        // Contracts in progress don't have a fullySignedAt property or it's null
-        return !contract.fullySignedAt;
-      } else if (activeTab === 'fullySigned') {
-        // Fully signed contracts have a fullySignedAt property with a value
-        return contract.fullySignedAt;
-      }
-      return false;
-    });
+    return [];
   };
 
+  // Get the filtered contracts based on the active tab
   const filteredContracts = getFilteredContracts();
+  
+  // Calculate counts for each tab
+  const inProgressCount = [...contracts, ...signedContracts].filter((contract, index, self) => 
+    // Remove duplicates
+    index === self.findIndex(c => c._id === contract._id) &&
+    // Only include contracts that need signatures
+    !contract.fullySignedAt && 
+    (contract.pendingSignatures && contract.pendingSignatures.length > 0)
+  ).filter(contract => {
+    // Check if user is the sender
+    if (contract.userId === currentUser?._id) {
+      return true;
+    }
+    
+    // Check if user is in pendingSignatures or signatures
+    const pendingSignatureIds = Array.isArray(contract.pendingSignatures) 
+      ? contract.pendingSignatures.map(sig => 
+          typeof sig === 'object' ? sig.userId || sig : sig
+        )
+      : [];
+    const signatureIds = Array.isArray(contract.signatures)
+      ? contract.signatures.map(sig => 
+          typeof sig === 'object' ? sig.userId || sig : sig
+        )
+      : [];
+    
+    if (pendingSignatureIds.some(id => id === currentUser?._id || id === currentUser?._id?.toString()) ||
+        signatureIds.some(id => id === currentUser?._id || id === currentUser?._id?.toString())) {
+      return true;
+    }
+    
+    // Check if user's name is in the contract details
+    const userFirstName = currentUser?.name?.split(' ')[0] || '';
+    const userLastName = currentUser?.name?.split(' ').slice(1).join(' ') || '';
+    const username = currentUser?.username || '';
+    
+    const isNameIncluded = 
+      // Check landlord fields
+      (contract.landlordFirstname && userFirstName && 
+       contract.landlordFirstname.toLowerCase().includes(userFirstName.toLowerCase())) ||
+      (contract.landlordSurname && userLastName && 
+       contract.landlordSurname.toLowerCase().includes(userLastName.toLowerCase())) ||
+      // Check agent fields
+      (contract.agentFirstname && userFirstName && 
+       contract.agentFirstname.toLowerCase().includes(userFirstName.toLowerCase())) ||
+      (contract.agentSurname && userLastName && 
+       contract.agentSurname.toLowerCase().includes(userLastName.toLowerCase())) ||
+      // Check tenant fields
+      (contract.tenantFirstname && userFirstName && 
+       contract.tenantFirstname.toLowerCase().includes(userFirstName.toLowerCase())) ||
+      (contract.tenantSurname && userLastName && 
+       contract.tenantSurname.toLowerCase().includes(userLastName.toLowerCase())) ||
+      // Check username
+      (contract.tenantFirstname && username && 
+       contract.tenantFirstname.toLowerCase().includes(username.toLowerCase())) ||
+      (contract.landlordFirstname && username && 
+       contract.landlordFirstname.toLowerCase().includes(username.toLowerCase())) ||
+      (contract.agentFirstname && username && 
+       contract.agentFirstname.toLowerCase().includes(username.toLowerCase()));
+    
+    return isNameIncluded;
+  }).length;
+  
+  const signedByYouCount = signedContracts.length;
+  
+  const fullySignedCount = (() => {
+    // First, get contracts the user sent that are fully signed
+    const sentAndFullySigned = contracts.filter(contract => 
+      contract.fullySignedAt || 
+      (contract.pendingSignatures && contract.pendingSignatures.length === 0)
+    );
+    
+    // Then, get contracts the user signed that are fully signed
+    const receivedAndFullySigned = signedContracts.filter(contract =>
+      contract.fullySignedAt || 
+      (contract.pendingSignatures && contract.pendingSignatures.length === 0)
+    );
+    
+    // Combine both arrays, avoiding duplicates by checking IDs
+    const combinedContracts = [...sentAndFullySigned];
+    
+    // Add contracts from receivedAndFullySigned that aren't already in combinedContracts
+    receivedAndFullySigned.forEach(contract => {
+      if (!combinedContracts.some(c => c._id === contract._id)) {
+        combinedContracts.push(contract);
+      }
+    });
+    
+    return combinedContracts.length;
+  })();
 
   if (error) {
     return (
@@ -281,17 +839,7 @@ export default function SentContracts() {
               : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
           }`}
         >
-          In Progress
-        </button>
-        <button
-          onClick={() => setActiveTab('fullySigned')}
-          className={`py-2 px-4 font-medium text-sm focus:outline-none ${
-            activeTab === 'fullySigned'
-              ? 'text-teal-600 border-b-2 border-teal-500'
-              : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
-        >
-          Fully Signed
+          In Progress <span className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">{inProgressCount}</span>
         </button>
         <button
           onClick={() => setActiveTab('signedByYou')}
@@ -301,7 +849,17 @@ export default function SentContracts() {
               : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
           }`}
         >
-          Signed by You
+          Signed by You <span className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">{signedByYouCount}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('fullySigned')}
+          className={`py-2 px-4 font-medium text-sm focus:outline-none ${
+            activeTab === 'fullySigned'
+              ? 'text-teal-600 border-b-2 border-teal-500'
+              : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          Fully Signed <span className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">{fullySignedCount}</span>
         </button>
         
         {/* Clickable notification bubble */}
@@ -319,7 +877,7 @@ export default function SentContracts() {
           </Link>
         </div>
       </div>
-      
+
       {(loading && activeTab !== 'signedByYou') || (loadingSignedContracts && activeTab === 'signedByYou') ? (
         <div className="flex justify-center items-center h-40">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
@@ -343,7 +901,7 @@ export default function SentContracts() {
               <div key={contract._id} className={`bg-white/70 backdrop-blur-md p-6 rounded-xl shadow-xl border ${
                 activeTab === 'signedByYou' 
                   ? 'border-blue-300' 
-                  : contract.pendingSignatures?.includes(currentUser?._id) 
+                  : contract.pendingSignatures?.includes(currentUser?._id)
                     ? 'border-red-300' 
                     : 'border-white/20'
               } hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1`}>
@@ -368,28 +926,138 @@ export default function SentContracts() {
                       Needs your signature
                     </div>
                   )}
+                  
+                  {activeTab === 'fullySigned' && contract.contractNumber && (
+                    <div className="bg-green-100 text-green-600 px-3 py-1 rounded-full text-xs font-semibold flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Contract #{contract.contractNumber}
+                    </div>
+                  )}
                 </div>
                 
                 {activeTab === 'inProgress' && (
                   <div className="mt-4 space-y-3">
+                    {/* Sent by information */}
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-sm text-gray-600 font-medium">Sent by:</span>
+                      {contract.userId ? (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium flex items-center">
+                          {contract.userId === currentUser?._id 
+                            ? (currentUser?.name || currentUser?.username || 'You')
+                            : (contract.senderName || 
+                              (contract.userInfo && (contract.userInfo.name || contract.userInfo.username)) || 
+                              'Unknown Sender')}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-500 italic">Unknown sender</span>
+                      )}
+                    </div>
+                    
                     {/* Signed by section */}
                     <div className="flex flex-wrap gap-2">
                       {contract.signatures && contract.signatures.length > 0 ? (
                         <>
                           <span className="text-sm text-gray-600 font-medium">Signed by:</span>
-                          {contract.signatures.map((signature, index) => (
-                            <span 
-                              key={index} 
-                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex items-center"
-                              title={`Signed by ${signature.name || signature.username}`}
-                            >
-                              {signature.name || signature.username}
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </span>
-                          ))}
-                        </>
+                          {contract.signatures.map((signature, index) => {
+                            // Handle different signature formats
+                            let displayName = 'Unknown User';
+                            let userRole = '';
+                            let userId = '';
+                            
+                            if (typeof signature === 'object' && signature !== null) {
+                              // If it's an object with user info
+                              userId = signature.userId;
+                              displayName = signature.name || signature.username || 'Unknown User';
+                              
+                              // Check if this signature is from the current user
+                              if (signature.userId === currentUser?._id || signature.isCurrentUser) {
+                                displayName = currentUser?.name || currentUser?.username || 'You';
+                              }
+                              
+                              // Check if user is an agent
+                              if (signature.isAgent) {
+                                userRole = 'Agent';
+                              }
+                              
+                              // For debugging
+                              console.log('Signature object:', signature);
+                            } else {
+                              // If it's just an ID, try to match it with current user or contract roles
+                              userId = signature?.toString();
+                              const signatureId = userId;
+                              
+                              // For debugging
+                              console.log('Signature ID to match:', signatureId, 'Current user ID:', currentUser?._id);
+                              
+                              // Check if this is the current user's signature
+                              if (signatureId === currentUser?._id?.toString()) {
+                                displayName = currentUser?.name || currentUser?.username || 'You';
+                              } 
+                              // If we have contract role information, use it
+                              else if (contract.landlordId && contract.landlordId.toString() === signatureId) {
+                                displayName = `${contract.landlordFirstname || ''} ${contract.landlordSurname || ''}`;
+                                userRole = 'Landlord';
+                              } else if (contract.agentId && contract.agentId.toString() === signatureId) {
+                                displayName = `${contract.agentFirstname || ''} ${contract.agentSurname || ''}`;
+                                userRole = 'Agent';
+                              } else if (contract.tenantId && contract.tenantId.toString() === signatureId) {
+                                displayName = `${contract.tenantFirstname || ''} ${contract.tenantSurname || ''}`;
+                                userRole = 'Tenant';
+                              } else {
+                                // Check if we have this user in our signatureUsers state
+                                const userInfo = signatureUsers[signatureId];
+                                if (userInfo) {
+                                  displayName = userInfo.name || userInfo.username || 'Unknown User';
+                                  if (userInfo.isAgent) {
+                                    userRole = 'Agent';
+                                  }
+                                }
+                              }
+                            }
+                            
+                            // Try to get additional info from signatureUsers if we have it
+                            if (userId && signatureUsers[userId]) {
+                              const userInfo = signatureUsers[userId];
+                              if (!displayName || displayName === 'Unknown User') {
+                                displayName = userInfo.name || userInfo.username || displayName;
+                              }
+                              if (!userRole && userInfo.isAgent) {
+                                userRole = 'Agent';
+                              }
+                            }
+                                
+                            // Clean up the display name
+                            displayName = displayName.trim();
+                            if (displayName === '' || displayName === ' ') displayName = 'Unknown User';
+                            
+                            // Add role if available, but avoid "Agent (Agent)" redundancy
+                            let displayWithRole = displayName;
+                            if (userRole && !(userRole === 'Agent' && displayName === 'Agent')) {
+                              displayWithRole = `${displayName} (${userRole})`;
+                            }
+                            
+                            // Special handling for agents - make sure we show their name
+                            if (userRole === 'Agent' && displayName === 'Agent' && contract.agentFirstname && contract.agentSurname) {
+                              displayWithRole = `${contract.agentFirstname} ${contract.agentSurname} (Agent)`;
+                            }
+                            
+                            return (
+                              <React.Fragment key={index}>
+                                <span 
+                                  className={`px-2 py-1 ${userRole === 'Agent' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} rounded-full text-xs font-medium flex items-center`}
+                                  title={`Signed by ${displayWithRole}`}
+                                >
+                                  {displayWithRole}
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </span>
+                              </React.Fragment>
+                            );
+                          })}
+                        </> 
                       ) : (
                         <span className="text-sm text-gray-500 italic">No signatures yet</span>
                       )}
@@ -404,43 +1072,93 @@ export default function SentContracts() {
                           console.log('Pending signature:', pendingSignature);
                           
                           // Check if pendingSignature is an object with user info or just an ID
-                          const isObject = typeof pendingSignature === 'object' && pendingSignature !== null;
-                          const displayName = isObject 
-                            ? (pendingSignature.name || pendingSignature.username || 'Unknown User')
-                            : 'Pending User';
+                          let displayName = 'Unknown User';
+                          let isAgent = false;
+                          
+                          if (typeof pendingSignature === 'object' && pendingSignature !== null) {
+                            // If it's an object with user info
+                            displayName = pendingSignature.name || pendingSignature.username || 'Unknown User';
+                            isAgent = pendingSignature.isAgent;
+                          } else {
+                            // If it's just an ID, try to match it with contract roles
+                            const pendingId = pendingSignature?.toString();
                             
-                          // Check if this is an agent (if user has isAgent property)
-                          const isAgent = isObject && pendingSignature.isAgent;
+                            // For debugging
+                            console.log('Pending ID to match:', pendingId);
+                            
+                            // First check if we have this user in our signatureUsers state
+                            const userInfo = signatureUsers[pendingId];
+                            if (userInfo) {
+                              displayName = userInfo.name || userInfo.username || 'Unknown User';
+                              isAgent = userInfo.isAgent || false;
+                            } 
+                            // If we don't have user info, try to match with contract roles
+                            else if (contract.landlordId && contract.landlordId.toString() === pendingId) {
+                              displayName = `${contract.landlordFirstname || ''} ${contract.landlordSurname || ''}`;
+                              if (displayName.trim()) displayName += ' (Landlord)';
+                              else displayName = 'Landlord';
+                            } else if (contract.agentId && contract.agentId.toString() === pendingId) {
+                              displayName = `${contract.agentFirstname || ''} ${contract.agentSurname || ''}`;
+                              if (displayName.trim()) displayName += ' (Agent)';
+                              else displayName = 'Agent';
+                              isAgent = true;
+                            } else if (contract.tenantId && contract.tenantId.toString() === pendingId) {
+                              displayName = `${contract.tenantFirstname || ''} ${contract.tenantSurname || ''}`;
+                              if (displayName.trim()) displayName += ' (Tenant)';
+                              else displayName = 'Tenant';
+                            } 
+                            // If we still don't have a match, use contract role information based on the current user
+                            else {
+                              // For landlord contracts
+                              if (currentUser?.isLandlord && contract.landlordFirstname && contract.landlordSurname) {
+                                displayName = `${contract.landlordFirstname} ${contract.landlordSurname} (Landlord)`;
+                              } 
+                              // For agent contracts
+                              else if (currentUser?.isAgent && contract.agentFirstname && contract.agentSurname) {
+                                displayName = `${contract.agentFirstname} ${contract.agentSurname} (Agent)`;
+                                isAgent = true;
+                              }
+                              // For tenant contracts
+                              else if (contract.tenantFirstname && contract.tenantSurname) {
+                                displayName = `${contract.tenantFirstname} ${contract.tenantSurname} (Tenant)`;
+                              }
+                              // If all else fails, use the first available role information
+                              else if (contract.landlordFirstname && contract.landlordSurname) {
+                                displayName = `${contract.landlordFirstname} ${contract.landlordSurname} (Landlord)`;
+                              } else if (contract.agentFirstname && contract.agentSurname) {
+                                displayName = `${contract.agentFirstname} ${contract.agentSurname} (Agent)`;
+                                isAgent = true;
+                              }
+                            }
+                          }
                           
                           return (
-                            <span 
-                              key={index} 
-                              className={`px-2 py-1 ${isAgent ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'} rounded-full text-xs font-medium flex items-center`}
-                              title={`Signature pending${isAgent ? ' (Agent)' : ''}`}
-                            >
-                              {displayName}
-                              {isAgent && (
-                                <span className="ml-1 text-xs bg-purple-200 text-purple-800 px-1 rounded">Agent</span>
-                              )}
-                              <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 ml-1 ${isAgent ? 'text-purple-500' : 'text-amber-500'}`} viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                              </svg>
-                            </span>
+                            <React.Fragment key={index}>
+                              <span 
+                                className={`px-2 py-1 ${isAgent ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'} rounded-full text-xs font-medium flex items-center`}
+                                title={`Signature pending${isAgent ? ' (Agent)' : ''}`}
+                              >
+                                {displayName}
+                                {isAgent && (
+                                  <span className="ml-1 text-xs bg-purple-200 text-purple-800 px-1 rounded">Agent</span>
+                                )}
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 ml-1 ${isAgent ? 'text-purple-500' : 'text-amber-500'}`} viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                </svg>
+                              </span>
+                            </React.Fragment>
                           );
                         })}
                       </div>
                     )}
                     
                     {/* Agent signature section - for contracts with agent details but no agent in pendingSignatures */}
-                    {(contract.agentFirstname || contract.agentSurname) && 
-                     !(contract.pendingSignatures || []).some(sig => 
-                       (typeof sig === 'object' && sig !== null && sig.isAgent) || 
-                       (contract.agentId && (sig === contract.agentId || sig.userId === contract.agentId))
-                     ) && 
-                     !(contract.signatures || []).some(sig => 
-                       (typeof sig === 'object' && sig !== null && sig.isAgent) || 
-                       (contract.agentId && (sig === contract.agentId || sig.userId === contract.agentId))
-                     ) && (
+                    {(contract.agentId || contract.agentFirstname || contract.agentSurname) && 
+                      // Check if agent is NOT in the signatures array
+                      !(contract.signatures || []).some(sig => 
+                        (typeof sig === 'object' && sig !== null && sig.isAgent) || 
+                        (contract.agentId && (sig === contract.agentId || (sig.userId && sig.userId === contract.agentId)))
+                      ) && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         <span className="text-sm text-gray-600 font-medium">Agent signature status:</span>
                         <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium flex items-center">
@@ -459,7 +1177,162 @@ export default function SentContracts() {
                   <p className="text-sm text-gray-600">
                     <span className="font-medium">Created on:</span> {new Date(contract.createdAt).toLocaleString()}
                   </p>
-                  {contract.fullySignedAt && (
+                  {contract.fullySignedAt && activeTab !== 'fullySigned' && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Fully signed on:</span> {new Date(contract.fullySignedAt).toLocaleString()}
+                    </p>
+                  )}
+                  {activeTab === 'signedByYou' && contract.senderName && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Sent by:</span> {contract.senderName}
+                    </p>
+                  )}
+                </div>
+                
+                {activeTab === 'fullySigned' && (
+                  <div className="mt-4 space-y-3">
+                    {/* Contract Number */}
+                    {contract.contractNumber && (
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 font-medium">Contract Number:</span>
+                        <span className="text-base font-semibold text-gray-800 mt-1 bg-green-50 p-2 rounded border border-green-100">
+                          {contract.contractNumber}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Fully Signed Date */}
+                    {contract.fullySignedAt && (
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 font-medium">Fully Signed On:</span>
+                        <span className="text-sm text-gray-800 mt-1">
+                          {new Date(contract.fullySignedAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Sent by information */}
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-sm text-gray-600 font-medium">Sent by:</span>
+                      {contract.userId ? (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium flex items-center">
+                          {contract.userId === currentUser?._id 
+                            ? (currentUser?.name || currentUser?.username || 'You')
+                            : (contract.senderName || 
+                              (contract.userInfo && (contract.userInfo.name || contract.userInfo.username)) || 
+                              'Unknown Sender')}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-500 italic">Unknown sender</span>
+                      )}
+                    </div>
+                    
+                    {/* Signed by section */}
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-sm text-gray-600 font-medium">Signed by:</span>
+                      {contract.signatures && contract.signatures.length > 0 ? (
+                        <>
+                          {contract.signatures.map((signature, index) => {
+                            // Variables to store signature information
+                            let userId = '';
+                            let displayName = 'Unknown User';
+                            let userRole = '';
+                            
+                            // Check if signature is an object with user info or just an ID
+                            if (typeof signature === 'object' && signature !== null) {
+                              // If it's an object with user info
+                              userId = signature.userId;
+                              displayName = signature.name || signature.username || 'Unknown User';
+                              if (signature.isAgent) {
+                                userRole = 'Agent';
+                              }
+                            } else {
+                              // If it's just an ID, try to match it with contract roles
+                              const signatureId = signature?.toString();
+                              
+                              // If we have contract role information, use it
+                              if (contract.landlordId === signatureId) {
+                                displayName = `${contract.landlordFirstname || ''} ${contract.landlordSurname || ''}`;
+                                userRole = 'Landlord';
+                              } else if (contract.agentId === signatureId) {
+                                displayName = `${contract.agentFirstname || ''} ${contract.agentSurname || ''}`;
+                                userRole = 'Agent';
+                              } else if (contract.tenantId === signatureId) {
+                                displayName = `${contract.tenantFirstname || ''} ${contract.tenantSurname || ''}`;
+                                userRole = 'Tenant';
+                              }
+                              
+                              // Try to get additional info from signatureUsers if we have it
+                              if (signatureId && signatureUsers[signatureId]) {
+                                const userInfo = signatureUsers[signatureId];
+                                if (userInfo) {
+                                  displayName = userInfo.name || userInfo.username || 'Unknown User';
+                                  if (userInfo.isAgent) {
+                                    userRole = 'Agent';
+                                  }
+                                }
+                              }
+                            }
+                            
+                            // Try to get additional info from signatureUsers if we have it
+                            if (userId && signatureUsers[userId]) {
+                              const userInfo = signatureUsers[userId];
+                              if (!displayName || displayName === 'Unknown User') {
+                                displayName = userInfo.name || userInfo.username || displayName;
+                              }
+                              if (!userRole && userInfo.isAgent) {
+                                userRole = 'Agent';
+                              }
+                            }
+                                
+                            // Clean up the display name
+                            displayName = displayName.trim();
+                            if (displayName === '' || displayName === ' ') displayName = 'Unknown User';
+                            
+                            // Add role if available, but avoid "Agent (Agent)" redundancy
+                            let displayWithRole = displayName;
+                            if (userRole && !(userRole === 'Agent' && displayName === 'Agent')) {
+                              displayWithRole = `${displayName} (${userRole})`;
+                            }
+                            
+                            // Special handling for agents - make sure we show their name
+                            if (userRole === 'Agent' && displayName === 'Agent' && contract.agentFirstname && contract.agentSurname) {
+                              displayWithRole = `${contract.agentFirstname} ${contract.agentSurname} (Agent)`;
+                            }
+                            
+                            return (
+                              <React.Fragment key={index}>
+                                <span 
+                                  className={`px-2 py-1 ${userRole === 'Agent' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} rounded-full text-xs font-medium flex items-center`}
+                                  title={`Signed by ${displayWithRole}`}
+                                >
+                                  {displayWithRole}
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </span>
+                              </React.Fragment>
+                            );
+                          })}
+                        </> 
+                      ) : (
+                        <span className="text-sm text-gray-500 italic">No signatures available</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Created on:</span> {new Date(contract.createdAt).toLocaleString()}
+                  </p>
+                  {contract.fullySignedAt && activeTab !== 'fullySigned' && (
                     <p className="text-sm text-gray-600">
                       <span className="font-medium">Fully signed on:</span> {new Date(contract.fullySignedAt).toLocaleString()}
                     </p>
@@ -508,7 +1381,7 @@ export default function SentContracts() {
                     className="px-4 py-2 bg-teal-500/80 hover:bg-teal-600/90 text-white rounded-full backdrop-blur-sm transition-colors duration-200 flex items-center gap-2"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     View Contract
                   </Link>

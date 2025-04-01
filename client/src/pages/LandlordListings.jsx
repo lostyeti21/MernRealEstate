@@ -76,7 +76,7 @@ const LandlordListings = () => {
   const handleVerifyCode = async () => {
     try {
       if (!verificationCode.trim()) {
-        setVerificationError('Please enter a verification code');
+        setVerificationError('Please enter a verification code or contract number');
         return;
       }
 
@@ -86,58 +86,114 @@ const LandlordListings = () => {
         return;
       }
 
-      // First verify the code
-      const verifyResponse = await fetch('/api/code/verify', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          code: verificationCode,
-          landlordId: userId
-        })
-      });
+      // First try to verify using the standard verification code
+      let standardVerificationSuccess = false;
+      try {
+        console.log('Attempting standard code verification with:', verificationCode);
+        const verifyResponse = await fetch('/api/code/verify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            code: verificationCode,
+            landlordId: userId
+          })
+        });
 
-      const verifyData = await verifyResponse.json();
+        const verifyData = await verifyResponse.json();
+        console.log('Standard verification response:', verifyData);
 
-      if (!verifyResponse.ok) {
-        throw new Error(verifyData.message || 'Invalid verification code');
-      }
-
-      if (!verifyData.success) {
-        throw new Error(verifyData.message || 'Verification failed');
-      }
-
-      // If code is valid, check if user has already rated
-      const ratedResponse = await fetch(`/api/user/check-if-rated/${userId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+        if (verifyResponse.ok && verifyData.success) {
+          // Standard code verification succeeded
+          standardVerificationSuccess = true;
+          await checkIfRatedAndSetVerified(token);
+          return;
         }
-      });
-
-      const ratedData = await ratedResponse.json();
-
-      if (!ratedResponse.ok) {
-        throw new Error(ratedData.message || 'Failed to check rating status');
+      } catch (standardVerifyError) {
+        console.log('Standard verification failed:', standardVerifyError.message);
       }
 
-      if (ratedData.hasRated) {
-        throw new Error('You have already rated this landlord');
+      if (!standardVerificationSuccess) {
+        // If standard verification fails, try contract number verification
+        try {
+          console.log('Attempting contract verification with:', verificationCode);
+          const contractVerifyResponse = await fetch('/api/contract/verify-by-number', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contractNumber: verificationCode,
+              landlordId: userId
+            })
+          });
+
+          // Check if we got a 404, which means the endpoint doesn't exist
+          if (contractVerifyResponse.status === 404) {
+            console.error('Contract verification endpoint not found (404)');
+            throw new Error('Contract verification code is wrong. Please try again  or use a verification code instead.');
+          }
+
+          let contractVerifyData;
+          try {
+            contractVerifyData = await contractVerifyResponse.json();
+            console.log('Contract verification response:', contractVerifyData);
+          } catch (jsonError) {
+            console.error('Error parsing JSON response:', jsonError);
+            throw new Error('Invalid response from server. Please try again later.');
+          }
+
+          if (!contractVerifyResponse.ok) {
+            console.error('Contract verification HTTP error:', contractVerifyResponse.status);
+            throw new Error(contractVerifyData?.message || `Error ${contractVerifyResponse.status}: Failed to verify contract number`);
+          }
+
+          if (!contractVerifyData.success) {
+            throw new Error(contractVerifyData.message || 'Invalid contract number');
+          }
+
+          // Contract number verification succeeded
+          await checkIfRatedAndSetVerified(token);
+        } catch (contractVerifyError) {
+          console.error('Contract verification error:', contractVerifyError);
+          throw new Error(contractVerifyError.message || 'Invalid verification code or contract number');
+        }
       }
-
-      // If all checks pass, allow rating
-      setIsVerified(true);
-      setVerificationError('');
-      toast.success('Verification successful! You can now rate the landlord.');
-
     } catch (err) {
       console.error('Verification error:', err);
       setVerificationError(err.message || 'Failed to verify code');
       toast.error(err.message || 'Failed to verify code');
     }
+  };
+
+  // Helper function to check if user has already rated and set verified state
+  const checkIfRatedAndSetVerified = async (token) => {
+    // Check if user has already rated
+    const ratedResponse = await fetch(`/api/user/check-if-rated/${userId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const ratedData = await ratedResponse.json();
+
+    if (!ratedResponse.ok) {
+      throw new Error(ratedData.message || 'Failed to check rating status');
+    }
+
+    if (ratedData.hasRated) {
+      throw new Error('You have already rated this landlord');
+    }
+
+    // If all checks pass, allow rating
+    setIsVerified(true);
+    setVerificationError('');
+    toast.success('Verification successful! You can now rate the landlord.');
   };
 
   const fetchUpdatedLandlord = async () => {
@@ -405,15 +461,18 @@ const LandlordListings = () => {
             <div className="text-center p-6 max-w-md">
               <h4 className="text-lg font-semibold mb-4">Verify to Rate</h4>
               <p className="text-gray-600 mb-6">
-                To rate this landlord, you need their verification code. Ask the landlord for their unique code, 
-                which they can generate from their dashboard.
+                To rate this landlord, you need either:
+                <ul className="list-disc list-inside mt-2 text-left">
+                  <li>Their verification code (which they can generate from their dashboard)</li>
+                  <li>A contract number from a fully signed contract with this landlord</li>
+                </ul>
               </p>
               <div className="space-y-4">
                 <input
                   type="text"
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value)}
-                  placeholder="Enter landlord's verification code"
+                  placeholder="Enter verification code or contract number"
                   className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {verificationError && (
@@ -423,10 +482,10 @@ const LandlordListings = () => {
                   onClick={handleVerifyCode}
                   className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200"
                 >
-                  Verify Code
+                  Verify
                 </button>
                 <p className="text-sm text-gray-500 mt-4">
-                  Note: The verification code is valid for 24 hours after generation.
+                  Note: Verification codes are valid for 24 hours. Contract numbers are permanently valid.
                 </p>
               </div>
             </div>

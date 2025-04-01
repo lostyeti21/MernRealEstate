@@ -595,8 +595,10 @@ export default function Contract() {
       // Add the current user's signature
       const newSignature = {
         userId: currentUser._id,
-        name: currentUser.username || currentUser.name || 'You',
-        signed: true,
+        name: currentUser.name || currentUser.username || 'You',
+        username: currentUser.username || '',
+        avatar: currentUser.avatar || '',
+        isAgent: currentUser.isAgent || false,
         signedAt: new Date()
       };
       
@@ -712,7 +714,7 @@ export default function Contract() {
               </div>
             )}
 
-            <form className="space-y-4" onSubmit={handleUpload}>
+            <form className="space-y-4">
               {/* Property Input */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1111,19 +1113,19 @@ export default function Contract() {
                       <p className="text-red-500 text-sm mb-2">{formErrors.contract}</p>
                     )}
                   </div>
+                  
                   <button
-                    type="submit"
-                    disabled={loading || !isFormValid || !agreed}
+                    type="button"
+                    onClick={handleUpload}
                     className={`w-full px-4 py-2 text-white rounded ${
-                      loading || !isFormValid || !agreed
-                        ? 'bg-blue-400 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700'
+                      loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                   >
                     {loading ? 'Uploading...' : 'Upload Contract'}
                   </button>
                 </>
               )}
+
               {isViewMode && needsSignature && (
                 <>
                   <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -1191,15 +1193,51 @@ export default function Contract() {
               <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
                 <h4 className="text-lg font-medium mb-2">Signed by:</h4>
                 <ul>
-                  {signatures.map((signature, index) => (
-                    <li key={index} className="flex items-center gap-2 mb-1">
-                      <FaSignature className="text-blue-500" />
-                      <span className="text-gray-600">{signature.name}</span>
-                      <span className="bg-green-500 text-white rounded-full px-2 py-1 text-xs">
-                        Signed
-                      </span>
-                    </li>
-                  ))}
+                  {signatures.map((signature, index) => {
+                    // Determine the display name and role
+                    let displayName = 'Unknown User';
+                    let isAgent = false;
+                    
+                    if (typeof signature === 'object' && signature !== null) {
+                      displayName = signature.name || signature.username || 'Unknown User';
+                      isAgent = signature.isAgent || false;
+                      
+                      // If it's the current user, show "You"
+                      if (signature.userId === currentUser?._id) {
+                        displayName = 'You';
+                      }
+                    } else if (typeof signature === 'string') {
+                      // For string signatures (legacy format)
+                      if (signature === currentUser?._id) {
+                        displayName = 'You';
+                      } else if (fullContractData) {
+                        // Try to match with contract roles
+                        if (fullContractData.agentId === signature) {
+                          displayName = `${fullContractData.agentFirstname || ''} ${fullContractData.agentSurname || ''}`;
+                          isAgent = true;
+                        } else if (fullContractData.landlordId === signature) {
+                          displayName = `${fullContractData.landlordFirstname || ''} ${fullContractData.landlordSurname || ''}`;
+                        } else if (fullContractData.tenantId === signature) {
+                          displayName = `${fullContractData.tenantFirstname || ''} ${fullContractData.tenantSurname || ''}`;
+                        }
+                      }
+                    }
+                    
+                    return (
+                      <li key={index} className="flex items-center gap-2 mb-1">
+                        <FaSignature className={isAgent ? "text-purple-500" : "text-blue-500"} />
+                        <span className="text-gray-600">{displayName}</span>
+                        {isAgent && (
+                          <span className="bg-purple-500 text-white rounded-full px-2 py-1 text-xs">
+                            Agent
+                          </span>
+                        )}
+                        <span className="bg-green-500 text-white rounded-full px-2 py-1 text-xs">
+                          Signed
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

@@ -60,12 +60,17 @@ const contractSchema = new mongoose.Schema({
   },
   // Signatures received so far (user IDs)
   signatures: {
-    type: [String],
+    type: [mongoose.Schema.Types.Mixed],
     default: []
   },
   // Date when all required signatures are collected
   fullySignedAt: {
     type: Date,
+    default: null
+  },
+  // Unique contract number generated when fully signed
+  contractNumber: {
+    type: String,
     default: null
   },
   // References to users involved in the contract
