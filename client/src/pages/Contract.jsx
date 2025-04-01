@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
-import { FaCheckCircle, FaFilePdf, FaPlus, FaSearch, FaTimes } from 'react-icons/fa';
-import { useLocation } from 'react-router-dom';
+import { FaCheckCircle, FaFilePdf, FaPlus, FaSearch, FaTimes, FaSignature } from 'react-icons/fa';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { useSelector } from 'react-redux';
 
 export default function Contract() {
+  const { currentUser } = useSelector(state => state.user);
   const location = useLocation();
+  const navigate = useNavigate();
   const contractData = location.state || {};
   const isViewMode = !!contractData.contractUrl;
+  const needsSignature = contractData.needsSignature || false;
 
   const [formData, setFormData] = useState({
     property: contractData.property || '',
@@ -17,9 +22,19 @@ export default function Contract() {
     tenantSurname: contractData.tenantSurname || '',
     contract: null
   });
+  
+  const [contractFile, setContractFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [contractUrl, setContractUrl] = useState(contractData.contractUrl || '');
+  const [success, setSuccess] = useState(false);
+  const [signingSuccess, setSigningSuccess] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [signatures, setSignatures] = useState([]);
+  const [hasSigned, setHasSigned] = useState(false);
+  const [fullContractData, setFullContractData] = useState(null);
+  const [loadingContractData, setLoadingContractData] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(contractData.contractUrl || null);
   const [formErrors, setFormErrors] = useState({
     property: '',
@@ -31,7 +46,11 @@ export default function Contract() {
     tenantSurname: '',
     contract: ''
   });
-  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isFormValid, setIsFormValid] = useState(false);
+  const searchRef = useRef(null);
+  const agentSearchRef = useRef(null);
+  const tenantSearchRef = useRef(null);
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -44,12 +63,57 @@ export default function Contract() {
   const [tenantSearchTerm, setTenantSearchTerm] = useState('');
   const [tenantSearchResults, setTenantSearchResults] = useState([]);
   const [selectedTenant, setSelectedTenant] = useState(null);
-  const [isFormValid, setIsFormValid] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const searchRef = useRef(null);
-  const agentSearchRef = useRef(null);
-  const tenantSearchRef = useRef(null);
+
+  // Fetch full contract data if we have a contractId
+  useEffect(() => {
+    const fetchContractData = async () => {
+      if (!contractData.contractId) return;
+      
+      try {
+        setLoadingContractData(true);
+        console.log('Fetching contract details for ID:', contractData.contractId);
+        
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contracts/${contractData.contractId}`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch contract details');
+        }
+        
+        const data = await response.json();
+        console.log('Fetched contract details:', data);
+        
+        setFullContractData(data);
+        setSignatures(data.signatures || []);
+        setHasSigned(data.userHasSigned || false);
+        
+        // Update form data with any additional information from the server
+        setFormData(prev => ({
+          ...prev,
+          property: data.property || prev.property,
+          landlordFirstname: data.landlordFirstname || prev.landlordFirstname,
+          landlordSurname: data.landlordSurname || prev.landlordSurname,
+          agentFirstname: data.agentFirstname || prev.agentFirstname,
+          agentSurname: data.agentSurname || prev.agentSurname,
+          tenantFirstname: data.tenantFirstname || prev.tenantFirstname,
+          tenantSurname: data.tenantSurname || prev.tenantSurname,
+        }));
+      } catch (err) {
+        console.error('Error fetching contract details:', err);
+        setError(err.message);
+      } finally {
+        setLoadingContractData(false);
+      }
+    };
+    
+    fetchContractData();
+  }, [contractData.contractId]);
 
   useEffect(() => {
     // Close search dropdowns when clicking outside
@@ -68,6 +132,67 @@ export default function Contract() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (isViewMode && contractData.contractId) {
+      fetchContractSignatures();
+    }
+  }, [isViewMode, contractData.contractId]);
+
+  const fetchContractSignatures = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contracts/${contractData.contractId}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch contract signatures');
+      }
+
+      const data = await response.json();
+      
+      // If the contract has signatures, fetch user information for each signature
+      if (data.contract.signatures && data.contract.signatures.length > 0) {
+        const signaturePromises = data.contract.signatures.map(async (userId) => {
+          try {
+            const userResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/user/${userId}`, {
+              credentials: 'include',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              }
+            });
+            
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              return {
+                userId,
+                name: userData.username || 'Unknown User',
+                signed: true
+              };
+            }
+            return { userId, name: 'Unknown User', signed: true };
+          } catch (error) {
+            console.error('Error fetching user info:', error);
+            return { userId, name: 'Unknown User', signed: true };
+          }
+        });
+        
+        const signatureDetails = await Promise.all(signaturePromises);
+        setSignatures(signatureDetails);
+        
+        // Check if current user has already signed
+        if (currentUser && data.contract.signatures.includes(currentUser._id)) {
+          setHasSigned(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching contract signatures:', error);
+    }
+  };
 
   const searchUsers = async (term) => {
     try {
@@ -386,10 +511,9 @@ export default function Contract() {
       }
 
       const data = await response.json();
-      setContractUrl(data.contractUrl);
+      setPreviewUrl(data.contractUrl);
       setShowSuccessPopup(true);
       setUploadSuccess(true);
-      setPreviewUrl(data.contractUrl);
 
       // Reset form except for success state and preview
       setFormData({
@@ -417,6 +541,77 @@ export default function Contract() {
     setShowSuccessPopup(false);
   };
 
+  // Function to sign a contract
+  const handleSignContract = async () => {
+    if (!agreed) {
+      setError('You must agree to the contract terms before signing');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Use the contractId from fullContractData if available, otherwise fall back to contractData
+      const contractIdToUse = fullContractData?._id || contractData.contractId;
+
+      // Debug information
+      console.log('Contract data being sent:', {
+        contractId: contractIdToUse,
+        currentUser: currentUser,
+        agreed: agreed,
+        fullContractData: fullContractData ? {
+          _id: fullContractData._id,
+          pendingSignatures: fullContractData.pendingSignaturesArray,
+          userNeedsToSign: fullContractData.userNeedsToSign
+        } : null
+      });
+
+      if (!contractIdToUse) {
+        throw new Error('Contract ID is missing');
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contracts/sign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          contractId: contractIdToUse,
+          agreed
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign contract');
+      }
+
+      const data = await response.json();
+      setSigningSuccess(true);
+      
+      // Add the current user's signature
+      const newSignature = {
+        userId: currentUser._id,
+        name: currentUser.username || currentUser.name || 'You',
+        signed: true,
+        signedAt: new Date()
+      };
+      
+      setSignatures(prev => [...prev, newSignature]);
+      setHasSigned(true);
+      setShowSuccessPopup(true);
+      toast.success('Contract signed successfully!');
+    } catch (err) {
+      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto mt-10 p-6">
       <h2 className="text-2xl font-bold mb-6 text-center">Contract Upload</h2>
@@ -436,14 +631,38 @@ export default function Contract() {
             
             {/* Success message */}
             <h3 className="text-xl font-semibold text-gray-800 mb-6 text-center">
-              You have successfully sent the contract!
+              {signingSuccess 
+                ? 'You have successfully signed the contract!' 
+                : 'You have successfully sent the contract!'}
             </h3>
+            
+            {/* Signatures */}
+            {signatures.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-lg font-medium mb-2">Signatures:</h4>
+                <ul>
+                  {signatures.map((signature, index) => (
+                    <li key={index} className="flex items-center gap-2 mb-1">
+                      <FaSignature className="text-blue-500" />
+                      <span className="text-gray-600">{signature.name}</span>
+                      <span className="bg-green-500 text-white rounded-full px-2 py-1 text-xs">
+                        Signed
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             
             {/* OK button */}
             <button
               onClick={() => {
                 handleClosePopup();
-                window.location.href = '/sentcontracts';
+                if (signingSuccess) {
+                  window.location.href = '/signing-contracts';
+                } else {
+                  window.location.href = '/sentcontracts';
+                }
               }}
               className="px-8 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors duration-200 font-medium"
             >
@@ -453,36 +672,32 @@ export default function Contract() {
         </div>
       )}
 
-      {uploadSuccess && (
-        <div className="mt-4">
-          <div className="flex items-center gap-2 text-green-600 mb-2">
-            <FaCheckCircle className="text-xl" />
-            <span className="font-medium">Contract uploaded successfully!</span>
-          </div>
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded border border-gray-200">
-            <FaFilePdf className="text-red-500 text-xl" />
+      {success && (
+        <div className="mt-4 mb-4">
+          <div className="flex items-center gap-2 p-3 bg-green-50 rounded border border-green-200">
+            <FaCheckCircle className="text-green-500 text-xl" />
             <a 
-              href={contractUrl} 
+              href={previewUrl} 
               target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline flex-1"
+              rel="noopener noreferrer" 
+              className="text-green-600 hover:underline"
             >
-              View uploaded contract
+              Contract uploaded successfully. Click here to view.
             </a>
           </div>
         </div>
       )}
-      {!uploadSuccess && contractUrl && (
+      {!uploadSuccess && previewUrl && (
         <div className="mt-4 mb-4">
           <div className="flex items-center gap-2 p-3 bg-gray-50 rounded border border-gray-200">
             <FaFilePdf className="text-red-500 text-xl" />
             <a 
-              href={contractUrl} 
+              href={previewUrl} 
               target="_blank" 
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline flex-1"
+              rel="noopener noreferrer" 
+              className="text-gray-600 hover:underline"
             >
-              View contract
+              View Contract
             </a>
           </div>
         </div>
@@ -898,15 +1113,56 @@ export default function Contract() {
                   </div>
                   <button
                     type="submit"
-                    disabled={loading || !isFormValid}
+                    disabled={loading || !isFormValid || !agreed}
                     className={`w-full px-4 py-2 text-white rounded ${
-                      loading || !isFormValid
+                      loading || !isFormValid || !agreed
                         ? 'bg-blue-400 cursor-not-allowed'
                         : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                   >
                     {loading ? 'Uploading...' : 'Upload Contract'}
                   </button>
+                </>
+              )}
+              {isViewMode && needsSignature && (
+                <>
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h3 className="font-semibold text-gray-800 mb-2">Contract Signature Required</h3>
+                    <p className="text-gray-600 mb-4">Please review the contract carefully before signing.</p>
+                    
+                    <div className="flex items-center gap-2 mb-4">
+                      <input
+                        type="checkbox"
+                        id="contract-agreement"
+                        name="agreed"
+                        checked={agreed}
+                        onChange={(e) => setAgreed(e.target.checked)}
+                        className="w-5 h-5 text-blue-600"
+                      />
+                      <label htmlFor="contract-agreement" className="text-sm text-gray-700 font-medium">
+                        I hereby agree to the contents of the contract
+                      </label>
+                    </div>
+                    
+                    {error && (
+                      <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
+                        {error}
+                      </div>
+                    )}
+                    
+                    <button
+                      type="button"
+                      disabled={loading || !agreed}
+                      onClick={handleSignContract}
+                      className={`w-full px-4 py-2 text-white rounded ${
+                        loading || !agreed
+                          ? 'bg-red-400 cursor-not-allowed'
+                          : 'bg-red-600 hover:bg-red-700'
+                      }`}
+                    >
+                      {loading ? 'Signing...' : 'Sign Contract'}
+                    </button>
+                  </div>
                 </>
               )}
             </form>
@@ -917,9 +1173,9 @@ export default function Contract() {
           <div className="bg-white rounded-lg shadow-xl p-6">
             <h3 className="text-lg font-semibold mb-4">Contract Preview</h3>
             <div className="border rounded-lg overflow-hidden" style={{ height: '600px' }}>
-              {(previewUrl || contractUrl) ? (
+              {(previewUrl || contractData.contractUrl) ? (
                 <embed
-                  src={previewUrl || contractUrl}
+                  src={previewUrl || contractData.contractUrl}
                   type="application/pdf"
                   width="100%"
                   height="100%"
@@ -931,6 +1187,22 @@ export default function Contract() {
                 </div>
               )}
             </div>
+            {hasSigned && (
+              <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <h4 className="text-lg font-medium mb-2">Signed by:</h4>
+                <ul>
+                  {signatures.map((signature, index) => (
+                    <li key={index} className="flex items-center gap-2 mb-1">
+                      <FaSignature className="text-blue-500" />
+                      <span className="text-gray-600">{signature.name}</span>
+                      <span className="bg-green-500 text-white rounded-full px-2 py-1 text-xs">
+                        Signed
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       )}

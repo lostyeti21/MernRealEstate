@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['viewing_request', 'system', 'message', 'rating', 'dispute_submitted', 'dispute_received', 'dispute_approved', 'dispute_rejected']
+    enum: ['viewing_request', 'system', 'message', 'rating', 'dispute_submitted', 'dispute_received', 'dispute_approved', 'dispute_rejected', 'contract_signature_required', 'contract_signed']
   },
   to: {
     type: mongoose.Schema.Types.ObjectId,
@@ -48,6 +48,11 @@ const notificationSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  category: {
+    type: String,
+    enum: ['general', 'contract', 'dispute', 'rating', 'viewing'],
+    default: 'general'
   }
 }, {
   timestamps: true,
@@ -55,11 +60,10 @@ const notificationSchema = new mongoose.Schema({
   toObject: { getters: true, virtuals: true }
 });
 
-// Index for faster queries
 notificationSchema.index({ to: 1, read: 1 });
 notificationSchema.index({ createdAt: -1 });
+notificationSchema.index({ category: 1 });
 
-// Add virtual for formatted date
 notificationSchema.virtual('formattedDate').get(function() {
   return this.createdAt.toLocaleDateString('en-US', {
     year: 'numeric',

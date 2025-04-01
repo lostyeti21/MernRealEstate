@@ -18,10 +18,11 @@ export const getUserNotifications = async (req, res, next) => {
       return next(errorHandler(404, 'User not found'));
     }
 
-    // Get notifications from the Notification model, excluding viewing_request type
+    // Get notifications from the Notification model, excluding viewing_request type and contract category
     const allNotifications = await Notification.find({ 
       to: userId,
-      type: { $ne: 'viewing_request' } // Exclude viewing_request notifications
+      type: { $ne: 'viewing_request' }, // Exclude viewing_request notifications
+      category: { $ne: 'contract' } // Exclude contract notifications
     })
       .populate('to', 'username avatar')
       .populate('from', 'username avatar')

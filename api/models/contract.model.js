@@ -53,6 +53,34 @@ const contractSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  // Array of user IDs who need to sign the contract
+  pendingSignatures: {
+    type: [String],
+    default: []
+  },
+  // Signatures received so far (user IDs)
+  signatures: {
+    type: [String],
+    default: []
+  },
+  // Date when all required signatures are collected
+  fullySignedAt: {
+    type: Date,
+    default: null
+  },
+  // References to users involved in the contract
+  landlordId: {
+    type: String,
+    default: null
+  },
+  agentId: {
+    type: String,
+    default: null
+  },
+  tenantId: {
+    type: String,
+    default: null
+  }
 }, { timestamps: true });
 
 const Contract = mongoose.model('Contract', contractSchema);
