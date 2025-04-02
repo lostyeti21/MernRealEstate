@@ -2,6 +2,7 @@ import { useSelector } from "react-redux";
 import { useRef, useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
+import { QRCodeSVG } from 'qrcode.react';
 import {
   updateUserStart,
   updateUserSuccess,
@@ -16,6 +17,7 @@ import { FaStar } from 'react-icons/fa';
 
 const Profile = () => {
   const fileRef = useRef(null);
+  const qrRef = useRef(null);
   const { currentUser, loading, error, isRealEstateCompany, realEstateCompany, isAgent } = useSelector((state) => state.user);
   const navigate = useNavigate();
 
@@ -34,13 +36,130 @@ const Profile = () => {
   const [userListings, setUserListings] = useState([]);
   const [listingsFetched, setListingsFetched] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showShareButton, setShowShareButton] = useState(false);
 
   const [userRatings, setUserRatings] = useState({
     overall: { averageRating: null, totalRatings: 0 },
     categories: {}
   });
 
+  // New state for generated code
+  const [code, setCode] = useState('');
+  const [expiryTime, setExpiryTime] = useState(null);
+  const [codeLoading, setCodeLoading] = useState(true);
+  const [codeError, setCodeError] = useState(null);
+
   const dispatch = useDispatch();
+
+  // Fetch generated code
+  useEffect(() => {
+    const fetchCode = async () => {
+      try {
+        setCodeLoading(true);
+        setCodeError(null);
+
+        const res = await fetch('/api/code/generate', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message || 'Could not generate code');
+        }
+
+        setCode(data.code);
+        setExpiryTime(new Date(data.expiryTime).getTime());
+      } catch (err) {
+        console.error('Error fetching code:', err);
+        setCodeError(err.message);
+      } finally {
+        setCodeLoading(false);
+      }
+    };
+
+    if (currentUser && !isAgent) {
+      fetchCode();
+    }
+  }, [currentUser, isAgent]);
+
+  // Format time remaining
+  const getTimeRemaining = () => {
+    if (!expiryTime) return '';
+    
+    const now = new Date().getTime();
+    const timeLeft = expiryTime - now;
+    
+    if (timeLeft <= 0) return 'Expired';
+    
+    const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return `Valid for: ${hours}h ${minutes}m`;
+  };
+
+  // Handle sharing QR code
+  const handleShareQR = async () => {
+    try {
+      if (!qrRef.current) return;
+      
+      // Create a canvas from the QR code
+      const canvas = document.createElement('canvas');
+      const svg = qrRef.current;
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const img = new Image();
+      
+      // Convert SVG to data URL
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      
+      img.onload = async () => {
+        // Set canvas dimensions
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw image on canvas
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        
+        try {
+          // Convert canvas to blob
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          
+          // Share the image
+          if (navigator.share) {
+            await navigator.share({
+              title: 'My Verification QR Code',
+              text: 'Scan this QR code to rate me',
+              files: [new File([blob], 'qrcode.png', { type: 'image/png' })]
+            });
+          } else {
+            // Fallback for browsers that don't support Web Share API
+            const shareUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = shareUrl;
+            a.download = 'verification-qrcode.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(shareUrl);
+          }
+        } catch (error) {
+          console.error('Error sharing:', error);
+        }
+        
+        // Clean up
+        URL.revokeObjectURL(url);
+      };
+      
+      // Set image source to trigger load
+      img.src = url;
+    } catch (error) {
+      console.error('Error preparing QR code for share:', error);
+    }
+  };
 
   useEffect(() => {
     if (file) {
@@ -341,10 +460,10 @@ const Profile = () => {
           className="relative h-[100px] mb-8"
         >
           <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
-            <span style={{ color: '#d2d1e6', opacity: 0.6 }}>PROFILE</span>
+            <span style={{ color: '#d2d1e6', opacity: 0.6 }}>TENANT</span>
           </h1>
           <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
-            Edit your Account
+            {isAgent ? 'Agent Profile' : 'Profile'}
           </h2>
           <div className='text-lg text-slate-500 absolute bottom-0 right-0 z-10 flex items-center'>
             {!isAgent && (
@@ -374,40 +493,109 @@ const Profile = () => {
           </div>
         </motion.div>
         <div className="p-3 max-w-lg mx-auto">
-          <h1 className="text-3xl font-semibold text-center my-7"></h1>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex justify-center items-center gap-8 mb-4">
-              <div className='flex flex-col items-center'>
-                <img
-                  onClick={() => fileRef.current.click()}
-                  src={getUserAvatar()}
-                  alt='profile'
-                  className='rounded-lg h-32 w-32 object-cover cursor-pointer hover:opacity-90 transition-opacity shadow-md mb-2'
-                />
-                <p className='text-sm text-gray-500 text-center'>
+            {/* Profile Information Display Section */}
+            <div className="flex flex-row justify-center items-start mb-8 gap-12">
+              {/* Profile Picture Column */}
+              <div className="flex flex-col items-center w-1/3 max-w-[150px]">
+                <div className="mb-3">
+                  <img
+                    onClick={() => fileRef.current.click()}
+                    src={getUserAvatar()}
+                    alt="profile"
+                    className="rounded-lg w-full aspect-square object-cover cursor-pointer hover:opacity-90 transition-opacity shadow-md"
+                  />
+                </div>
+                <p className="text-sm text-gray-500 text-center">
                   Click your profile picture to change it
                 </p>
                 {filePerc > 0 && filePerc < 100 && (
-                  <div className='w-full bg-gray-200 rounded-full h-2.5 mt-2'>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
                     <div 
-                      className='bg-green-600 h-2.5 rounded-full' 
+                      className="bg-green-600 h-2.5 rounded-full" 
                       style={{width: `${filePerc}%`}}
                     ></div>
                   </div>
                 )}
                 {fileUploadError && (
-                  <span className='text-red-700 text-sm'>
+                  <span className="text-red-700 text-sm">
                     Error uploading image (file must be less than 2 MB)
                   </span>
                 )}
               </div>
+
+              {/* QR Code Column - Only show for non-agents */}
+              {!isAgent && (
+                <div className="flex flex-col items-center w-1/3 max-w-[150px]">
+                  <div 
+                    className="relative mb-3"
+                    onMouseEnter={() => setShowShareButton(true)}
+                    onMouseLeave={() => setShowShareButton(false)}
+                  >
+                    <QRCodeSVG
+                      ref={qrRef}
+                      value={`${window.location.origin}/tenant-rating/${currentUser._id}`}
+                      size={128}
+                      level="H"
+                      includeMargin={true}
+                      className={`shadow-md rounded-lg transition-all duration-500 ease-in-out ${
+                        showShareButton ? 'blur-[2px]' : ''
+                      }`}
+                    />
+                    {showShareButton && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={handleShareQR}
+                          className="bg-black bg-opacity-75 text-white px-4 py-1 rounded-lg 
+                                   transition-all duration-300 ease-in-out hover:bg-opacity-90 
+                                   text-sm font-medium z-10"
+                        >
+                          Share QR
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 text-center">
+                    Scan to view verification code
+                  </p>
+                </div>
+              )}
+
+              {/* Verification Code Column - Only show for non-agents */}
+              {!isAgent && (
+                <div className="flex flex-col items-center w-1/3 max-w-[200px]">
+                  <h3 className="text-lg font-medium text-slate-700 mb-3">Verification Code:</h3>
+                  {codeLoading ? (
+                    <p className="text-gray-500">Loading code...</p>
+                  ) : codeError ? (
+                    <p className="text-red-700">{codeError}</p>
+                  ) : (
+                    <div className="bg-gray-100 p-4 rounded-lg text-center w-full">
+                      <div className="text-2xl font-mono tracking-wider">
+                        {code.split('').map((char, index) => (
+                          <span 
+                            key={index} 
+                            className={`${/[0-9]/.test(char) ? 'text-blue-600' : 
+                              /[A-Z]/.test(char) ? 'text-green-600' : 'text-purple-600'}`}
+                          >
+                            {char}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-2">Valid for: {getTimeRemaining()}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
             <input
               onChange={(e) => handleFileUpload(e.target.files[0])}
-              type='file'
+              type="file"
               ref={fileRef}
               hidden
-              accept='image/*'
+              accept="image/*"
             />
             <div className="flex flex-col gap-2">
               <label htmlFor="username" className="text-slate-700 font-semibold">Username</label>

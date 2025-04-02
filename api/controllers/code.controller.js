@@ -77,8 +77,9 @@ export const getCode = async (req, res, next) => {
 export const verifyCode = async (req, res, next) => {
   try {
     const { code, landlordId } = req.body;
+    const userId = req.user ? req.user.id : null;
     
-    console.log('Verifying code:', { code, landlordId });
+    console.log('Verifying code:', { code, landlordId, currentUserId: userId });
     
     // First, try to verify using the standard verification code
     const verificationCode = await Code.findOne({ 
@@ -113,31 +114,103 @@ export const verifyCode = async (req, res, next) => {
       
       if (!contract) {
         console.log('No contract found with number:', code);
+        
+        // If no contract found, check if the user is an agent
+        const User = (await import('../models/user.model.js')).default;
+        const targetUser = await User.findById(landlordId);
+        
+        if (!targetUser) {
+          return res.status(400).json({ 
+            success: false,
+            message: 'Invalid or expired code' 
+          });
+        }
+        
+        // If the user is an agent, check if they're involved in any contracts
+        if (targetUser.isAgent) {
+          console.log('Target user is an agent, checking contracts...');
+          
+          // Find contracts where this agent is involved
+          const agentContracts = await Contract.find({
+            $or: [
+              { 'agentId': landlordId },
+              { 'signatures.userId': landlordId }
+            ],
+            fullySignedAt: { $exists: true, $ne: null }
+          });
+          
+          if (agentContracts.length > 0) {
+            console.log('Agent is involved in contracts, checking if current user is involved...');
+            
+            // Check if the current user is involved in any of these contracts
+            const userInvolvedInContract = agentContracts.some(contract => {
+              return contract.signatures.some(signature => {
+                const sigUserId = signature.userId ? 
+                  (typeof signature.userId === 'object' ? signature.userId.toString() : signature.userId) : 
+                  null;
+                return sigUserId === userId;
+              });
+            });
+            
+            if (userInvolvedInContract) {
+              console.log('Current user is involved in a contract with this agent');
+              return res.status(200).json({
+                success: true,
+                message: 'Agent contract relationship verified successfully'
+              });
+            }
+          }
+        }
+        
         return res.status(400).json({ 
           success: false,
           message: 'Invalid or expired code' 
         });
       }
 
-      // Verify that the landlord is involved in this contract
-      console.log('Contract landlordId:', contract.landlordId, 'Requested landlordId:', landlordId);
+      // Check if the specified user (landlordId) is involved in this contract
+      // For tenant rating, landlordId is actually the tenantId
+      const isUserInvolved = contract.signatures.some(signature => {
+        const sigUserId = signature.userId ? 
+          (typeof signature.userId === 'object' ? signature.userId.toString() : signature.userId) : 
+          null;
+        return sigUserId === landlordId;
+      });
+
+      // Also check if the tenant is mentioned in the contract details
+      const tenantName = contract.tenantFirstname && contract.tenantSurname ? 
+        `${contract.tenantFirstname} ${contract.tenantSurname}`.toLowerCase() : '';
       
-      if (!contract.landlordId || contract.landlordId.toString() !== landlordId) {
-        console.log('Landlord mismatch');
+      // Get user details to check if name matches
+      const User = (await import('../models/user.model.js')).default;
+      const userToVerify = await User.findById(landlordId);
+      const userName = userToVerify ? userToVerify.username.toLowerCase() : '';
+      
+      // Check if tenant name in contract matches the user's name
+      const nameMatches = tenantName && userName && tenantName.includes(userName);
+      
+      console.log('User involvement check:', { 
+        isUserInvolved, 
+        tenantName, 
+        userName,
+        nameMatches,
+        landlordId: contract.landlordId ? contract.landlordId.toString() : null
+      });
+      
+      if (!isUserInvolved && !nameMatches && contract.landlordId?.toString() !== landlordId) {
+        console.log('User not involved in contract');
         return res.status(403).json({
           success: false,
-          message: 'This contract is not associated with the specified landlord'
+          message: 'This contract is not associated with the specified user'
         });
       }
 
       // Verify that the current user is involved in this contract
-      const userId = req.user ? req.user.id : null;
-      console.log('Checking if user is involved. User ID:', userId);
-      
       if (userId) {
+        console.log('Checking if current user is involved. User ID:', userId);
         console.log('Signatures:', JSON.stringify(contract.signatures));
         
-        const userInvolved = contract.signatures.some(signature => {
+        const currentUserInvolved = contract.signatures.some(signature => {
           const sigUserId = signature.userId ? 
             (typeof signature.userId === 'object' ? signature.userId.toString() : signature.userId) : 
             null;
@@ -145,8 +218,8 @@ export const verifyCode = async (req, res, next) => {
           return sigUserId === userId;
         });
 
-        if (!userInvolved) {
-          console.log('User not involved in contract');
+        if (!currentUserInvolved) {
+          console.log('Current user not involved in contract');
           return res.status(403).json({
             success: false,
             message: 'You are not a party to this contract'

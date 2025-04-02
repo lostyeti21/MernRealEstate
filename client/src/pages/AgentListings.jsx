@@ -23,6 +23,12 @@ const AgentListings = () => {
   const [ratings, setRatings] = useState(initialRatingState);
   const [hoveredRating, setHoveredRating] = useState(initialRatingState);
   const [currentRating, setCurrentRating] = useState(null);
+  
+  // Verification states
+  const [isVerified, setIsVerified] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [showVerificationModal, setShowVerificationModal] = useState(true);
+  const [verificationError, setVerificationError] = useState("");
 
   useEffect(() => {
     setRatings(initialRatingState);
@@ -124,6 +130,12 @@ const AgentListings = () => {
 
   const handleRating = async () => {
     try {
+      // Check if user is verified
+      if (!isVerified) {
+        toast.error('Please verify with a code or contract number first');
+        return;
+      }
+
       // Get current user token
       const token = localStorage.getItem('access_token');
       if (!token) {
@@ -232,6 +244,11 @@ const AgentListings = () => {
       // Reset ratings
       setRatings(initialRatingState);
       setHoveredRating(initialRatingState);
+      
+      // Reset verification state
+      setIsVerified(false);
+      setVerificationCode("");
+      setShowVerificationModal(false);
 
       toast.success('Ratings submitted successfully!');
     } catch (err) {
@@ -242,6 +259,138 @@ const AgentListings = () => {
         stack: err.stack
       });
       toast.error(err.message || 'Failed to submit rating');
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    try {
+      if (!verificationCode.trim()) {
+        setVerificationError('Please enter a verification code or contract number');
+        return;
+      }
+
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setVerificationError('Please log in to verify');
+        return;
+      }
+
+      // First try to verify using the standard verification code
+      let standardVerificationSuccess = false;
+      try {
+        console.log('Attempting standard code verification with:', verificationCode);
+        const verifyResponse = await fetch('/api/code/verify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            code: verificationCode,
+            landlordId: agentId // Using agentId as the user ID to verify
+          })
+        });
+
+        const verifyData = await verifyResponse.json();
+        console.log('Standard verification response:', verifyData);
+
+        if (verifyResponse.ok && verifyData.success) {
+          // Standard code verification succeeded
+          standardVerificationSuccess = true;
+          await checkIfRatedAndSetVerified(token);
+          return;
+        }
+      } catch (standardVerifyError) {
+        console.log('Standard verification failed:', standardVerifyError.message);
+      }
+
+      if (!standardVerificationSuccess) {
+        // If standard verification fails, try contract number verification
+        try {
+          console.log('Attempting contract verification with:', verificationCode);
+          const contractVerifyResponse = await fetch('/api/code/verify', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              code: verificationCode,
+              landlordId: agentId // Using agentId as the user ID to verify
+            })
+          });
+
+          const contractVerifyData = await contractVerifyResponse.json();
+          console.log('Contract verification response:', contractVerifyData);
+
+          if (!contractVerifyResponse.ok) {
+            console.error('Contract verification HTTP error:', contractVerifyResponse.status);
+            throw new Error(contractVerifyData.message || `Error ${contractVerifyResponse.status}: Failed to verify contract number`);
+          }
+
+          if (!contractVerifyData.success) {
+            throw new Error(contractVerifyData.message || 'Invalid contract number');
+          }
+
+          // Contract number verification succeeded
+          await checkIfRatedAndSetVerified(token);
+        } catch (contractVerifyError) {
+          console.error('Contract verification error:', contractVerifyError);
+          throw new Error(contractVerifyError.message || 'Invalid verification code or contract number');
+        }
+      }
+    } catch (err) {
+      console.error('Verification error:', err);
+      setVerificationError(err.message || 'Failed to verify code');
+      toast.error(err.message || 'Failed to verify code');
+    }
+  };
+
+  // Helper function to check if user has already rated and set verified state
+  const checkIfRatedAndSetVerified = async (token) => {
+    try {
+      // Check if user has already rated
+      const tokenParts = token.split('.');
+      let userInfo = {};
+      try {
+        userInfo = JSON.parse(atob(tokenParts[1]));
+        console.log('Decoded user info for rating check:', userInfo);
+      } catch (decodeError) {
+        console.error('Error decoding token:', decodeError);
+      }
+      
+      const userId = userInfo.id;
+      
+      // Try to fetch existing ratings to check if user has already rated
+      const ratingCheckResponse = await fetch(`/api/agent-rating/${agentId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (ratingCheckResponse.ok) {
+        const ratingData = await ratingCheckResponse.json();
+        console.log('Rating data:', ratingData);
+        
+        // Check if the current user has already rated this agent
+        if (ratingData.userRatings && ratingData.userRatings.some(rating => rating.userId === userId)) {
+          throw new Error('You have already rated this agent');
+        }
+      } else {
+        // If the endpoint doesn't exist or returns an error, log it but continue
+        console.warn('Could not check if user has already rated, proceeding with verification');
+      }
+      
+      // If all checks pass or we couldn't check, set verified to true
+      setIsVerified(true);
+      setVerificationError('');
+      setShowVerificationModal(false);
+      toast.success('Verification successful! You can now rate this agent.');
+    } catch (error) {
+      console.error('Error in rating check:', error);
+      throw error;
     }
   };
 
@@ -365,59 +514,22 @@ const AgentListings = () => {
           </div>
 
           {/* Agent Rating Section */}
-          <div className='bg-white p-6 rounded-lg shadow-md mb-6'>
-            <h2 className='text-2xl font-semibold mb-4 text-center text-slate-700'>
-              Agent Rating
-            </h2>
-            <div className='flex flex-col items-center gap-2'>
-              <div className="flex flex-col items-center gap-2 mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-semibold">Overall Rating:</span>
-                  <span className="text-lg font-bold text-yellow-500">{agent.ratings?.overall?.averageRating?.toFixed(1) || '0.0'}</span>
-                  <div className="flex items-center gap-0.5">
-                    {renderStarsForCompany(agent.ratings?.overall?.averageRating || 0)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Agent Category Ratings */}
-              {agent.ratings?.categories && Object.keys(agent.ratings.categories).length > 0 && (
-                <div className='grid grid-cols-2 gap-4 mt-4 w-full max-w-md'>
-                  {Object.entries(agent.ratings.categories).map(([category, data]) => (
-                    <div key={category} className='flex flex-col items-center p-2 bg-gray-50 rounded'>
-                      <span className='text-sm font-medium capitalize'>{category}</span>
-                      <div className='flex items-center gap-1'>
-                        <span className='text-yellow-500'>
-                          {(data?.averageRating || 0).toFixed(1)}
-                        </span>
-                        <FaStar className='text-yellow-500 text-sm' />
-                        <span className='text-xs text-gray-500'>
-                          ({data?.totalRatings || 0})
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-                  </div>
-
-          {/* Rate this Agent Section */}
-          <div className='bg-white p-6 rounded-lg shadow-md mb-6'>
+          <div className='bg-white p-6 rounded-lg shadow-md mb-6 relative'>
             <h2 className='text-2xl font-semibold mb-4 text-center text-slate-700'>
               Rate this Agent
             </h2>
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <h4 className="text-lg font-medium text-gray-700 mb-2 text-center">Overall Rating</h4>
-              <div className="flex justify-center items-center gap-2">
-                {renderStars(calculateOverallRating())}
-                <span className="text-gray-600 text-lg">
-                  ({calculateOverallRating()})
-                </span>
-                  </div>
-                </div>
 
-            <div className="space-y-4">
+            <div className={`space-y-4 ${!isVerified && showVerificationModal ? 'filter blur-sm pointer-events-none' : ''}`}>
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="text-lg font-medium text-gray-700 mb-2 text-center">Overall Rating</h4>
+                <div className="flex justify-center items-center gap-2">
+                  {renderStars(calculateOverallRating())}
+                  <span className="text-gray-600 text-lg">
+                    ({calculateOverallRating()})
+                  </span>
+                </div>
+              </div>
+
               {Object.entries(ratings).map(([category, value]) => (
                 <div key={category} className="flex flex-col">
                   <label className="text-gray-700 font-medium capitalize mb-2">
@@ -439,6 +551,75 @@ const AgentListings = () => {
                 Submit Rating
               </button>
             </div>
+
+            {/* Verification Modal */}
+            {!isVerified && showVerificationModal && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-lg z-10">
+                <div className="text-center p-6 max-w-md">
+                  <h4 className="text-lg font-semibold mb-4">Verify to Rate</h4>
+                  <p className="text-gray-600 mb-6">
+                    To rate this agent, you need either:
+                    <ul className="list-disc list-inside mt-2 text-left">
+                      <li>Their verification code (which they can generate from their profile)</li>
+                      <li>A contract number from a fully signed contract with this agent</li>
+                    </ul>
+                  </p>
+                  <div className="space-y-4">
+                    <input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      placeholder="Enter verification code or contract number"
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {verificationError && (
+                      <p className="text-red-500 text-sm">{verificationError}</p>
+                    )}
+                    <button
+                      onClick={handleVerifyCode}
+                      className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200"
+                    >
+                      Verify
+                    </button>
+                    <p className="text-sm text-gray-500 mt-4">
+                      Note: Verification codes are valid for 24 hours. Contract numbers are permanently valid.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Verification Banner - Only show when not verified and modal is closed */}
+            {!isVerified && !showVerificationModal && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                <div className="flex">
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      Verification required to rate this agent.
+                      <button
+                        onClick={() => setShowVerificationModal(true)}
+                        className="font-medium underline text-yellow-700 hover:text-yellow-600 ml-1"
+                      >
+                        Verify now
+                      </button>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Success Banner - Only show when verified */}
+            {isVerified && (
+              <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
+                <div className="flex">
+                  <div className="ml-3">
+                    <p className="text-sm text-green-700">
+                      Verification successful! You can now rate this agent.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Listings Section */}

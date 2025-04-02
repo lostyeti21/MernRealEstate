@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { FaStar, FaEdit, FaCheck, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { updateUserSuccess } from '../redux/user/userSlice';
 import { toast } from 'react-hot-toast';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function AgentDashboard() {
   const { currentUser, isAgent } = useSelector((state) => state.user);
@@ -48,6 +49,13 @@ export default function AgentDashboard() {
     number: false,
     special: false
   });
+  
+  // Verification code states
+  const [code, setCode] = useState('');
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeError, setCodeError] = useState(null);
+  const [showShareButton, setShowShareButton] = useState(false);
+  const qrRef = useRef(null);
 
   useEffect(() => {
     if (!isAgent) {
@@ -177,8 +185,6 @@ export default function AgentDashboard() {
     }
   }, [currentUser, dispatch]);
 
-
-
   useEffect(() => {
     const fetchAgentRating = async () => {
       try {
@@ -256,6 +262,40 @@ export default function AgentDashboard() {
       handleFileUpload(file);
     }
   }, [file]);
+
+  useEffect(() => {
+    const fetchVerificationCode = async () => {
+      if (!currentUser || !currentUser._id) return;
+      
+      try {
+        setCodeLoading(true);
+        setCodeError(null);
+        
+        const response = await fetch('/api/code/generate', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to generate verification code');
+        }
+        
+        setCode(data.code);
+      } catch (error) {
+        console.error('Error generating verification code:', error);
+        setCodeError(error.message);
+      } finally {
+        setCodeLoading(false);
+      }
+    };
+    
+    fetchVerificationCode();
+  }, [currentUser]);
 
   const handleFileUpload = async (file) => {
     try {
@@ -599,6 +639,134 @@ export default function AgentDashboard() {
       });
     }
   };
+
+  // Handle sharing QR code
+  const handleShareQR = async () => {
+    try {
+      if (!qrRef.current) {
+        toast.error('QR code not available');
+        return;
+      }
+      
+      // Create a canvas from the SVG
+      const svgElement = qrRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = svgElement.width.baseVal.value * 2;
+      canvas.height = svgElement.height.baseVal.value * 2;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      const svgData = new XMLSerializer().serializeToString(svgElement);
+      const img = new Image();
+      
+      img.onload = async () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        try {
+          canvas.toBlob(async (blob) => {
+            const file = new File([blob], 'agent-rating-qr.png', { type: 'image/png' });
+            
+            if (navigator.share) {
+              try {
+                await navigator.share({
+                  title: 'Rate me as an agent',
+                  text: `Please rate me as an agent using this QR code or verification code: ${code}`,
+                  files: [file]
+                });
+                toast.success('QR code shared successfully');
+              } catch (shareError) {
+                console.error('Share error:', shareError);
+                fallbackShare(canvas);
+              }
+            } else {
+              fallbackShare(canvas);
+            }
+          }, 'image/png');
+        } catch (error) {
+          console.error('Error sharing:', error);
+          toast.error('Failed to share QR code');
+        }
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+    } catch (error) {
+      console.error('Error sharing QR code:', error);
+      toast.error('Failed to share QR code');
+    }
+  };
+  
+  // Fallback share method
+  const fallbackShare = (canvas) => {
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = 'agent-rating-qr.png';
+      link.href = dataUrl;
+      link.click();
+      toast.success('QR code downloaded successfully');
+    } catch (error) {
+      console.error('Fallback share error:', error);
+      toast.error('Failed to download QR code');
+    }
+  };
+  
+  // Calculate time remaining for verification code
+  const [timeRemaining, setTimeRemaining] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchExpiryTime = async () => {
+      try {
+        const response = await fetch('/api/code/get', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch code expiry time');
+        }
+        
+        const data = await response.json();
+        
+        if (!isMounted) return;
+        
+        if (data.expiryTime) {
+          const expiryTime = new Date(data.expiryTime);
+          const now = new Date();
+          const diff = expiryTime - now;
+          
+          if (diff <= 0) {
+            setTimeRemaining('Expired');
+          } else {
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            setTimeRemaining(`${hours}h ${minutes}m`);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching expiry time:', error);
+        if (isMounted) {
+          setTimeRemaining('Error');
+        }
+      }
+    };
+    
+    fetchExpiryTime();
+    
+    // Set up interval to update the time remaining
+    const intervalId = setInterval(fetchExpiryTime, 60000); // Update every minute
+    
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [currentUser, code]);
 
   if (loading) {
     return (
@@ -958,6 +1126,83 @@ export default function AgentDashboard() {
             <span className='text-slate-700'>Click on the image to update your profile picture</span>
           )}
         </p>
+      </div>
+
+      {/* Verification Code Section */}
+      <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+        <h2 className="text-2xl font-semibold mb-6 text-center">Rating Verification</h2>
+        
+        <div className="flex flex-col md:flex-row justify-around items-center gap-8">
+          {/* QR Code */}
+          <div className="flex flex-col items-center">
+            <div 
+              className="relative mb-3"
+              onMouseEnter={() => setShowShareButton(true)}
+              onMouseLeave={() => setShowShareButton(false)}
+            >
+              <QRCodeSVG
+                ref={qrRef}
+                value={`${window.location.origin}/agent/${currentUser._id}`}
+                size={128}
+                level="H"
+                includeMargin={true}
+                className={`shadow-md rounded-lg transition-all duration-500 ease-in-out ${
+                  showShareButton ? 'blur-[2px]' : ''
+                }`}
+              />
+              {showShareButton && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={handleShareQR}
+                    className="bg-black bg-opacity-75 text-white px-4 py-1 rounded-lg 
+                             transition-all duration-300 ease-in-out hover:bg-opacity-90 
+                             text-sm font-medium z-10"
+                  >
+                    Share QR
+                  </button>
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 text-center">
+              Scan to view your agent profile
+            </p>
+          </div>
+          
+          {/* Verification Code */}
+          <div className="flex flex-col items-center">
+            <h3 className="text-lg font-medium text-slate-700 mb-3">Verification Code:</h3>
+            {codeLoading ? (
+              <p className="text-gray-500">Loading code...</p>
+            ) : codeError ? (
+              <p className="text-red-700">{codeError}</p>
+            ) : (
+              <div className="bg-gray-100 p-4 rounded-lg text-center">
+                <div className="text-2xl font-mono tracking-wider">
+                  {code.split('').map((char, index) => (
+                    <span 
+                      key={index} 
+                      className={`${/[0-9]/.test(char) ? 'text-blue-600' : 
+                        /[A-Z]/.test(char) ? 'text-green-600' : 'text-purple-600'}`}
+                    >
+                      {char}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-500 mt-2">Valid for: {timeRemaining}</p>
+              </div>
+            )}
+            <p className="text-sm text-gray-500 text-center mt-2">
+              Share this code with clients to get rated
+            </p>
+          </div>
+        </div>
+        
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          <p className="text-sm text-blue-700">
+            <strong>Note:</strong> Clients can rate you using either this verification code or any contract number where you're listed as the agent.
+          </p>
+        </div>
       </div>
 
       <div className="flex justify-between items-center mb-6">
