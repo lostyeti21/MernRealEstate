@@ -650,47 +650,68 @@ export default function AgentDashboard() {
       
       // Create a canvas from the SVG
       const svgElement = qrRef.current;
+      
+      // Check if the SVG element has the required properties
+      if (!svgElement || !svgElement.width || !svgElement.width.baseVal) {
+        console.error('SVG element is not properly initialized', svgElement);
+        toast.error('QR code is not ready yet. Please try again.');
+        return;
+      }
+      
       const canvas = document.createElement('canvas');
-      canvas.width = svgElement.width.baseVal.value * 2;
-      canvas.height = svgElement.height.baseVal.value * 2;
+      const width = svgElement.width.baseVal.value || 128; // Default to 128 if value is undefined
+      const height = svgElement.height.baseVal.value || 128; // Default to 128 if value is undefined
+      
+      canvas.width = width * 2;
+      canvas.height = height * 2;
       
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      const svgData = new XMLSerializer().serializeToString(svgElement);
-      const img = new Image();
-      
-      img.onload = async () => {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      try {
+        const svgData = new XMLSerializer().serializeToString(svgElement);
+        const img = new Image();
         
-        try {
-          canvas.toBlob(async (blob) => {
-            const file = new File([blob], 'agent-rating-qr.png', { type: 'image/png' });
-            
-            if (navigator.share) {
-              try {
-                await navigator.share({
-                  title: 'Rate me as an agent',
-                  text: `Please rate me as an agent using this QR code or verification code: ${code}`,
-                  files: [file]
-                });
-                toast.success('QR code shared successfully');
-              } catch (shareError) {
-                console.error('Share error:', shareError);
+        img.onload = async () => {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          try {
+            canvas.toBlob(async (blob) => {
+              const file = new File([blob], 'agent-rating-qr.png', { type: 'image/png' });
+              
+              if (navigator.share) {
+                try {
+                  await navigator.share({
+                    title: 'Rate me as an agent',
+                    text: `Please rate me as an agent using this QR code or verification code: ${code}`,
+                    files: [file]
+                  });
+                  toast.success('QR code shared successfully');
+                } catch (shareError) {
+                  console.error('Share error:', shareError);
+                  fallbackShare(canvas);
+                }
+              } else {
                 fallbackShare(canvas);
               }
-            } else {
-              fallbackShare(canvas);
-            }
-          }, 'image/png');
-        } catch (error) {
-          console.error('Error sharing:', error);
-          toast.error('Failed to share QR code');
-        }
-      };
-      
-      img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+            }, 'image/png');
+          } catch (error) {
+            console.error('Error sharing:', error);
+            toast.error('Failed to share QR code');
+          }
+        };
+        
+        img.onerror = () => {
+          console.error('Failed to load QR code image');
+          toast.error('Failed to generate QR code image');
+        };
+        
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+      } catch (svgError) {
+        console.error('Error processing SVG:', svgError);
+        toast.error('Failed to process QR code');
+      }
     } catch (error) {
       console.error('Error sharing QR code:', error);
       toast.error('Failed to share QR code');
@@ -1142,7 +1163,7 @@ export default function AgentDashboard() {
             >
               <QRCodeSVG
                 ref={qrRef}
-                value={`${window.location.origin}/agent/${currentUser._id}`}
+                value={`${window.location.origin}/generated-code`}
                 size={128}
                 level="H"
                 includeMargin={true}
@@ -1165,7 +1186,7 @@ export default function AgentDashboard() {
               )}
             </div>
             <p className="text-sm text-gray-500 text-center">
-              Scan to view your agent profile
+              Scan to view verification code
             </p>
           </div>
           

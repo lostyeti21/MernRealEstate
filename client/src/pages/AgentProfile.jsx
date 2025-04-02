@@ -25,25 +25,58 @@ const AgentProfile = () => {
           throw new Error(agentData.message || 'Failed to fetch agent details');
         }
 
-        // Fetch agent ratings
-        const ratingRes = await fetch(`/api/agent-rating/${agentId}`);
-        const ratingData = await ratingRes.json();
-
-        // Fetch agent listings
-        const listingsRes = await fetch(`/api/listing/agent/${agentId}`);
-        const listingsData = await listingsRes.json();
-
-        if (!listingsRes.ok) {
-          throw new Error(listingsData.message || 'Failed to fetch listings');
+        // Ensure we have valid agent data
+        if (!agentData || (!agentData.agent && !agentData._id)) {
+          throw new Error('Invalid agent data received');
         }
 
+        // Normalize agent data structure
+        const agentInfo = agentData.agent || agentData;
+
+        // Fetch agent ratings
+        let ratingData = { ratings: { overall: { averageRating: 0, totalRatings: 0 }, categories: {} } };
+        try {
+          const ratingRes = await fetch(`/api/agent-rating/${agentId}`);
+          if (ratingRes.ok) {
+            const ratingResponseData = await ratingRes.json();
+            if (ratingResponseData && ratingResponseData.ratings) {
+              ratingData = ratingResponseData;
+            }
+          }
+        } catch (ratingError) {
+          console.error('Error fetching ratings:', ratingError);
+          // Continue with default ratings
+        }
+
+        // Fetch agent listings
+        let listingsData = { listings: [] };
+        try {
+          const listingsRes = await fetch(`/api/listing/agent/${agentId}`);
+          if (listingsRes.ok) {
+            const listingsResponseData = await listingsRes.json();
+            if (listingsResponseData) {
+              listingsData = listingsResponseData;
+            }
+          }
+        } catch (listingsError) {
+          console.error('Error fetching listings:', listingsError);
+          // Continue with empty listings
+        }
+
+        // Set agent data with proper defaults
         setAgent({
-          ...agentData.agent,
+          ...agentInfo,
+          name: agentInfo.name || '',
+          email: agentInfo.email || '',
+          contact: agentInfo.contact || '',
+          avatar: agentInfo.avatar || '',
+          companyName: agentInfo.companyName || '',
           ratings: ratingData.ratings || {
             overall: { averageRating: 0, totalRatings: 0 },
             categories: {}
           }
         });
+        
         setListings(listingsData.listings || []);
 
       } catch (err) {
@@ -54,8 +87,10 @@ const AgentProfile = () => {
       }
     };
 
-    fetchAgentData();
-  }, [agentId]);
+    if (agentId) {
+      fetchAgentData();
+    }
+  }, [agentId, navigate]);
 
   const renderStars = (rating) => {
     return (

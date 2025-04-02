@@ -1542,7 +1542,7 @@ const Schedule = () => {
           <div className="widgets-container">
             <div className="widgets-row">
               <MeetingsWidget notifications={scheduleNotifications} />
-              <MessagingWidget />
+              {!isAgent && <MessagingWidget />}
               <WeatherWidget />
             </div>
           </div>
@@ -1902,7 +1902,7 @@ const Schedule = () => {
         <div className="schedule-title-container">
           <div className="schedule-backdrop">SCHEDULE</div>
           <h1 className="schedule-title text-3xl font-semibold mt-11 mb-4"> Management</h1>
-          {showMessagingWidget && selectedUser && (
+          {!isAgent && showMessagingWidget && selectedUser && (
             <MessagingWidget user={selectedUser} onClose={() => setShowMessagingWidget(false)} />
           )}
         </div>

@@ -534,7 +534,7 @@ const Profile = () => {
                   >
                     <QRCodeSVG
                       ref={qrRef}
-                      value={`${window.location.origin}/tenant-rating/${currentUser._id}`}
+                      value={`${window.location.origin}/generated-code`}
                       size={128}
                       level="H"
                       includeMargin={true}
