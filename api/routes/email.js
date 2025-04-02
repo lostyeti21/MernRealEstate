@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { sendConfirmationCode, sendNotificationEmail } from "../controllers/email.controller.js";
 
 dotenv.config();
 
@@ -51,6 +52,12 @@ router.get("/test-email", async (req, res) => {
     res.status(500).json({ success: false, message: "Email transporter verification failed." });
   }
 });
+
+// Route to send confirmation code
+router.post("/send-code", sendConfirmationCode);
+
+// Route to send notification email
+router.post("/send-notification", sendNotificationEmail);
 
 // Route to send application emails
 router.post("/send-application", upload.single("file"), async (req, res) => {

@@ -33,7 +33,7 @@ export const sendConfirmationCode = async (req, res) => {
 };
 
 export const sendNotificationEmail = async (req, res) => {
-  const { email, message } = req.body;
+  const { email, message, subject } = req.body;
 
   if (!email || !message) {
     return res.status(400).json({ success: false, message: "Email and message are required." });
@@ -43,9 +43,9 @@ export const sendNotificationEmail = async (req, res) => {
     await transporter.sendMail({
       from: '"JustListIt Real Estate Marketplace Notifications" <academiceyeaju@gmail.com>',
       to: email,
-      subject: "New Notification from JustListIt Real Estate Marketplace",
+      subject: subject || "New Notification from JustListIt Real Estate Marketplace",
       text: message,
-      html: `<p>${message}</p>`,
+      html: `<p>${message.replace(/\n/g, '<br>')}</p>`,
     });
 
     res.json({ success: true, message: "Notification email sent successfully." });

@@ -30,6 +30,10 @@ export default function AgentDashboard() {
   const [newName, setNewName] = useState(currentUser?.name || '');
   const [nameUpdateSuccess, setNameUpdateSuccess] = useState(false);
   const [nameUpdateError, setNameUpdateError] = useState(null);
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState(currentUser?.email || '');
+  const [emailUpdateSuccess, setEmailUpdateSuccess] = useState(false);
+  const [emailUpdateError, setEmailUpdateError] = useState(null);
   const [agentRating, setAgentRating] = useState(currentUser?.averageRating || 0);
   const [agentRatingError, setAgentRatingError] = useState(null);
   const [isEditingPassword, setIsEditingPassword] = useState(false);
@@ -567,6 +571,63 @@ export default function AgentDashboard() {
     }
   };
 
+  const handleEmailUpdate = async (e) => {
+    e.preventDefault();
+    
+    if (!newEmail.trim()) {
+      setEmailUpdateError('Email cannot be empty');
+      return;
+    }
+
+    // Simple email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail.trim())) {
+      setEmailUpdateError('Please enter a valid email address');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/agent/update-email/${currentUser._id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentUser.token}`
+        },
+        body: JSON.stringify({
+          email: newEmail.trim()
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update email');
+      }
+
+      const data = await res.json();
+
+      if (data.success) {
+        setEmailUpdateSuccess(true);
+        setEmailUpdateError(null);
+        setIsEditingEmail(false);
+        
+        // Update Redux store
+        dispatch(updateUserSuccess({
+          ...currentUser,
+          email: newEmail.trim()
+        }));
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setEmailUpdateSuccess(false);
+        }, 3000);
+      } else {
+        throw new Error(data.message || 'Failed to update email');
+      }
+    } catch (error) {
+      console.error('Error updating email:', error);
+      setEmailUpdateError(error.message || 'Failed to update email');
+    }
+  };
+
   const handleCreateListing = () => {
     // Double-check agent status before navigation
     if (isAgent) {
@@ -876,14 +937,58 @@ export default function AgentDashboard() {
                 )}
               </div>
               
-              {nameUpdateSuccess && (
-                <p className="text-green-500 text-sm">Name updated successfully!</p>
-              )}
               {nameUpdateError && (
                 <p className="text-red-500 text-sm">{nameUpdateError}</p>
               )}
 
-              <p className="text-gray-500">{currentUser.email}</p>
+              {/* Email Section */}
+              <div className="flex items-center gap-2">
+                {isEditingEmail ? (
+                  <form onSubmit={handleEmailUpdate} className="flex items-center gap-2">
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="Enter your email address"
+                      className="border p-1 rounded text-sm w-full"
+                    />
+                    <button 
+                      type="submit"
+                      className="text-green-500 hover:text-green-600"
+                    >
+                      <FaCheck size={16} />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setIsEditingEmail(false);
+                        setNewEmail(currentUser.email || '');
+                        setEmailUpdateError(null);
+                      }}
+                      className="text-red-500 hover:text-red-600"
+                    >
+                      <FaTimes size={16} />
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <p className="text-gray-500">{currentUser.email}</p>
+                    <button
+                      onClick={() => setIsEditingEmail(true)}
+                      className="text-blue-500 hover:text-blue-600"
+                    >
+                      <FaEdit size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+              
+              {emailUpdateSuccess && (
+                <p className="text-green-500 text-sm">Email updated successfully!</p>
+              )}
+              {emailUpdateError && (
+                <p className="text-red-500 text-sm">{emailUpdateError}</p>
+              )}
               
               {/* Agent Rating */}
               {fileUploadError && (

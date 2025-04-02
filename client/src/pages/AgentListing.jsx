@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -28,6 +28,7 @@ import {
   FaStarHalfAlt,
   FaRegStar,
   FaCheckCircle,
+  FaCheck,
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 import Loader from '../components/Loader';
@@ -39,6 +40,7 @@ const AgentListing = () => {
   const params = useParams();
   const navigate = useNavigate();
   const { currentUser } = useSelector((state) => state.user);
+  const contactFormRef = useRef(null);
 
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,7 @@ const AgentListing = () => {
   const [selectedDay, setSelectedDay] = useState([]);
   const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showEmailSuccessPopup, setShowEmailSuccessPopup] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -600,7 +603,7 @@ const AgentListing = () => {
           {currentUser && (
             <div className="mt-4">
               <button
-                onClick={() => setContact(true)}
+                onClick={handleContactClick}
                 className="w-full bg-slate-700 text-white p-3 rounded-lg uppercase hover:opacity-95 transition-all duration-200"
               >
                 Contact Agent
@@ -719,6 +722,27 @@ const AgentListing = () => {
     );
   };
 
+  const handleContactClick = () => {
+    setContact(true);
+    // Add a small delay to ensure the contact form is rendered before scrolling
+    setTimeout(() => {
+      if (contactFormRef.current) {
+        contactFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
+  const handleContactClose = (success) => {
+    setContact(false);
+    if (success) {
+      setShowEmailSuccessPopup(true);
+      // Auto-hide the success popup after 5 seconds
+      setTimeout(() => {
+        setShowEmailSuccessPopup(false);
+      }, 5000);
+    }
+  };
+
   return (
     <main>
       {/* Disclaimer Modal */}
@@ -756,7 +780,7 @@ const AgentListing = () => {
               </button>
               <button
                 onClick={handleDisclaimerConfirm}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
                 Continue
               </button>
@@ -999,51 +1023,40 @@ const AgentListing = () => {
 
       {/* Contact Modal */}
       {contact && (
-        <Contact
-          listing={listing}
-          agent={listedBy?.data}
-          onClose={() => setContact(false)}
-        />
+        <div ref={contactFormRef}>
+          <Contact
+            listing={listing}
+            onClose={handleContactClose}
+            isAgentListing={true}
+          />
+        </div>
       )}
 
-      {/* Rating Modal */}
-      {showRatingModal && (
+      {/* Email Success Popup */}
+      {showEmailSuccessPopup && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white p-8 rounded-lg max-w-md w-full">
-            <h3 className="text-2xl font-semibold mb-6">Rate {listedBy?.data?.name}</h3>
-            <div className="flex justify-center gap-2 mb-6">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  className={`text-3xl focus:outline-none transition-colors ${
-                    star <= (ratingHover || rating)
-                      ? 'text-yellow-500'
-                      : 'text-gray-300'
-                  }`}
-                  onClick={() => setRating(star)}
-                  onMouseEnter={() => setRatingHover(star)}
-                  onMouseLeave={() => setRatingHover(0)}
-                >
-                  ★
-                </button>
-              ))}
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="bg-white p-8 rounded-lg max-w-md w-full text-center shadow-xl"
+          >
+            <div className="flex justify-center mb-4">
+              <div className="bg-green-100 p-3 rounded-full">
+                <FaCheck className="text-green-600 text-4xl" />
+              </div>
             </div>
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => setShowRatingModal(false)}
-                className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRatingSubmit}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                disabled={!rating}
-              >
-                Submit
-              </button>
-            </div>
-          </div>
+            <h3 className="text-2xl font-semibold mb-2">Message Delivered!</h3>
+            <p className="text-gray-600 mb-6">
+              Your message has been successfully sent to the agent's email address.
+            </p>
+            <button
+              onClick={() => setShowEmailSuccessPopup(false)}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              Close
+            </button>
+          </motion.div>
         </div>
       )}
     </main>

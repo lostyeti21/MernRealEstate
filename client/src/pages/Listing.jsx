@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
 import SwiperCore from "swiper";
@@ -60,6 +60,7 @@ export default function Listing() {
   const params = useParams();
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
+  const contactFormRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -258,6 +259,12 @@ export default function Listing() {
     }
 
     setContact(true);
+    // Add a small delay to ensure the contact form is rendered before scrolling
+    setTimeout(() => {
+      if (contactFormRef.current) {
+        contactFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   };
 
   // Track inquiry submission
@@ -1289,10 +1296,13 @@ export default function Listing() {
 
 
       {contact && (
-        <Contact
-          listing={listing}
-          onMessageSent={handleInquiry}
-        />
+        <div ref={contactFormRef}>
+          <Contact
+            listing={listing}
+            onMessageSent={handleInquiry}
+            isAgentListing={false}
+          />
+        </div>
       )}
 
       {/* Reservation Modal */}

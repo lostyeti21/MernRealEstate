@@ -60,6 +60,15 @@ export default function Header() {
     }
   };
 
+  // Function to close all dropdowns
+  const closeAllDropdowns = () => {
+    setShowListingsDropdown(false);
+    setShowResourcesDropdown(false);
+    setIsUsersMenuOpen(false);
+    setIsMenuOpen(false);
+    setIsProfileDropdownOpen(false);
+  };
+
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
@@ -645,13 +654,13 @@ export default function Header() {
               </svg>
             </span>
             <div className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 transition-all duration-300 ease-in-out transform origin-top ${showListingsDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`} onMouseEnter={() => handleDropdownToggle('listings')} onMouseLeave={() => handleDropdownToggle(null)}>
-              <Link to="/search?type=sale" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/search?type=sale" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 For Sale
               </Link>
-              <Link to="/search?type=rent" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/search?type=rent" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 For Rent
               </Link>
-              <Link to="/search" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/search" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 All Listings
               </Link>
             </div>
@@ -664,20 +673,20 @@ export default function Header() {
               </svg>
             </span>
             <div className={`absolute left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 transition-all duration-300 ease-in-out transform origin-top ${isUsersMenuOpen ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`} onMouseEnter={() => handleDropdownToggle('users')} onMouseLeave={() => handleDropdownToggle(null)}>
-              <Link to="/landlords" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/landlords" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 Landlords
               </Link>
-              <Link to="/tenants" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/tenants" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 Tenants
               </Link>
-              <Link to="/agents" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/agents" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 Agents
               </Link>
-              <Link to="/companies" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/companies" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 Real Estate Companies
               </Link>
               {isRealEstateCompany && (
-                <Link to="/real-estate-company" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+                <Link to="/real-estate-company" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                   Real Estate Company
                 </Link>
               )}
@@ -691,10 +700,10 @@ export default function Header() {
               </svg>
             </span>
             <div className={`absolute top-full left-0 mt-2 w-48 bg-white shadow-lg rounded-lg z-50 py-2 px-2 border border-gray-100 transition-all duration-300 ease-in-out transform origin-top ${showResourcesDropdown ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 pointer-events-none'} group-hover:opacity-100 group-hover:scale-y-100 group-hover:pointer-events-auto`} onMouseEnter={() => handleDropdownToggle('resources')} onMouseLeave={() => handleDropdownToggle(null)}>
-              <Link to="/NeighborhoodGuides" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/NeighborhoodGuides" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 Neighborhood Guides
               </Link>
-              <Link to="/tutorials" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200">
+              <Link to="/tutorials" className="block px-4 py-2 text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200" onClick={closeAllDropdowns}>
                 Tutorials
               </Link>
             </div>
@@ -745,7 +754,7 @@ export default function Header() {
                             isAgent ? '/agent-dashboard' : 
                             hasListings ? '/landlord-profile' : '/profile'}
                         className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-                        onClick={() => setIsProfileDropdownOpen(false)}
+                        onClick={closeAllDropdowns}
                       >
                         {isRealEstateCompany ? 'Dashboard' : 
                          isAgent ? 'Agent Dashboard' :
@@ -759,7 +768,7 @@ export default function Header() {
                             ? 'bg-slate-100 text-[#009688]'
                             : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
                         } transition-colors duration-200`}
-                        onClick={() => setIsProfileDropdownOpen(false)}
+                        onClick={closeAllDropdowns}
                       >
                         <div className="flex items-center justify-between">
                           <span>Schedule</span>
@@ -800,7 +809,7 @@ export default function Header() {
                                 ? 'text-[#009688] font-semibold'
                                 : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
                             } transition-colors duration-200`}
-                            onClick={() => setIsProfileDropdownOpen(false)}
+                            onClick={closeAllDropdowns}
                           >
                             <div className="flex items-center justify-between">
                               <span>Messages</span>
@@ -820,7 +829,7 @@ export default function Header() {
                                 ? 'text-[#009688] font-semibold'
                                 : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
                             } transition-colors duration-200`}
-                            onClick={() => setIsProfileDropdownOpen(false)}
+                            onClick={closeAllDropdowns}
                           >
                             <div className="flex items-center justify-between">
                               <span>Notifications</span>
@@ -840,7 +849,7 @@ export default function Header() {
                             ? 'bg-slate-100 text-[#009688]'
                             : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
                         } transition-colors duration-200`}
-                        onClick={() => setIsProfileDropdownOpen(false)}
+                        onClick={closeAllDropdowns}
                       >
                         Create a Contract
                       </Link>
@@ -851,7 +860,7 @@ export default function Header() {
                             ? 'bg-slate-100 text-[#009688]'
                             : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
                         } transition-colors duration-200`}
-                        onClick={() => setIsProfileDropdownOpen(false)}
+                        onClick={closeAllDropdowns}
                       >
                         View Contracts
                       </Link>
@@ -859,6 +868,7 @@ export default function Header() {
                         <Link
                           to="/admin-center"
                           className="block px-4 py-2 hover:bg-gray-100 text-slate-700 hover:text-[#009688] transition-colors duration-200"
+                          onClick={closeAllDropdowns}
                         >
                           <div className="flex items-center">
                             Admin Center

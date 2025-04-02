@@ -30,6 +30,7 @@ import disputeRouter from './routes/dispute.route.js';
 import reservationRouter from './routes/reservation.route.js';
 import ratingNotificationRouter from './routes/ratingNotification.route.js';
 import contractRouter from './routes/contract.route.js';
+import emailRouter from './routes/email.js';
 
 // Load environment variables at the very start
 dotenv.config();
@@ -138,6 +139,7 @@ app.use('/api/dispute', disputeRouter);
 app.use('/api/reservation', reservationRouter);
 app.use('/api/rating-notifications', ratingNotificationRouter);
 app.use('/api/contracts', contractRouter);
+app.use('/api/email', emailRouter);
 
 console.log('📝 [API] Routes registered. Available endpoints:', listEndpoints(app));
 
