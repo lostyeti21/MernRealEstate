@@ -8,20 +8,26 @@ export default function SigningContracts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { currentUser } = useSelector(state => state.user);
+  const [previousContractIds, setPreviousContractIds] = useState(new Set());
 
   useEffect(() => {
+    console.log('🔍 SigningContracts component mounted');
     fetchContracts();
     
     // Set up polling to check for new contracts
+    console.log('⏱️ Setting up polling interval for contracts (every 30 seconds)');
     const intervalId = setInterval(fetchContracts, 30000); // Check every 30 seconds
     
     // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
+    return () => {
+      console.log('🧹 Cleaning up polling interval');
+      clearInterval(intervalId);
+    };
   }, []);
 
   const fetchContracts = async () => {
     try {
-      console.log('Fetching contracts that need signature for user:', currentUser?._id);
+      console.log('📥 Fetching contracts that need signature for user:', currentUser?._id);
       
       // Use the new endpoint specifically for contracts needing signature
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/contracts/pending-signature`, {
@@ -44,13 +50,98 @@ export default function SigningContracts() {
       }
       
       const data = await response.json();
-      console.log('Contracts needing signature:', data);
+      console.log('📄 Contracts needing signature:', data);
+      
+      // Check for new contracts that are less than 1 minute old
+      const currentTime = new Date();
+      console.log('⏰ Current time:', currentTime.toISOString());
+      
+      const newContractIds = new Set(data.map(contract => contract._id));
+      console.log('🆔 New contract IDs:', [...newContractIds]);
+      console.log('🔄 Previous contract IDs:', [...previousContractIds]);
+      
+      // Find new contracts that weren't in the previous set
+      let newContractsFound = false;
+      
+      data.forEach(contract => {
+        const contractCreationTime = new Date(contract.createdAt);
+        const timeDifferenceInMs = currentTime - contractCreationTime;
+        const timeDifferenceInMinutes = timeDifferenceInMs / (1000 * 60);
+        
+        console.log(`📝 Contract ${contract._id}:`);
+        console.log(`   - Creation time: ${contractCreationTime.toISOString()}`);
+        console.log(`   - Age: ${timeDifferenceInMinutes.toFixed(2)} minutes`);
+        console.log(`   - Is new: ${!previousContractIds.has(contract._id)}`);
+        
+        // If contract is less than 1 minute old and wasn't in the previous set
+        if (timeDifferenceInMinutes < 1 && !previousContractIds.has(contract._id)) {
+          console.log(`🔔 NEW CONTRACT DETECTED: ${contract._id} - Sending email notification`);
+          newContractsFound = true;
+          
+          // Check if user has email
+          if (!currentUser?.email) {
+            console.error('❌ Cannot send email notification: User email is missing', currentUser);
+            toast.error('Cannot send email notification: User email is missing');
+            return;
+          }
+          
+          // Send email notification
+          sendEmailNotification(currentUser.email, contract);
+        }
+      });
+      
+      if (!newContractsFound) {
+        console.log('🔍 No new contracts found that are less than 1 minute old');
+      }
+      
+      // Update previous contract IDs for next check
+      setPreviousContractIds(newContractIds);
       setContracts(data); 
     } catch (error) {
-      console.error('Error fetching contracts:', error);
+      console.error('❌ Error fetching contracts:', error);
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendEmailNotification = async (email, contract) => {
+    console.log(`📧 Attempting to send email notification to ${email} for contract ${contract._id}`);
+    
+    try {
+      console.log('📧 Email request payload:', {
+        email,
+        subject: 'You have a new contract to sign from JustistIt Marketplace',
+        message: "There's a new contract you need to sign! Please ensure that you only sign contracts after you have read it and ensure that you indeed know the users who are a part of the contract."
+      });
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/email/send-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          email,
+          subject: 'You have a new contract to sign from JustistIt Marketplace',
+          message: "There's a new contract you need to sign! Please ensure that you only sign contracts after you have read it and ensure that you indeed know the users who are a part of the contract."
+        })
+      });
+
+      console.log('📧 Email API response status:', response.status);
+      
+      const responseData = await response.json();
+      console.log('📧 Email API response data:', responseData);
+
+      if (!response.ok) {
+        throw new Error(`Failed to send email notification: ${responseData.message || 'Unknown error'}`);
+      }
+
+      console.log('✅ Email notification sent successfully for contract:', contract._id);
+      toast.success('Email notification sent for new contract');
+    } catch (error) {
+      console.error('❌ Error sending email notification:', error);
+      toast.error(`Failed to send email notification: ${error.message}`);
     }
   };
 
@@ -96,12 +187,12 @@ export default function SigningContracts() {
           </div>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-6">
           {contracts
             .slice()
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .map((contract) => (
-              <div key={contract._id} className="bg-white/70 backdrop-blur-md p-6 rounded-xl shadow-xl border border-red-300 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1">
+            .map(contract => (
+            <div key={contract._id} className="bg-white/70 backdrop-blur-md p-6 rounded-xl shadow-lg border border-white/20 hover:shadow-xl transition-shadow duration-200">
                 <div className="flex justify-between items-start">
                   <h2 className="text-xl font-semibold text-gray-800">{contract.property || 'Unnamed Property'}</h2>
                   

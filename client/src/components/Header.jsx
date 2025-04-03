@@ -17,6 +17,7 @@ export default function Header() {
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [hasListings, setHasListings] = useState(false);
+  const [hasPendingContracts, setHasPendingContracts] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Initialize dark mode from localStorage
     const savedMode = localStorage.getItem('darkMode');
@@ -479,6 +480,35 @@ export default function Header() {
     setIsAgent(determineAgentStatus());
   }, [currentUser, dispatch]);
 
+  useEffect(() => {
+    const checkPendingContracts = async () => {
+      if (!currentUser?._id || !currentUser?.token) return;
+
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/contracts/pending-signature`, {
+          headers: {
+            'Authorization': `Bearer ${currentUser.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch pending contracts');
+        }
+
+        const data = await response.json();
+        setHasPendingContracts(data && data.length > 0);
+      } catch (error) {
+        console.error('Error checking pending contracts:', error);
+      }
+    };
+
+    checkPendingContracts();
+    const intervalId = setInterval(checkPendingContracts, 60000); // Check every minute
+
+    return () => clearInterval(intervalId);
+  }, [currentUser]);
+
   const handleSignOut = () => {
     if (isRealEstateCompany) {
       // Real estate company sign out logic
@@ -798,50 +828,24 @@ export default function Header() {
                           })()}
                         </div>
                       </Link>
-                      {!isAgent && (
-                        <>
-                          <Link
-                            to="/messages"
-                            className={`block px-4 py-2 text-sm relative ${
-                              location.pathname === '/messages'
-                                ? 'bg-slate-100 text-[#009688]'
-                                : shouldShowNotifications && hasUnreadMessages
-                                ? 'text-[#009688] font-semibold'
-                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                            } transition-colors duration-200`}
-                            onClick={closeAllDropdowns}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>Messages</span>
-                              {shouldShowNotifications && hasUnreadMessages && (
-                                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                  {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
-                                </span>
-                              )}
-                            </div>
-                          </Link>
-                          <Link
-                            to="/notifications"
-                            className={`block px-4 py-2 text-sm ${
-                              location.pathname === '/notifications'
-                                ? 'bg-slate-100 text-[#009688]'
-                                : hasUnreadNotifications
-                                ? 'text-[#009688] font-semibold'
-                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                            } transition-colors duration-200`}
-                            onClick={closeAllDropdowns}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>Notifications</span>
-                              {hasUnreadNotifications && (
-                                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                  New
-                                </span>
-                              )}
-                            </div>
-                          </Link>
-                        </>
-                      )}
+                      <Link
+                        to="/sentcontracts"
+                        className={`block px-4 py-2 text-sm ${
+                          location.pathname === '/sentcontracts'
+                            ? 'bg-slate-100 text-[#009688]'
+                            : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                        } transition-colors duration-200`}
+                        onClick={closeAllDropdowns}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>View Contracts</span>
+                          {hasPendingContracts && (
+                            <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                      </Link>
                       <Link
                         to="/contract"
                         className={`block px-4 py-2 text-sm ${
@@ -852,17 +856,6 @@ export default function Header() {
                         onClick={closeAllDropdowns}
                       >
                         Create a Contract
-                      </Link>
-                      <Link
-                        to="/sentcontracts"
-                        className={`block px-4 py-2 text-sm ${
-                          location.pathname === '/sentcontracts'
-                            ? 'bg-slate-100 text-[#009688]'
-                            : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                        } transition-colors duration-200`}
-                        onClick={closeAllDropdowns}
-                      >
-                        View Contracts
                       </Link>
                       {currentUser && currentUser.role === 'admin' && (
                         <Link
@@ -875,9 +868,50 @@ export default function Header() {
                           </div>
                         </Link>
                       )}
-                      
-                      <hr className="border-gray-200" />
-                      
+                      {!isAgent && (
+                        <Link
+                          to="/messages"
+                          className={`block px-4 py-2 text-sm relative ${
+                            location.pathname === '/messages'
+                              ? 'bg-slate-100 text-[#009688]'
+                              : shouldShowNotifications && hasUnreadMessages
+                              ? 'text-[#009688] font-semibold'
+                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                          } transition-colors duration-200`}
+                          onClick={closeAllDropdowns}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>Messages</span>
+                            {shouldShowNotifications && hasUnreadMessages && (
+                              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      )}
+                      {!isAgent && (
+                        <Link
+                          to="/notifications"
+                          className={`block px-4 py-2 text-sm ${
+                            location.pathname === '/notifications'
+                              ? 'bg-slate-100 text-[#009688]'
+                              : hasUnreadNotifications
+                              ? 'text-[#009688] font-semibold'
+                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                          } transition-colors duration-200`}
+                          onClick={closeAllDropdowns}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>Notifications</span>
+                            {hasUnreadNotifications && (
+                              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                New
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      )}
                       <button
                         onClick={toggleDarkMode}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:text-[#009688] hover:bg-gray-100 transition-colors duration-200"

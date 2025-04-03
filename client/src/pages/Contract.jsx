@@ -335,14 +335,27 @@ export default function Contract() {
       if (!response.ok) throw new Error('Failed to search tenants');
       const data = await response.json();
       
-      // Format the tenant data
-      const formattedData = (data.tenants || []).map(tenant => ({
+      // Log the data structure to debug
+      console.log('Tenant data:', data);
+      
+      // Filter tenants based on search term
+      const filteredTenants = (data.tenants || []).filter(tenant => {
+        const tenantName = tenant.username || '';
+        const tenantEmail = tenant.email || '';
+        
+        return tenantName.toLowerCase().includes(term.toLowerCase()) ||
+               tenantEmail.toLowerCase().includes(term.toLowerCase());
+      });
+      
+      // Format the filtered tenant data
+      const formattedData = filteredTenants.map(tenant => ({
         _id: tenant._id,
         username: tenant.username,
         email: tenant.email,
         avatar: tenant.avatar
       }));
 
+      console.log('Filtered tenant results:', formattedData);
       setTenantSearchResults(formattedData);
     } catch (err) {
       console.error('Error searching tenants:', err);
