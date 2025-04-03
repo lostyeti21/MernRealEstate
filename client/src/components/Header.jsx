@@ -860,12 +860,10 @@ export default function Header() {
                       {currentUser && currentUser.role === 'admin' && (
                         <Link
                           to="/admin-center"
-                          className="block px-4 py-2 hover:bg-gray-100 text-slate-700 hover:text-[#009688] transition-colors duration-200"
+                          className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
                           onClick={closeAllDropdowns}
                         >
-                          <div className="flex items-center">
-                            Admin Center
-                          </div>
+                          Admin Center
                         </Link>
                       )}
                       {!isAgent && (

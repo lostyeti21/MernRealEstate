@@ -61,6 +61,8 @@ const Schedule = lazyLoadComponent(() => import('./pages/Schedule'), <Loader />)
 const AgentSchedule = lazyLoadComponent(() => import('./pages/AgentSchedule'), <Loader />);
 const Tutorials = lazyLoadComponent(() => import("./pages/Tutorials"), <Loader />);
 const NeighborhoodGuides = lazyLoadComponent(() => import("./pages/NeighborhoodGuides"), <Loader />);
+const FeaturedProps = lazyLoadComponent(() => import("./pages/FeaturedProps"), <Loader />);
+const VerifiedCompanies = lazyLoadComponent(() => import("./pages/VerifiedCompanies"), <Loader />);
 
 function HeaderWrapper() {
   const location = useLocation();
@@ -249,6 +251,7 @@ const App = () => {
           <Route path="/landing" element={<Landing />} />
           <Route path="/agents" element={<Agents />} />
           <Route path="/superuser" element={<SuperUser />} />
+          <Route path="/featured-props" element={<FeaturedProps />} />
           <Route path="/tutorials" element={<Tutorials />} />
           <Route path="/agent-listings/:agentId" element={<AgentListings />} />
           <Route path="/NeighborhoodGuides" element={<NeighborhoodGuides />} />
@@ -257,6 +260,7 @@ const App = () => {
           <Route path="/contract" element={<Contract />} />
           <Route path="/sentcontracts" element={<SentContracts />} />
           <Route path="/signing-contracts" element={<SigningContracts />} />
+          <Route path="/verified-companies" element={<VerifiedCompanies />} />
 
           {/* Protected Routes */}
           <Route element={<PrivateRoute />}>

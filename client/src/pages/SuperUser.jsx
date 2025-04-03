@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { FaUsers, FaHome, FaChartBar, FaStar, FaStarHalfAlt, FaImage, FaTrash, FaPlus, FaSave, FaTimesCircle, FaListOl, FaBuilding } from 'react-icons/fa';
+import { FaUsers, FaHome, FaChartBar, FaStar, FaStarHalfAlt, FaImage, FaTrash, FaPlus, FaSave, FaTimesCircle, FaListOl, FaCheckCircle } from 'react-icons/fa';
 import RatingChart from '../components/charts/RatingChart';
 import SessionChart from '../components/charts/SessionChart';
 import ListingChart from '../components/charts/ListingChart';
@@ -9,6 +9,8 @@ import MarketChart from '../components/charts/MarketChart';
 import UserDistributionChart from '../components/charts/UserDistributionChart';
 import ImageCollage from '../components/ImageCollage';
 import SuperUserNotificationSender from '../components/SuperUserNotificationSender';
+import FeaturedProps from './FeaturedProps';
+import VerifiedCompanies from './VerifiedCompanies';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import logo from '../assets/logo.png';
 import { toast } from 'react-toastify';
@@ -63,17 +65,23 @@ export default function SuperUser() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [activeTab, setActiveTab] = useState('users'); // 'users', 'listings', 'analytics', or 'companies'
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'listings', 'analytics', 'disputes', 'featured', 'verifiedCompanies'
   const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('users');
   const [sessionMetrics, setSessionMetrics] = useState({
-    avgSessionDuration: 0,
-    avgListingTimeSpent: 0,
-    totalListingClicks: 0,
-    userRatio: 0,
-    peakTrafficHours: [],
+    avgSessionDuration: 720, // 12 minutes in seconds
+    avgListingTimeSpent: 300, // 5 minutes in seconds
+    totalListingClicks: 4500,
+    userRatio: 0.64,
+    peakTrafficHours: [
+      { hour: 14, count: 180 },
+      { hour: 19, count: 165 },
+      { hour: 20, count: 150 },
+      { hour: 13, count: 145 },
+      { hour: 21, count: 140 }
+    ],
     isHardcodedData: true,
-    registeredUsers: 0,
-    unregisteredUsers: 0
+    registeredUsers: 36,
+    unregisteredUsers: 20
   });
   const [listingTypeFilter, setListingTypeFilter] = useState('all'); // 'all', 'rent', or 'sale'
   const [selectedListings, setSelectedListings] = useState([]);
@@ -82,6 +90,9 @@ export default function SuperUser() {
   const [disputeLoading, setDisputeLoading] = useState(false);
   const [showNotificationSender, setShowNotificationSender] = useState(false);
   const [notificationData, setNotificationData] = useState(null);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [usersPerPage] = useState(10);
   const navigate = useNavigate();
 
   const fetchSuperUserNotifications = async () => {
@@ -447,9 +458,9 @@ export default function SuperUser() {
 
       // Combine all users
       const allUsers = [
-        ...tenantsWithRatings,
-        ...agentsWithRatings,
-        ...landlordsWithRatings
+        ...tenantsWithRatings.map(tenant => ({ ...tenant, userType: 'tenant' })),
+        ...agentsWithRatings.map(agent => ({ ...agent, userType: 'agent' })),
+        ...landlordsWithRatings.map(landlord => ({ ...landlord, userType: 'landlord' }))
       ];
       
       setUsers(allUsers);
@@ -462,35 +473,39 @@ export default function SuperUser() {
       });
 
       // Fetch session analytics
-      const sessionRes = await fetch('/api/session-analytics/metrics', {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'x-super-user-auth': 'ishe'
-        }
-      });
-      if (!sessionRes.ok) {
-        console.error('Failed to fetch session analytics:', await sessionRes.text());
-        setSessionMetrics({
-          isHardcodedData: true,
-          totalSessions: 1250,
-          avgSessionDuration: 720,
-          avgListingTimeSpent: 300,
-          totalListingClicks: 4500,
-          registeredUsers: 36,
-          unregisteredUsers: 20,
-          userRatio: 0.64,
-          peakTrafficHours: [
-            { hour: 14, count: 180 },
-            { hour: 19, count: 165 },
-            { hour: 20, count: 150 },
-            { hour: 13, count: 145 },
-            { hour: 21, count: 140 }
-          ]
+      try {
+        const sessionRes = await fetch('/api/session-analytics/metrics', {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'x-super-user-auth': 'ishe'
+          }
         });
-      } else {
-        const sessionData = await sessionRes.json();
-        setSessionMetrics(sessionData);
+        
+        if (!sessionRes.ok) {
+          console.error('Failed to fetch session analytics:', await sessionRes.text());
+          console.log('Using hardcoded session metrics data');
+        } else {
+          const sessionData = await sessionRes.json();
+          console.log('Received session metrics data:', sessionData);
+          
+          // Only update if we received valid data with non-zero values
+          if (sessionData && 
+              (sessionData.avgSessionDuration > 0 || 
+               sessionData.avgListingTimeSpent > 0 || 
+               sessionData.totalListingClicks > 0)) {
+            
+            setSessionMetrics({
+              ...sessionData,
+              isHardcodedData: false
+            });
+          } else {
+            console.log('Received empty or invalid session metrics data, using hardcoded data');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching session analytics:', error);
+        console.log('Using hardcoded session metrics data');
       }
 
     } catch (error) {
@@ -1068,79 +1083,6 @@ export default function SuperUser() {
     }
   };
 
-  const renderCompaniesTab = () => {
-    return (
-      <div className="p-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-4">Verified Real Estate Companies Collage</h2>
-          <div className="grid grid-cols-1 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold mb-2">Selected Listings Preview</h3>
-                <ImageCollage images={prepareImageData()} />
-              </div>
-
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold mb-2">Available Listings</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {listings.map(listing => {
-                    const isSelected = selectedListings.some(
-                      selected => normalizeListing(selected).listing._id === listing._id
-                    );
-                    const selectedItem = selectedListings.find(
-                      selected => normalizeListing(selected).listing._id === listing._id
-                    );
-                    const occurrences = selectedItem ? normalizeListing(selectedItem).occurrences : 0;
-
-                    return (
-                      <div
-                        key={listing._id}
-                        className={`border rounded-lg p-4 cursor-pointer ${
-                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                        }`}
-                        onClick={() => toggleListingSelection(listing)}
-                      >
-                        <img
-                          src={getImageUrl(listing.imageUrls[0] || 'https://via.placeholder.com/300')}
-                          alt={listing.name}
-                          className="w-full h-40 object-cover rounded-lg mb-2"
-                          onError={handleImageError}
-                        />
-                        <h4 className="font-semibold">{listing.name}</h4>
-                        {isSelected && (
-                          <div className="mt-2 text-blue-600">
-                            Occurrences: {occurrences}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-4">
-                <button
-                  onClick={() => setSelectedListings([])}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                >
-                  <FaTrash />
-                  Clear Selection
-                </button>
-                <button
-                  onClick={saveCollageConfiguration}
-                  className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                >
-                  <FaSave />
-                  Save Configuration
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderRatingDisputesTab = () => {
     return (
       <div className="p-6">
@@ -1491,44 +1433,39 @@ export default function SuperUser() {
         <motion.div variants={itemVariants} className="flex justify-center mb-8">
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-lg flex items-center ${
-              activeTab === 'users'
-                ? 'bg-slate-700 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
-            }`}
-          >
-            <FaUsers className="mr-2" /> Users
-          </button>
-          <button
-            onClick={() => setActiveTab('listings')}
-            className={`px-4 py-2 rounded-lg flex items-center ${
-              activeTab === 'listings'
-                ? 'bg-slate-700 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
-            }`}
-          >
-            <FaHome className="mr-2" /> Listings
-          </button>
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-4 py-2 rounded-lg flex items-center ${
-              activeTab === 'analytics'
-                ? 'bg-slate-700 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-slate-300'
-            }`}
-          >
-            <FaChartBar className="mr-2" /> Analytics
-          </button>
-          <button
-            onClick={() => setActiveTab('companies')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
-              activeTab === 'companies'
+              activeTab === 'users'
                 ? 'bg-slate-700 text-white'
                 : 'hover:bg-slate-200'
             }`}
           >
-            <FaBuilding />
-            <span>Verified Companies</span>
+            <FaUsers className="mr-2" /> Users
+          </button>
+          
+          <div className="h-8 w-px bg-gray-300 mx-2"></div>
+          
+          <button
+            onClick={() => setActiveTab('listings')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+              activeTab === 'listings'
+                ? 'bg-slate-700 text-white'
+                : 'hover:bg-slate-200'
+            }`}
+          >
+            <FaHome className="mr-2" /> Listings
+          </button>
+          
+          <div className="h-8 w-px bg-gray-300 mx-2"></div>
+          
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+              activeTab === 'analytics'
+                ? 'bg-slate-700 text-white'
+                : 'hover:bg-slate-200'
+            }`}
+          >
+            <FaChartBar className="mr-2" /> Analytics
           </button>
           <button
             onClick={() => setActiveTab('disputes')}
@@ -1538,8 +1475,32 @@ export default function SuperUser() {
                 : 'hover:bg-slate-200'
             }`}
           >
-            <FaStar />
+            <FaStar className="mr-2" />
             <span>Rating Disputes</span>
+          </button>
+          <div className="h-8 w-px bg-gray-300 mx-2"></div>
+          <button
+            onClick={() => setActiveTab('featured')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+              activeTab === 'featured'
+                ? 'bg-slate-700 text-white'
+                : 'hover:bg-slate-200'
+            }`}
+          >
+            <FaImage className="mr-2" />
+            <span>Featured Property</span>
+          </button>
+          <div className="h-8 w-px bg-gray-300 mx-2"></div>
+          <button
+            onClick={() => setActiveTab('verifiedCompanies')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+              activeTab === 'verifiedCompanies'
+                ? 'bg-slate-700 text-white'
+                : 'hover:bg-slate-200'
+            }`}
+          >
+            <FaCheckCircle className="mr-2" />
+            <span>Verified Real Estate Companies</span>
           </button>
         </motion.div>
 
@@ -1569,6 +1530,34 @@ export default function SuperUser() {
               </div>
             </div>
 
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search users by username or email..."
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  className="w-full p-3 pl-10 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-slate-500"
+                />
+                <div className="absolute left-3 top-3 text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                {userSearchTerm && (
+                  <button 
+                    onClick={() => setUserSearchTerm('')}
+                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Users Table */}
             <div className="overflow-x-auto">
               <table className="min-w-full bg-white">
@@ -1576,17 +1565,51 @@ export default function SuperUser() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avatar</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username/Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {users.map((user) => (
+                  {users
+                    .filter(user => {
+                      if (!userSearchTerm) return true;
+                      
+                      const searchTermLower = userSearchTerm.toLowerCase();
+                      const username = (user.username || user.name || '').toLowerCase();
+                      const email = (user.email || '').toLowerCase();
+                      
+                      return username.includes(searchTermLower) || email.includes(searchTermLower);
+                    })
+                    .slice((currentPage - 1) * usersPerPage, currentPage * usersPerPage)
+                    .map((user) => (
                     <tr key={user._id}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {renderUserAvatar(user)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">{user.username || user.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {user.userType === 'agent' && (
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                            Agent
+                          </span>
+                        )}
+                        {user.userType === 'landlord' && (
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                            Landlord
+                          </span>
+                        )}
+                        {user.userType === 'tenant' && (
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                            Tenant
+                          </span>
+                        )}
+                        {!user.userType && (
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                            User
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
@@ -1605,6 +1628,100 @@ export default function SuperUser() {
                   ))}
                 </tbody>
               </table>
+              {users.filter(user => {
+                if (!userSearchTerm) return true;
+                
+                const searchTermLower = userSearchTerm.toLowerCase();
+                const username = (user.username || user.name || '').toLowerCase();
+                const email = (user.email || '').toLowerCase();
+                
+                return username.includes(searchTermLower) || email.includes(searchTermLower);
+              }).length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No users found matching "{userSearchTerm}"</p>
+                </div>
+              )}
+              
+              {/* Pagination */}
+              {users.filter(user => {
+                if (!userSearchTerm) return true;
+                
+                const searchTermLower = userSearchTerm.toLowerCase();
+                const username = (user.username || user.name || '').toLowerCase();
+                const email = (user.email || '').toLowerCase();
+                
+                return username.includes(searchTermLower) || email.includes(searchTermLower);
+              }).length > 0 && (
+                <div className="flex justify-between items-center mt-6 px-4">
+                  <div className="text-sm text-gray-500">
+                    Showing {Math.min((currentPage - 1) * usersPerPage + 1, users.length)} to {Math.min(currentPage * usersPerPage, users.length)} of {users.length} users
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className={`px-3 py-1 rounded-md ${
+                        currentPage === 1
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: Math.ceil(users.length / usersPerPage) }, (_, i) => i + 1)
+                      .filter(pageNum => 
+                        pageNum === 1 || 
+                        pageNum === Math.ceil(users.length / usersPerPage) || 
+                        (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                      )
+                      .map((pageNum, index, array) => {
+                        // Add ellipsis
+                        if (index > 0 && pageNum > array[index - 1] + 1) {
+                          return (
+                            <Fragment key={`ellipsis-${pageNum}`}>
+                              <span className="px-3 py-1">...</span>
+                              <button
+                                key={pageNum}
+                                onClick={() => setCurrentPage(pageNum)}
+                                className={`px-3 py-1 rounded-md ${
+                                  currentPage === pageNum
+                                    ? 'bg-slate-700 text-white'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            </Fragment>
+                          );
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`px-3 py-1 rounded-md ${
+                              currentPage === pageNum
+                                ? 'bg-slate-700 text-white'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(users.length / usersPerPage)))}
+                      disabled={currentPage === Math.ceil(users.length / usersPerPage)}
+                      className={`px-3 py-1 rounded-md ${
+                        currentPage === Math.ceil(users.length / usersPerPage)
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -1788,14 +1905,31 @@ export default function SuperUser() {
                       startOfMonth.setHours(0, 0, 0, 0);
                       
                       const isNewUser = (user) => {
-                        if (!user.createdAt) return false;
-                        const createdAt = new Date(user.createdAt);
+                        // Check for createdAt or updatedAt or timestamps property
+                        const creationDate = user.createdAt || user.updatedAt || (user.timestamps && user.timestamps.createdAt);
+                        
+                        if (!creationDate) {
+                          // If no creation date is found, check if the user has a _id that contains a timestamp
+                          if (user._id && typeof user._id === 'string') {
+                            // MongoDB ObjectIDs contain a timestamp in the first 4 bytes
+                            // We can extract an approximate creation time from the _id
+                            const timestampHex = user._id.substring(0, 8);
+                            if (/^[0-9a-fA-F]{8}$/.test(timestampHex)) {
+                              const timestamp = parseInt(timestampHex, 16);
+                              const approximateCreationDate = new Date(timestamp * 1000);
+                              return approximateCreationDate >= startOfMonth;
+                            }
+                          }
+                          return false;
+                        }
+                        
+                        const createdAt = new Date(creationDate);
                         // Debug log for each user
-                        console.log(`User ${user._id}:`, {
+                        console.log(`User ${user._id || 'unknown'}:`, {
                           createdAt,
                           startOfMonth,
                           isNew: createdAt >= startOfMonth,
-                          role: user.role
+                          role: user.userType || user.role
                         });
                         return createdAt >= startOfMonth;
                       };
@@ -1811,18 +1945,18 @@ export default function SuperUser() {
                       console.log('Start of Month:', startOfMonth.toISOString());
                       console.log('New Tenants:', newTenants.length, newTenants.map(t => ({ 
                         id: t._id, 
-                        created: new Date(t.createdAt).toISOString(),
-                        role: t.role 
+                        created: t.createdAt || t.updatedAt || 'unknown',
+                        role: t.userType || t.role 
                       })));
                       console.log('New Agents:', newAgents.length, newAgents.map(a => ({ 
                         id: a._id, 
-                        created: new Date(a.createdAt).toISOString(),
-                        role: a.role
+                        created: a.createdAt || a.updatedAt || 'unknown',
+                        role: a.userType || a.role
                       })));
                       console.log('New Landlords:', newLandlords.length, newLandlords.map(l => ({ 
                         id: l._id, 
-                        created: new Date(l.createdAt).toISOString(),
-                        role: l.role
+                        created: l.createdAt || l.updatedAt || 'unknown',
+                        role: l.userType || l.role
                       })));
 
                       return (
@@ -2102,11 +2236,22 @@ export default function SuperUser() {
           </motion.div>
         )}
 
-        {/* Verified Real Estate Companies Tab */}
-        {activeTab === 'companies' && renderCompaniesTab()}
-
         {/* Rating Disputes Tab */}
         {activeTab === 'disputes' && renderDisputesTab()}
+
+        {activeTab === 'featured' && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+            <FeaturedProps />
+          </div>
+        )}
+        
+        {activeTab === 'verifiedCompanies' && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 className="text-2xl font-semibold mb-6 text-slate-700">Verified Real Estate Companies By Us</h2>
+            <p className="text-gray-600 mb-6">Manage the verified real estate companies that are displayed on the Home page.</p>
+            <VerifiedCompanies />
+          </div>
+        )}
         
         {showNotificationSender && notificationData && (
           <SuperUserNotificationSender

@@ -210,6 +210,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAnimatingFeatured, setIsAnimatingFeatured] = useState(false);
   const [isAnimatingRealEstate, setIsAnimatingRealEstate] = useState(false);
+  const [listings, setListings] = useState([]);
+  const [showMore, setShowMore] = useState(false);
   const navigate = useNavigate();
 
   SwiperCore.use([Navigation]);
@@ -248,153 +250,227 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const fetchListings = async (query, setter) => {
+    const fetchFeaturedListing = async () => {
       try {
-        setLoading(true);
-        const res = await fetch(`/api/listing/get?${query}`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/featured/get`);
+        
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          console.error('Failed to fetch featured listing, falling back to random selection');
+          return false;
         }
+        
         const data = await res.json();
-        setter(data.listings || []);
+        
+        if (data && data.featuredListing) {
+          setCollageListing(data.featuredListing);
+          return true;
+        }
+        
+        return false;
       } catch (error) {
-        console.error("Error fetching listings:", error);
-        setError(error);
-        setter([]); // Set empty array on error
-      } finally {
-        setLoading(false);
+        console.error('Error fetching featured listing:', error);
+        return false;
       }
     };
 
-    Promise.all([
-      fetchListings("offer=true&limit=3", setOfferListings),
-      fetchListings("type=rent&limit=3", setRentListings),
-      fetchListings("type=sale&limit=3", setSaleListings)
-    ]).catch(error => {
-      console.error("Error fetching listings:", error);
-    });
-  }, []);
-
-  useEffect(() => {
-    // Show loader for 2 seconds
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    
-    const fetchRandomListings = async () => {
-      setIsLoading(true);
+    const fetchListingsData = async () => {
       try {
-        const randomSeed = Math.random().toString(36).substring(7);
-        const res = await fetch(`/api/listing/get?limit=10&random=true&mixedTypes=true&seed=${randomSeed}`);
+        const featuredFetched = await fetchFeaturedListing();
         
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        
-        const data = await res.json();
-        
-        const validListings = Array.isArray(data) 
-          ? data 
-          : (data.listings && Array.isArray(data.listings) 
-            ? data.listings 
-            : []);
-        
-        const processedListings = validListings.filter(listing => 
-          listing._id && 
-          listing.imageUrls && 
-          listing.imageUrls.length > 0 &&
-          listing.name &&
-          listing.address
-        );
-        
-        // Separate sale and rent listings
-        const saleListing = processedListings
-          .filter(listing => listing.type === 'sale')
-          .sort(() => 0.5 - Math.random());
-        
-        const rentListing = processedListings
-          .filter(listing => listing.type === 'rent')
-          .sort(() => 0.5 - Math.random());
-        
-        // Get one listing for the collage (alternating between sale and rent)
-        const collageIndex = Math.random() < 0.5 ? 0 : 1;
-        const selectedCollageListing = collageIndex === 0 
-          ? saleListing[0] 
-          : rentListing[0];
-        
-        // Remove the collage listing from its array
-        if (collageIndex === 0) {
-          saleListing.shift();
+        if (!featuredFetched) {
+          // If no featured listing is set, fall back to the original random selection
+          fetchRandomListings();
         } else {
-          rentListing.shift();
+          // Still fetch random listings for the "Just For You" section
+          fetchJustForYouListings();
         }
         
-        // Get remaining listings for the grid
-        const selectedListings = [
-          ...saleListing.slice(0, 2),
-          ...rentListing.slice(0, 1)
-        ].sort(() => 0.5 - Math.random());
-        
-        // Ensure we always have exactly 3 listings
-        while (selectedListings.length < 3) {
-          selectedListings.push({
-            _id: `placeholder-${selectedListings.length}`,
-            imageUrls: ['https://via.placeholder.com/330x200?text=Coming+Soon'],
-            name: 'Coming Soon',
-            address: 'Location to be announced',
-            description: 'New property listing coming soon',
-            type: Math.random() < 0.5 ? 'sale' : 'rent',
-            regularPrice: 0,
-            bedrooms: 0,
-            bathrooms: 0
-          });
-        }
-        
-        if (isMounted) {
-          if (selectedListings.length === 0) {
-            setRandomListingsError('No valid listings found');
-          } else {
-            setCollageListing(selectedCollageListing);
-            setRandomListings(selectedListings);
-            setRandomListingsError(null);
-          }
-        }
+        const [offerRes, saleRes, rentRes] = await Promise.all([
+          fetch(`/api/listing/get?offer=true&limit=3`),
+          fetch(`/api/listing/get?type=sale&limit=3`),
+          fetch(`/api/listing/get?type=rent&limit=3`),
+        ]);
+
+        const [offerData, saleData, rentData] = await Promise.all([
+          offerRes.json(),
+          saleRes.json(),
+          rentRes.json(),
+        ]);
+
+        // Check if the data has listings property or is an array directly
+        let offerListingsData = offerData.listings || offerData || [];
+        let saleListingsData = saleData.listings || saleData || [];
+        let rentListingsData = rentData.listings || rentData || [];
+
+        // Ensure we only have 3 listings for each section
+        offerListingsData = offerListingsData.slice(0, 3);
+        saleListingsData = saleListingsData.slice(0, 3);
+        rentListingsData = rentListingsData.slice(0, 3);
+
+        setOfferListings(offerListingsData);
+        setSaleListings(saleListingsData);
+        setRentListings(rentListingsData);
       } catch (error) {
-        if (isMounted) {
-          console.error('Error fetching random listings:', error);
-          setRandomListingsError(error.message || 'Failed to fetch random listings');
-          setRandomListings([]);
-          setCollageListing(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        console.log(error);
       }
     };
-    
-    fetchRandomListings();
-    
+
+    fetchListingsData();
+  }, []);
+
+  const fetchJustForYouListings = async () => {
+    setIsLoading(true);
+    let isMounted = true;
+    try {
+      const randomSeed = Math.random().toString(36).substring(7);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/listing/get?limit=3&random=true&mixedTypes=true&seed=${randomSeed}`);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      const validListings = Array.isArray(data) 
+        ? data 
+        : (data.listings && Array.isArray(data.listings) 
+          ? data.listings 
+          : []);
+      
+      const processedListings = validListings.filter(listing => 
+        listing._id && 
+        listing.imageUrls && 
+        listing.imageUrls.length > 0 &&
+        listing.name &&
+        listing.address
+      );
+      
+      if (isMounted) {
+        if (processedListings.length === 0) {
+          setRandomListingsError('No valid listings found');
+        } else {
+          setRandomListings(processedListings);
+          setRandomListingsError(null);
+        }
+      }
+    } catch (error) {
+      if (isMounted) {
+        console.error('Error fetching random listings:', error);
+        setRandomListingsError(error.message || 'Failed to fetch random listings');
+        setRandomListings([]);
+      }
+    } finally {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }
     return () => {
       isMounted = false;
-    };
-  }, []);
+    }
+  };
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  const fetchRandomListings = async () => {
+    setIsLoading(true);
+    let isMounted = true;
+    try {
+      const randomSeed = Math.random().toString(36).substring(7);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/listing/get?limit=10&random=true&mixedTypes=true&seed=${randomSeed}`);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      const validListings = Array.isArray(data) 
+        ? data 
+        : (data.listings && Array.isArray(data.listings) 
+          ? data.listings 
+          : []);
+      
+      const processedListings = validListings.filter(listing => 
+        listing._id && 
+        listing.imageUrls && 
+        listing.imageUrls.length > 0 &&
+        listing.name &&
+        listing.address
+      );
+      
+      // Separate sale and rent listings
+      const saleListing = processedListings
+        .filter(listing => listing.type === 'sale')
+        .sort(() => 0.5 - Math.random());
+      
+      const rentListing = processedListings
+        .filter(listing => listing.type === 'rent')
+        .sort(() => 0.5 - Math.random());
+      
+      // Get one listing for the collage (alternating between sale and rent)
+      const collageIndex = Math.random() < 0.5 ? 0 : 1;
+      const selectedCollageListing = collageIndex === 0 
+        ? saleListing[0] 
+        : rentListing[0];
+      
+      // Remove the collage listing from its array
+      if (collageIndex === 0) {
+        saleListing.shift();
+      } else {
+        rentListing.shift();
+      }
+      
+      // Get remaining listings for the grid
+      const selectedListings = [
+        ...saleListing.slice(0, 2),
+        ...rentListing.slice(0, 1)
+      ].sort(() => 0.5 - Math.random());
+      
+      // Ensure we always have exactly 3 listings
+      while (selectedListings.length < 3) {
+        selectedListings.push({
+          _id: `placeholder-${selectedListings.length}`,
+          imageUrls: ['https://via.placeholder.com/330x200?text=Coming+Soon'],
+          name: 'Coming Soon',
+          address: 'Location to be announced',
+          description: 'New property listing coming soon',
+          type: Math.random() < 0.5 ? 'sale' : 'rent',
+          regularPrice: 0,
+          bedrooms: 0,
+          bathrooms: 0
+        });
+      }
+      
+      if (isMounted) {
+        if (selectedListings.length === 0) {
+          setRandomListingsError('No valid listings found');
+        } else {
+          setCollageListing(selectedCollageListing);
+          setRandomListings(selectedListings);
+          setRandomListingsError(null);
+        }
+      }
+    } catch (error) {
+      if (isMounted) {
+        console.error('Error fetching random listings:', error);
+        setRandomListingsError(error.message || 'Failed to fetch random listings');
+        setRandomListings([]);
+        setCollageListing(null);
+      }
+    } finally {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }
+    return () => {
+      isMounted = false;
+    }
+  };
 
   const reRandomizeListings = () => {
     setRandomListings([]);
     setCollageListing(null);
     setRandomListingsError(null);
     setIsLoading(true);
+    fetchRandomListings();
   };
 
   const handleStart = () => {
@@ -406,32 +482,14 @@ export default function Home() {
   };
 
   const handlePriceSubmit = () => {
-    // Reset error state
-    setPriceError('');
-
-    if (isRenting === null) {
-      alert("Please select whether you want to rent or buy first.");
+    if (minPrice && maxPrice && parseFloat(minPrice) > parseFloat(maxPrice)) {
+      setPriceError('Minimum price cannot be greater than maximum price');
       return;
     }
-
-    // Validate price inputs
-    const min = parseFloat(minPrice);
-    const max = parseFloat(maxPrice);
-
-    if (minPrice && maxPrice) {
-      if (min >= max) {
-        setPriceError('Minimum price must be less than maximum price');
-        return;
-      }
-      if (min < 0 || max < 0) {
-        setPriceError('Prices cannot be negative');
-        return;
-      }
-    }
-
-    const searchParams = new URLSearchParams();
     
-    // Set the type (rent or sale)
+    setPriceError('');
+    
+    const searchParams = new URLSearchParams();
     searchParams.set("type", isRenting === "rent" ? "rent" : "sale");
     
     // Add price parameters if they exist
@@ -494,23 +552,26 @@ export default function Home() {
   }, 1000);
 
   useEffect(() => {
-    const fetchListings = async () => {
+    // This is a separate function to fetch additional listings
+    // We'll keep it simple and just fetch a few listings
+    const fetchAdditionalListings = async () => {
       setLoading(true);
-      setShowMore(false);
-      const searchQuery = urlParams.toString();
       
       try {
-        const res = await fetch(`/api/listing/get?${searchQuery}`);
+        const searchQuery = new URLSearchParams();
+        searchQuery.set('limit', '9');
+        
+        const res = await fetch(`/api/listing/get?${searchQuery.toString()}`);
         const data = await res.json();
         
         if (data.success) {
-          if (data.listings.length > 8) {
+          const listingsData = data.listings || [];
+          if (listingsData.length > 8) {
             setShowMore(true);
+          } else {
+            setShowMore(false);
           }
-          setListings(data.listings);
-          
-          // Record impressions in batches
-          recordImpressions(data.listings);
+          setListings(listingsData);
         }
       } catch (error) {
         console.log(error);
@@ -518,7 +579,7 @@ export default function Home() {
       setLoading(false);
     };
 
-    fetchListings();
+    fetchAdditionalListings();
   }, [location.search]);
 
   const handleListingClick = async (listingId) => {
@@ -707,7 +768,7 @@ export default function Home() {
                 className="max-w-6xl mx-auto p-3"
               >
                 <div className="relative h-[100px] mb-8">
-                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left">
+                  <h1 className="text-[120px] font-bold text-gray-100 uppercase absolute -top-14 left-0 w-full text-left ">
                     <span style={{ color: '#d2d1e6', opacity: 0.6 }}>FEATURED</span>
             </h1>
                   <h2 className='text-2xl font-semibold text-slate-600 absolute bottom-0 left-0 z-10'>
@@ -914,6 +975,15 @@ export default function Home() {
               />
             </div>
 
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={() => navigate('/search')}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Browse All Properties
+              </button>
+            </div>
+
           </div>
         </motion.div>
       </div>
@@ -975,7 +1045,7 @@ export default function Home() {
                 )}
                 <button
                   onClick={handlePriceSubmit}
-                  className="mt-6 bg-[#c9f2ac] hover:bg-[#c41212] text-black py-2 px-4 rounded w-full hover:bg-blue-700 transition-colors duration-200"
+                  className="mt-6 bg-[#c9f2ac] hover:bg-[#c41212] text-black py-2 px-4 rounded w-full transition-colors duration-200"
                 >
                   Search Listings
                 </button>
