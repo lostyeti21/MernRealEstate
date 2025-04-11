@@ -29,6 +29,7 @@ import {
   FaRegStar,
   FaCheckCircle,
   FaCheck,
+  FaFileContract
 } from "react-icons/fa";
 import Contact from "../components/Contact";
 import Loader from '../components/Loader';
@@ -61,6 +62,7 @@ const AgentListing = () => {
   const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showEmailSuccessPopup, setShowEmailSuccessPopup] = useState(false);
+  const [showLeaseAgreement, setShowLeaseAgreement] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -579,7 +581,16 @@ const AgentListing = () => {
               )}
             </motion.div>
           )}
-
+          {listing.leaseAgreement && (
+            <div className="mt-4">
+              <button
+                onClick={() => setShowLeaseAgreement(true)}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <FaFileContract /> View Lease Agreement
+              </button>
+            </div>
+          )}
           {/* Rate Agent Button */}
           {currentUser && (
             <div className="mt-6">
@@ -1057,6 +1068,24 @@ const AgentListing = () => {
               Close
             </button>
           </motion.div>
+        </div>
+      )}
+      {showLeaseAgreement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 relative max-h-[90vh] overflow-auto">
+            <button
+              onClick={() => setShowLeaseAgreement(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <FaTimes />
+            </button>
+            <h2 className="text-xl font-bold mb-4">Lease Agreement</h2>
+            <iframe 
+              src={listing.leaseAgreement} 
+              className="w-full h-[70vh] border"
+              title="Lease Agreement"
+            />
+          </div>
         </div>
       )}
     </main>

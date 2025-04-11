@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
-const ImageCollage = ({ images: propImages = [] }) => {
+const ImageCollage = forwardRef(({ images: propImages = [] }, ref) => {
   const [images, setImages] = useState(propImages);
   const [isPaused, setIsPaused] = useState(false);
   const [animationDuration, setAnimationDuration] = useState(30); // seconds
@@ -12,6 +12,27 @@ const ImageCollage = ({ images: propImages = [] }) => {
     collageImages: null,
     error: null
   });
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    updateImages: (newImages) => {
+      setImages(newImages);
+    },
+    resetAnimation: () => {
+      // Reset animation by briefly changing the duration and then setting it back
+      const currentDuration = animationDuration;
+      setAnimationDuration(currentDuration + 0.1);
+      setTimeout(() => setAnimationDuration(currentDuration), 50);
+    }
+  }));
+
+  // Update images when propImages change
+  useEffect(() => {
+    if (propImages && propImages.length > 0) {
+      setImages(propImages);
+      console.log('ImageCollage: Updated from props with', propImages.length, 'images');
+    }
+  }, [propImages]);
 
   useEffect(() => {
     // If no prop images are provided, try to load from local storage
@@ -36,28 +57,16 @@ const ImageCollage = ({ images: propImages = [] }) => {
             parsedListings: parsedListings
           }));
 
-          // Handle both old and new listing formats
-          const collageImages = parsedListings.flatMap(item => {
-            // Normalize the item to handle both formats
-            const listing = item.listing ? item.listing : item;
-            const occurrences = item.occurrences || 1;
-
-            // Create multiple images based on occurrences
-            return Array(occurrences).fill().map((_, index) => ({
-              src: listing.imageUrls ? (listing.imageUrls[0] || 'https://via.placeholder.com/300') : 
-                   (listing.src || 'https://via.placeholder.com/300'),
-              alt: listing.name ? `${listing.name} (${index + 1})` : (listing.alt || `Image ${index + 1}`),
-              id: listing._id ? `${listing._id}-${index}` : (listing.id || `image-${index}`)
-            }));
-          });
-
+          // Format images for display
+          const formattedImages = formatImagesForDisplay(parsedListings);
+          
           // Update debug info and images
           setDebugInfo(prev => ({
             ...prev,
-            collageImages: collageImages
+            collageImages: formattedImages
           }));
 
-          setImages(collageImages);
+          setImages(formattedImages);
         }
       } catch (error) {
         console.error('Error loading image collage from local storage:', error);
@@ -73,6 +82,50 @@ const ImageCollage = ({ images: propImages = [] }) => {
     }
   }, [propImages]);
 
+  // Helper function to format images consistently
+  const formatImagesForDisplay = (imageData) => {
+    if (!Array.isArray(imageData)) return [];
+    
+    return imageData.map((item, index) => {
+      // Handle string URLs
+      if (typeof item === 'string') {
+        return {
+          id: `image-${index}-${Date.now()}`,
+          src: item,
+          alt: `Image ${index + 1}`
+        };
+      }
+      
+      // Handle objects with different structures
+      if (item && typeof item === 'object') {
+        // Handle listing format
+        if (item.listing) {
+          const listing = item.listing;
+          return {
+            id: listing._id || `image-${index}-${Date.now()}`,
+            src: listing.imageUrls ? (listing.imageUrls[0] || 'https://via.placeholder.com/300') : 
+                 (listing.src || 'https://via.placeholder.com/300'),
+            alt: listing.name || `Image ${index + 1}`
+          };
+        }
+        
+        // Handle direct image object format
+        return {
+          id: item.id || `image-${index}-${Date.now()}`,
+          src: item.src || (item.imageUrls && item.imageUrls[0]) || item.url || '',
+          alt: item.alt || item.name || `Image ${index + 1}`
+        };
+      }
+      
+      // Fallback for invalid data
+      return {
+        id: `image-${index}-${Date.now()}`,
+        src: 'https://via.placeholder.com/300?text=Invalid+Image',
+        alt: `Invalid Image ${index + 1}`
+      };
+    });
+  };
+
   useEffect(() => {
     // Function to handle storage changes
     const handleStorageChange = (e) => {
@@ -80,30 +133,16 @@ const ImageCollage = ({ images: propImages = [] }) => {
         try {
           const updatedImages = JSON.parse(e.newValue);
           if (updatedImages && Array.isArray(updatedImages)) {
-            // Format the images as needed
-            const formattedImages = updatedImages.map((item, index) => {
-              if (typeof item === 'string') {
-                return {
-                  id: `image-${index}`,
-                  src: item,
-                  alt: `Image ${index + 1}`
-                };
-              } else if (item && typeof item === 'object') {
-                return {
-                  id: item.id || `image-${index}`,
-                  src: item.src || (item.imageUrls && item.imageUrls[0]) || item.url || '',
-                  alt: item.alt || item.name || `Image ${index + 1}`
-                };
-              } else {
-                return {
-                  id: `image-${index}`,
-                  src: 'https://via.placeholder.com/300?text=Invalid+Image',
-                  alt: `Invalid Image ${index + 1}`
-                };
-              }
-            });
+            // Format the images consistently
+            const formattedImages = formatImagesForDisplay(updatedImages);
             
+            // Update the images state
             setImages(formattedImages);
+            
+            // Reset animation duration to ensure smooth restart
+            setAnimationDuration(prev => prev);
+            
+            console.log('ImageCollage: Updated with new images from storage event', formattedImages.length);
           }
         } catch (error) {
           console.error('Error parsing updated images from localStorage:', error);
@@ -130,30 +169,13 @@ const ImageCollage = ({ images: propImages = [] }) => {
               parsedListings: parsedData
             }));
             
-            // Format the images as needed (similar to above)
-            const formattedImages = parsedData.map((item, index) => {
-              if (typeof item === 'string') {
-                return {
-                  id: `image-${index}`,
-                  src: item,
-                  alt: `Image ${index + 1}`
-                };
-              } else if (item && typeof item === 'object') {
-                return {
-                  id: item.id || `image-${index}`,
-                  src: item.src || (item.imageUrls && item.imageUrls[0]) || item.url || '',
-                  alt: item.alt || item.name || `Image ${index + 1}`
-                };
-              } else {
-                return {
-                  id: `image-${index}`,
-                  src: 'https://via.placeholder.com/300?text=Invalid+Image',
-                  alt: `Invalid Image ${index + 1}`
-                };
-              }
-            });
+            // Format the images consistently
+            const formattedImages = formatImagesForDisplay(parsedData);
             
+            // Update the images state
             setImages(formattedImages);
+            
+            console.log('ImageCollage: Updated with new images from interval check', formattedImages.length);
           }
         }
       } catch (error) {
@@ -336,6 +358,6 @@ const ImageCollage = ({ images: propImages = [] }) => {
       </div>
     </motion.div>
   );
-};
+});
 
 export default ImageCollage;
