@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { FaStar, FaEnvelope, FaPhone } from 'react-icons/fa';
+import { FaStar, FaEnvelope, FaPhone, FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import ListingItem from '../components/ListingItem';
 import Loader from '../components/Loader';
@@ -29,6 +29,11 @@ const AgentListings = () => {
   const [verificationCode, setVerificationCode] = useState("");
   const [showVerificationModal, setShowVerificationModal] = useState(true);
   const [verificationError, setVerificationError] = useState("");
+
+  // Add this state at the top with other state declarations
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [popupContent, setPopupContent] = useState('');
+  const [showPopup, setShowPopup] = useState(false);
 
   useEffect(() => {
     setRatings(initialRatingState);
@@ -394,6 +399,12 @@ const AgentListings = () => {
     }
   };
 
+  const handleInfoClick = (e, content) => {
+    setPopupPosition({ x: e.clientX, y: e.clientY });
+    setPopupContent(content);
+    setShowPopup(true);
+  };
+
   const renderStars = (rating, interactive = false, category = null) => {
     return [...Array(5)].map((_, index) => (
       <FaStar
@@ -437,6 +448,23 @@ const AgentListings = () => {
     return Number((validRatings.reduce((acc, val) => acc + val, 0) / validRatings.length).toFixed(1));
   };
 
+  const InfoPopup = () => (
+    <div 
+      className="fixed bg-white p-4 rounded shadow-lg z-50 max-w-xs border border-gray-200"
+      style={{ left: popupPosition.x, top: popupPosition.y }}
+    >
+      <div className="flex justify-between items-start mb-2">
+        <div className="text-sm text-gray-700">{popupContent}</div>
+        <button 
+          onClick={() => setShowPopup(false)}
+          className="text-gray-500 hover:text-gray-700 ml-2"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -454,177 +482,227 @@ const AgentListings = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {agent && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="flex flex-col items-center mb-6">
+          {/* Banner and Profile */}
+          <div className="w-full h-[200px] relative rounded-lg overflow-hidden mb-6">
             <img
-              src={agent.avatar || '/default-avatar.png'}
-              alt={agent.name || agent.email}
-              className="w-24 h-24 rounded-full mb-4 object-cover"
+              src={company?.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
+              alt="Company Banner"
+              className="w-full h-full object-cover"
             />
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">
-              {agent.name || 'Agent'}
-            </h2>
-            <p className="text-gray-600 text-lg mb-2">
-              {agent.email}
-            </p>
-            {agent.companyName && (
-              <div className="w-full max-w-4xl mb-4">
-                <div className="w-full h-[200px] relative rounded-lg overflow-hidden">
-                  <img
-                    src={company?.avatar || "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"}
-                    alt="Company Banner"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-2 right-2 bg-white px-3 py-1 rounded-full shadow-md flex items-center gap-1">
-                    {renderStarsForCompany(company?.companyRating || 0)}
-                    <span className="text-sm text-gray-500 ml-1">
-                      ({company?.companyRating?.toFixed(1) || 'N/A'})
-                    </span>
-                  </div>
-                  <div className="absolute bottom-2 left-2 bg-white px-3 py-1 rounded-full shadow-md">
-                    <span className="text-sm font-semibold">
-                      {agent.companyName}
-                    </span>
-          </div>
-        </div>
-      </div>
-            )}
-            
-            {/* Contact Information */}
-            <div className="flex gap-4 mt-4">
-              {agent.email && (
-                <a
-                  href={`mailto:${agent.email}`}
-                  className="flex items-center gap-2 text-blue-600 hover:underline"
-                >
-                  <FaEnvelope /> Email
-                </a>
-              )}
-              {agent.contact && (
-                <a
-                  href={`tel:${agent.contact}`}
-                  className="flex items-center gap-2 text-blue-600 hover:underline"
-                >
-                  <FaPhone /> Call
-                </a>
-              )}
+            <div className="absolute bottom-2 right-2 bg-white px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+              {renderStarsForCompany(company?.companyRating || 0)}
+              <span className="text-sm text-gray-500 ml-1">
+                ({company?.companyRating?.toFixed(1) || 'N/A'})
+              </span>
+            </div>
+            <div className="absolute bottom-2 left-2 bg-white px-3 py-1 rounded-full shadow-md">
+              <span className="text-sm font-semibold">
+                {agent.companyName}
+              </span>
             </div>
           </div>
 
-          {/* Agent Rating Section */}
-          <div className='bg-white p-6 rounded-lg shadow-md mb-6 relative'>
-            <h2 className='text-2xl font-semibold mb-4 text-center text-slate-700'>
-              Rate this Agent
-            </h2>
-
-            <div className={`space-y-4 ${!isVerified && showVerificationModal ? 'filter blur-sm pointer-events-none' : ''}`}>
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <h4 className="text-lg font-medium text-gray-700 mb-2 text-center">Overall Rating</h4>
-                <div className="flex justify-center items-center gap-2">
-                  {renderStars(calculateOverallRating())}
-                  <span className="text-gray-600 text-lg">
-                    ({calculateOverallRating()})
-                  </span>
-                </div>
+          <div className="flex flex-col items-center">
+            <img src={agent.avatar || '/default-avatar.png'} alt={agent.name} className="w-32 h-32 rounded-full object-cover mb-4" />
+            <h1 className="text-2xl font-bold text-gray-800">{agent.name}</h1>
+            {company && <p className="text-gray-600">{company.name}</p>}
+            
+            <div className="mt-4 flex gap-4">
+              {agent.email && (
+                <a href={`mailto:${agent.email}`} className="flex items-center text-blue-600 hover:text-blue-800">
+                  <FaEnvelope className="mr-1" />
+                  {agent.email}
+                </a>
+              )}
+              {agent.phone && (
+                <a href={`tel:${agent.phone}`} className="flex items-center text-blue-600 hover:text-blue-800">
+                  <FaPhone className="mr-1" />
+                  {agent.phone}
+                </a>
+              )}
+            </div>
+            
+            {/* Ratings Section */}
+            <div className="mt-6 w-full">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {renderStars(agent.ratings?.overall?.averageRating || 0)}
+                <span className="text-gray-600">
+                  {agent.ratings?.overall?.averageRating?.toFixed(1) || 0} out of 5
+                </span>
+                <span className="text-gray-500 text-sm">
+                  ({agent.ratings?.overall?.totalRatings || 0} ratings)
+                </span>
               </div>
+              
+              {agent.ratings?.categories && (
+                <div className="grid grid-cols-2 gap-y-2 gap-x-4 mb-6">
+                  {Object.entries(agent.ratings.categories).map(([category, rating]) => {
+                    const isRightAligned = ['helpfulness', 'professionalism'].includes(category);
+                    const tooltips = {
+                      helpfulness: 'How helpful was the agent in helping you find the property you wanted',
+                      professionalism: 'How professional was the agent when you were working with them?',
+                      knowledge: 'How knowledgable was the agent regarding the entire process of finding a property and your eventual moving in',
+                      responsiveness: 'How responsive was the agent when it came to answering questions and responding to you during your property searching journey?'
+                    };
+                    
+                    return (
+                      <div key={category} className={`flex items-center ${isRightAligned ? 'justify-end' : ''}`}>
+                        <div className="flex items-center">
+                          <button 
+                            onClick={(e) => handleInfoClick(e, tooltips[category])}
+                            className="text-gray-400 hover:text-gray-600 mr-1"
+                          >
+                            <FaInfoCircle size={14} />
+                          </button>
+                          <span className="text-gray-600 capitalize w-32">{category}:</span>
+                        </div>
+                        <div className="flex items-center ml-4">
+                          {renderStars(rating.averageRating)}
+                          <span className="ml-2 text-gray-600">
+                            {rating.averageRating.toFixed(1)} out of 5
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {agent && (
+        <div className='bg-white p-6 rounded-lg shadow-md mb-6 relative'>
+          <h2 className='text-2xl font-semibold mb-4 text-center text-slate-700'>
+            Rate this Agent
+          </h2>
 
-              {Object.entries(ratings).map(([category, value]) => (
-                <div key={category} className="flex flex-col">
-                  <label className="text-gray-700 font-medium capitalize mb-2">
-                    {category}
-                  </label>
-                  <div className="flex items-center space-x-2">
+          <div className={`space-y-4 ${!isVerified && showVerificationModal ? 'filter blur-sm pointer-events-none' : ''}`}>
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h4 className="text-lg font-medium text-gray-700 mb-2 text-center">Overall Rating</h4>
+              <div className="flex justify-center items-center gap-2">
+                {renderStars(calculateOverallRating())}
+                <span className="text-gray-600 text-lg">
+                  ({calculateOverallRating()})
+                </span>
+              </div>
+            </div>
+
+            {Object.entries(ratings).map(([category, value]) => (
+              <div key={category} className="mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <button 
+                      onClick={(e) => handleInfoClick(e, {
+                        helpfulness: 'How helpful was the agent in helping you find the property you wanted',
+                        professionalism: 'How professional was the agent when you were working with them?',
+                        knowledge: 'How knowledgable was the agent regarding the entire process of finding a property and your eventual moving in',
+                        responsiveness: 'How responsive was the agent when it came to answering questions and responding to you during your property searching journey?'
+                      }[category])}
+                      className="text-gray-400 hover:text-gray-600 mr-1"
+                    >
+                      <FaInfoCircle size={14} />
+                    </button>
+                    <span className="text-gray-600 capitalize w-32">{category}:</span>
+                  </div>
+                  <div className="flex items-center ml-4">
                     {renderStars(value, true, category)}
                     <span className="ml-2 text-gray-600">
                       {hoveredRating[category] || value || 0}
                     </span>
                   </div>
                 </div>
-              ))}
-
-              <button 
-                onClick={handleRating}
-                className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200"
-              >
-                Submit Rating
-              </button>
-            </div>
-
-            {/* Verification Modal */}
-            {!isVerified && showVerificationModal && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-lg z-10">
-                <div className="text-center p-6 max-w-md">
-                  <h4 className="text-lg font-semibold mb-4">Verify to Rate</h4>
-                  <p className="text-gray-600 mb-6">
-                    To rate this agent, you need either:
-                    <ul className="list-disc list-inside mt-2 text-left">
-                      <li>Their verification code (which they can generate from their profile)</li>
-                      <li>A contract number from a fully signed contract with this agent</li>
-                    </ul>
-                  </p>
-                  <div className="space-y-4">
-                    <input
-                      type="text"
-                      value={verificationCode}
-                      onChange={(e) => setVerificationCode(e.target.value)}
-                      placeholder="Enter verification code or contract number"
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    {verificationError && (
-                      <p className="text-red-500 text-sm">{verificationError}</p>
-                    )}
-                    <button
-                      onClick={handleVerifyCode}
-                      className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200"
-                    >
-                      Verify
-                    </button>
-                    <p className="text-sm text-gray-500 mt-4">
-                      Note: Verification codes are valid for 24 hours. Contract numbers are permanently valid.
-                    </p>
-                  </div>
-                </div>
               </div>
-            )}
+            ))}
 
-            {/* Verification Banner - Only show when not verified and modal is closed */}
-            {!isVerified && !showVerificationModal && (
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-                <div className="flex">
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      Verification required to rate this agent.
-                      <button
-                        onClick={() => setShowVerificationModal(true)}
-                        className="font-medium underline text-yellow-700 hover:text-yellow-600 ml-1"
-                      >
-                        Verify now
-                      </button>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Success Banner - Only show when verified */}
-            {isVerified && (
-              <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
-                <div className="flex">
-                  <div className="ml-3">
-                    <p className="text-sm text-green-700">
-                      Verification successful! You can now rate this agent.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+            <button 
+              onClick={handleRating}
+              className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200"
+            >
+              Submit Rating
+            </button>
           </div>
 
-          {/* Listings Section */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-semibold mb-4">
+          {/* Verification Modal */}
+          {!isVerified && showVerificationModal && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-lg z-10">
+              <div className="text-center p-6 max-w-md">
+                <h4 className="text-lg font-semibold mb-4">Verify to Rate</h4>
+                <p className="text-gray-600 mb-6">
+                  To rate this agent, you need either:
+                  <ul className="list-disc list-inside mt-2 text-left">
+                    <li>Their verification code (which they can generate from their profile)</li>
+                    <li>A contract number from a fully signed contract with this agent</li>
+                  </ul>
+                </p>
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    placeholder="Enter verification code or contract number"
+                    className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {verificationError && (
+                    <p className="text-red-500 text-sm">{verificationError}</p>
+                  )}
+                  <button
+                    onClick={handleVerifyCode}
+                    className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200"
+                  >
+                    Verify
+                  </button>
+                  <p className="text-sm text-gray-500 mt-4">
+                    Note: Verification codes are valid for 24 hours. Contract numbers are permanently valid.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Verification Banner - Only show when not verified and modal is closed */}
+          {!isVerified && !showVerificationModal && (
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <p className="text-sm text-yellow-700">
+                    Verification required to rate this agent.
+                    <button
+                      onClick={() => setShowVerificationModal(true)}
+                      className="font-medium underline text-yellow-700 hover:text-yellow-600 ml-1"
+                    >
+                      Verify now
+                    </button>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Success Banner - Only show when verified */}
+          {isVerified && (
+            <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <p className="text-sm text-green-700">
+                    Verification successful! You can now rate this agent.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Listings Section at Bottom */}
+      {agent && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="w-full">
+            <h2 className="text-xl font-semibold mb-4">
               Listings ({listings.length})
             </h2>
             {listings.length === 0 ? (
@@ -636,9 +714,10 @@ const AgentListings = () => {
                 ))}
               </div>
             )}
-            </div>
+          </div>
         </div>
       )}
+      {showPopup && <InfoPopup />}
     </div>
   );
 };

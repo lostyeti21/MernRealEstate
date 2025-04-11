@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { FaStar } from 'react-icons/fa';
+import { FaStar, FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 
 const TenantProfile = () => {
@@ -25,6 +25,11 @@ const TenantProfile = () => {
   const [verificationCode, setVerificationCode] = useState("");
   const [showVerificationModal, setShowVerificationModal] = useState(true);
   const [verificationError, setVerificationError] = useState("");
+  const [popupContent, setPopupContent] = useState("");
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(null);
 
   // Calculate real-time overall rating
   const currentOverallRating = useMemo(() => {
@@ -334,6 +339,24 @@ const TenantProfile = () => {
     }
   };
 
+  const handleInfoClick = (e, content, category) => {
+    setActiveCategory(category);
+    setPopupPosition({ x: e.clientX, y: e.clientY });
+    setPopupContent(content);
+    setShowPopup(true);
+    setIsAnimating(true);
+    setTimeout(() => setIsAnimating(false), 200);
+  };
+
+  const handlePopupClose = () => {
+    setIsAnimating(true);
+    setTimeout(() => {
+      setShowPopup(false);
+      setIsAnimating(false);
+      setActiveCategory(null);
+    }, 150);
+  };
+
   const renderStars = (rating) => {
     // If rating is null or 0, return 5 gray stars
     if (!rating || rating === 0) {
@@ -355,6 +378,12 @@ const TenantProfile = () => {
     ));
   };
 
+  const popupClasses = `
+    fixed z-50 p-4 rounded-lg backdrop-blur-lg bg-white/30 shadow-lg border border-white/20
+    transition-all duration-200 ease-out transform
+    ${showPopup ? (isAnimating ? 'opacity-0 scale-95' : 'opacity-100 scale-100') : 'opacity-0 scale-95'}
+  `;
+
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
   if (!tenant) return <div>No tenant found</div>;
@@ -373,7 +402,7 @@ const TenantProfile = () => {
             <div className="flex items-center space-x-2 mt-2">
               {renderStars(currentRating?.averageRating)}
               <span className="text-sm text-gray-600">
-                ({currentRating?.averageRating || 0} / 5)
+                ({currentRating?.averageRating || 0} out of 5)
               </span>
             </div>
           </div>
@@ -381,50 +410,102 @@ const TenantProfile = () => {
 
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Current Ratings</h2>
-          {currentRating?.categories && Object.entries(currentRating.categories).map(([category, data]) => (
-            <div key={category} className="mb-3">
-              <div className="flex justify-between items-center">
-                <span className="capitalize">{category}</span>
-                <div className="flex items-center">
-                  {renderStars(data.averageRating)}
-                </div>
+          {currentRating && (
+            <div className="mt-4">
+              <h4 className="text-lg font-semibold mb-2">Current Rating</h4>
+              <div className="space-y-3">
+                {['communication', 'reliability', 'cleanliness'].map(category => (
+                  currentRating.categories[category] && (
+                    <div key={category} className="mb-3">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                          <FaInfoCircle 
+                            className="text-gray-400 hover:text-blue-500 cursor-pointer mr-2"
+                            onClick={(e) => handleInfoClick(e, 
+                              category === 'communication' 
+                                ? 'Communication is a category associated with how well the tenant communicated challenges or issues associated with the property, issues with late rent payment etc.' 
+                                : category === 'reliability' 
+                                  ? 'Reliability is how reliable the tenant is, this may be timeliness of rent payments, sticking to one\'s word etc.' 
+                                  : 'Cleanliness refers to how well the tenant kept the property while renting it'
+                            , category)}
+                          />
+                          <span className={`
+                            capitalize mr-2 ml-1
+                            ${activeCategory === category ? 
+                              'text-blue-400 font-medium animate-pulse' : 
+                              'text-gray-700 font-medium'
+                            }
+                          `}>
+                            {category}
+                          </span>
+                        </div>
+                        <div className="flex items-center">
+                          {renderStars(currentRating.categories[category].averageRating)}
+                          <span className="ml-2 text-gray-600">
+                            {currentRating.categories[category].averageRating.toFixed(1)} out of 5
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                ))}
               </div>
             </div>
-          ))}
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6 relative">
           <h2 className="text-xl font-semibold mb-6">Rate this Tenant</h2>
           
           <div className={`space-y-6 ${!isVerified && showVerificationModal ? 'filter blur-sm' : ''}`}>
-            {Object.entries(ratings).map(([category, value]) => (
-              <div key={category} className="flex flex-col">
-                <label className="text-gray-700 font-medium capitalize mb-2">
-                  {category}
-                </label>
-                <div className="flex items-center">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <FaStar
-                      key={star}
-                      className={`text-2xl cursor-pointer ${
-                        (hoveredRating[category] || value) >= star
-                          ? 'text-yellow-400'
-                          : 'text-gray-300'
-                      }`}
-                      onMouseEnter={() =>
-                        setHoveredRating((prev) => ({ ...prev, [category]: star }))
-                      }
-                      onMouseLeave={() =>
-                        setHoveredRating((prev) => ({ ...prev, [category]: 0 }))
-                      }
-                      onClick={() =>
-                        setRatings((prev) => ({ ...prev, [category]: star }))
-                      }
+            {['communication', 'reliability', 'cleanliness'].map(category => (
+              <div key={category} className="mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <FaInfoCircle 
+                      className="text-gray-400 hover:text-blue-500 cursor-pointer mr-2"
+                      onClick={(e) => handleInfoClick(e, 
+                        category === 'communication' 
+                          ? 'Communication is a category associated with how well the tenant communicated challenges or issues associated with the property, issues with late rent payment etc.' 
+                          : category === 'reliability' 
+                            ? 'Reliability is how reliable the tenant is, this may be timeliness of rent payments, sticking to one\'s word etc.' 
+                            : 'Cleanliness refers to how well the tenant kept the property while renting it'
+                      , category)}
                     />
-                  ))}
-                  <span className="ml-2 text-gray-600">
-                    {hoveredRating[category] || value || 0}
-                  </span>
+                    <span className={`
+                      text-gray-700 font-medium capitalize ml-1
+                      ${activeCategory === category ? 
+                        'text-blue-400 animate-pulse' : 
+                        'text-gray-700'
+                      }
+                    `}>
+                      {category}
+                    </span>
+                  </div>
+                  <div className="flex items-center ml-4">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <FaStar
+                        key={star}
+                        className={`text-2xl cursor-pointer ${
+                          (hoveredRating[category] || ratings[category]) >= star
+                            ? 'text-yellow-400'
+                            : 'text-gray-300'
+                        }`}
+                        onMouseEnter={() =>
+                          setHoveredRating((prev) => ({ ...prev, [category]: star }))
+                        }
+                        onMouseLeave={() =>
+                          setHoveredRating((prev) => ({ ...prev, [category]: 0 }))
+                        }
+                        onClick={() =>
+                          setRatings((prev) => ({ ...prev, [category]: star }))
+                        }
+                      />
+                    ))}
+                    <span className="ml-2 text-gray-600">
+                      {hoveredRating[category] || ratings[category] || 0} out of 5
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -444,7 +525,9 @@ const TenantProfile = () => {
                     />
                   ))}
                 </div>
-                <span className="ml-2 text-gray-600">{currentOverallRating.toFixed(1)}</span>
+                <span className="ml-2 text-gray-600">
+                  {currentOverallRating.toFixed(1)} out of 5
+                </span>
               </div>
             </div>
             
@@ -494,6 +577,30 @@ const TenantProfile = () => {
           )}
         </div>
       </div>
+      {/* Popup for info icons */}
+      {showPopup && (
+        <div 
+          className={popupClasses}
+          style={{
+            left: `${popupPosition.x}px`,
+            top: `${popupPosition.y + 20}px`,
+            transform: 'translateX(-50%)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
+          }}
+        >
+          <div className="relative">
+            <button 
+              className="absolute -top-3 -right-3 bg-white/80 rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-white transition-colors"
+              onClick={handlePopupClose}
+            >
+              ×
+            </button>
+            <div className="pr-6 py-1 text-sm text-gray-800">
+              {popupContent}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
