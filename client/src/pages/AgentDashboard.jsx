@@ -60,6 +60,7 @@ export default function AgentDashboard() {
   const [codeError, setCodeError] = useState(null);
   const [showShareButton, setShowShareButton] = useState(false);
   const qrRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   useEffect(() => {
     if (!isAgent) {
@@ -68,6 +69,13 @@ export default function AgentDashboard() {
       return;
     }
   }, [isAgent, navigate]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'analytics') {
+      navigate('/agent-analytics', { state: { returnTab: activeTab } });
+    }
+  };
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -859,7 +867,24 @@ export default function AgentDashboard() {
   }
 
   return (
-    <div className="p-4 max-w-7xl mx-auto">
+    <div className='max-w-6xl mx-auto p-3'>
+      <h1 className='text-3xl font-semibold text-center my-7'>Agent Dashboard</h1>
+      
+      {/* Navigation Tabs */}
+      <div className='flex justify-center mb-6'>
+        <button
+          onClick={() => handleTabChange('dashboard')}
+          className={`px-4 py-2 mx-2 rounded ${activeTab === 'dashboard' ? 'bg-slate-700 text-white' : 'bg-gray-200'}`}
+        >
+          Dashboard
+        </button>
+        <button
+          onClick={() => handleTabChange('analytics')}
+          className={`px-4 py-2 mx-2 rounded ${activeTab === 'analytics' ? 'bg-slate-700 text-white' : 'bg-gray-200'}`}
+        >
+          Analytics
+        </button>
+      </div>
       {/* Profile Section */}
       <div className="mb-8 p-6 bg-white rounded-lg shadow-md">
         <div className="flex flex-col md:flex-row gap-6">

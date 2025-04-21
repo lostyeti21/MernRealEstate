@@ -61,6 +61,7 @@ export default function Listing() {
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const contactFormRef = useRef(null);
+  const messageInputRef = useRef(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -259,12 +260,15 @@ export default function Listing() {
     }
 
     setContact(true);
-    // Add a small delay to ensure the contact form is rendered before scrolling
+    // Delay to allow the contact form to render
     setTimeout(() => {
-      if (contactFormRef.current) {
+      if (messageInputRef.current) {
+        messageInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        messageInputRef.current.focus();
+      } else if (contactFormRef.current) {
         contactFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 100);
+    }, 300);
   };
 
   // Track inquiry submission
@@ -743,7 +747,7 @@ export default function Listing() {
                 stiffness: 300
               }
             }}
-            onClick={() => window.open(listing.leaseAgreement, '_blank')}
+            onClick={() => setShowLeaseAgreement(true)}
             className="mt-4 w-full bg-blue-500 text-white py-3 hover:bg-blue-600 transition-all duration-200 text-center font-medium flex items-center justify-center gap-2"
           >
             <FaFileContract className="text-lg" />
@@ -1174,7 +1178,7 @@ export default function Listing() {
             </p>
             <ul className="flex flex-wrap gap-4">
               {listing.leaseAgreement && (
-                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2 cursor-pointer hover:bg-green-700" onClick={() => window.open(listing.leaseAgreement, '_blank')}>
+                <li className="bg-green-800 text-white px-4 py-2 rounded-full flex items-center gap-2 cursor-pointer hover:bg-green-700" onClick={() => setShowLeaseAgreement(true)}>
                   <FaFileContract /> View Lease
                 </li>
               )}
@@ -1293,15 +1297,34 @@ export default function Listing() {
         </div>
       </div>
 
-
-
       {contact && (
         <div ref={contactFormRef}>
           <Contact
             listing={listing}
-            onMessageSent={handleInquiry}
-            isAgentListing={false}
+            messageInputRef={messageInputRef}
+            onClose={() => setContact(false)}
+            isAgentListing={listing.agent}
           />
+        </div>
+      )}
+
+      {/* Lease Agreement Modal */}
+      {showLeaseAgreement && listing.leaseAgreement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[1000] flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 relative max-h-[90vh] overflow-auto">
+            <button
+              onClick={() => setShowLeaseAgreement(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <FaTimes />
+            </button>
+            <h2 className="text-xl font-bold mb-4">Lease Agreement</h2>
+            <iframe
+              src={listing.leaseAgreement}
+              className="w-full h-[70vh] border"
+              title="Lease Agreement"
+            />
+          </div>
         </div>
       )}
 

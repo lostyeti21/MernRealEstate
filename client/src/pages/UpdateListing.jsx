@@ -249,11 +249,21 @@ export default function UpdateListing() {
   };
 
   const storeImage = async (file) => {
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    if (file.size > MAX_SIZE) {
+      throw new Error('File too large. Maximum size is 2MB.');
+    }
     const formData = new FormData();
     formData.append('image', file);
 
     try {
-      const token = localStorage.getItem('token');
+      // Try to get token from Redux state, then fallback to localStorage
+      let token = null;
+      if (currentUser && (currentUser.token || currentUser.accessToken)) {
+        token = currentUser.token || currentUser.accessToken;
+      } else {
+        token = localStorage.getItem('token');
+      }
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -319,6 +329,14 @@ export default function UpdateListing() {
         ...formData,
         [e.target.id]: e.target.checked,
       });
+    }
+
+    if (e.target.type === 'select-one') {
+      setFormData({
+        ...formData,
+        [e.target.id]: e.target.value,
+      });
+      return;
     }
 
     if (
@@ -387,6 +405,9 @@ export default function UpdateListing() {
         balcony: !!formData.balcony,
         airConditioning: !!formData.airConditioning,
         wifi: !!formData.wifi,
+        leaseAgreementUrl: formData.leaseAgreementUrl,
+        viewingSchedule: formData.viewingSchedule,
+        flexibleViewingTime: formData.flexibleViewingTime
       };
 
       if (formData.leaseAgreementUrl) {
@@ -648,6 +669,26 @@ export default function UpdateListing() {
             </div>
 
             <div className='flex flex-col gap-2'>
+              <h2 className='text-lg font-semibold text-slate-700'>House Type</h2>
+              <div className='flex flex-col gap-1'>
+                <label htmlFor="apartmentType" className="font-semibold">House Type</label>
+                <select
+                  id="apartmentType"
+                  className="p-3 border border-gray-300 rounded-lg"
+                  value={formData.apartmentType}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="House">House</option>
+                  <option value="Flat/Apartment">Flat/Apartment</option>
+                  <option value="Cluster">Cluster</option>
+                  <option value="Cottage">Cottage</option>
+                  <option value="Garden Flat">Garden Flat</option>
+                </select>
+              </div>
+            </div>
+
+            <div className='flex flex-col gap-2'>
               <h2 className='text-lg font-semibold text-slate-700'>Pricing</h2>
               <div className='flex flex-wrap gap-6'>
                 <div className='flex items-center gap-2'>
@@ -898,7 +939,7 @@ export default function UpdateListing() {
                         rel='noopener noreferrer'
                         className='px-3 py-1 text-white bg-blue-600 rounded hover:bg-blue-700 transition'
                       >
-                        Preview
+                        {formData.leaseAgreementUrl.endsWith('.pdf') ? 'Preview' : 'Download'}
                       </a>
                       <button
                         onClick={handleRemoveLeaseAgreement}
@@ -909,15 +950,17 @@ export default function UpdateListing() {
                       </button>
                     </div>
                   </div>
-                  <object
-                    data={formData.leaseAgreementUrl}
-                    type="application/pdf"
-                    width="100%"
-                    height="500px"
-                    className="border rounded-lg mt-2"
-                  >
-                    <p>Unable to display PDF file. <a href={formData.leaseAgreementUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Download</a> instead.</p>
-                  </object>
+                  {formData.leaseAgreementUrl.endsWith('.pdf') && (
+                    <object
+                      data={formData.leaseAgreementUrl}
+                      type="application/pdf"
+                      width="100%"
+                      height="500px"
+                      className="border rounded-lg mt-2"
+                    >
+                      <p>Unable to display PDF file. <a href={formData.leaseAgreementUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Download</a> instead.</p>
+                    </object>
+                  )}
                 </div>
               )}
             </div>

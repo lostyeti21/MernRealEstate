@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 
-const Contact = ({ listing, onClose, isAgentListing = false }) => {
+const Contact = ({ listing, onClose, isAgentListing = false, messageInputRef }) => {
   const [contactPerson, setContactPerson] = useState(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,6 +43,12 @@ const Contact = ({ listing, onClose, isAgentListing = false }) => {
       setMessage(`Hi, I am interested in your "${listing.name}" I found on JustListItMarketplace. Please get back to me.`);
     }
   }, [listing, isAgentListing]);
+
+  useEffect(() => {
+    if (messageInputRef && messageInputRef.current) {
+      messageInputRef.current.focus();
+    }
+  }, [messageInputRef]);
 
   const onChange = (e) => {
     setMessage(e.target.value);
@@ -171,16 +177,15 @@ const Contact = ({ listing, onClose, isAgentListing = false }) => {
               {error}
             </div>
           )}
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <textarea
-              name="message"
-              id="message"
-              rows="4"
+              ref={messageInputRef}
+              className="border p-3 rounded-lg w-full min-h-[100px]"
+              placeholder="Enter your message here..."
               value={message}
               onChange={onChange}
-              placeholder="Enter your message here..."
-              className="w-full border p-3 rounded-lg"
-            ></textarea>
+              required
+            />
             <button
               type="submit"
               className="bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 p-3 w-full mt-2"

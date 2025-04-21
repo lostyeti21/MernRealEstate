@@ -96,10 +96,10 @@ export const deleteListing = async (req, res, next) => {
 export const updateListing = async (req, res, next) => {
   try {
     const listing = await Listing.findById(req.params.id);
-    if (!listing) {
+    if (!listing || !listing.userRef) {
       return res.status(404).json({
         success: false,
-        message: 'Listing not found!'
+        message: 'Listing or userRef not found!'
       });
     }
 

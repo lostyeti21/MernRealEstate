@@ -31,6 +31,7 @@ const Tenants = lazyLoadComponent(() => import("./pages/Tenants"), <Loader />);
 const LandlordListings = lazyLoadComponent(() => import("./pages/LandlordListings"), <Loader />);
 const TenantProfile = lazyLoadComponent(() => import("./pages/TenantProfile"), <Loader />);
 const Analytics = lazyLoadComponent(() => import("./pages/Analytics"), <Loader />);
+const AgentAnalytics = lazyLoadComponent(() => import("./pages/AgentAnalytics"), <Loader />);
 const ChangePassword = lazyLoadComponent(() => import("./pages/ChangePassword"), <Loader />);
 const RealEstateSignUp = lazyLoadComponent(() => import("./pages/RealEstateSignUp"), <Loader />);
 const AdminSignIn = lazyLoadComponent(() => import("./pages/AdminSignIn"), <Loader />);
@@ -273,6 +274,7 @@ const App = () => {
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/agent-schedule" element={<AgentSchedule />} />
+            <Route path="/agent-analytics" element={<AgentAnalytics />} />
           </Route>
         </Routes>
         <NotificationPopup unreadCount={unreadCount} onClose={handleNotificationClose} />

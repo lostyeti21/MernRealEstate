@@ -646,6 +646,32 @@ export default function AgentCreateListing() {
           </div>
 
           <div className="flex flex-col gap-4">
+            <div className='flex flex-wrap gap-6 mb-4'>
+              <div className='flex gap-2 items-center'>
+                <input type='checkbox' id='gym' className='w-5 h-5' onChange={handleChange} checked={formData.gym} />
+                <span>Gym</span>
+              </div>
+              <div className='flex gap-2 items-center'>
+                <input type='checkbox' id='pool' className='w-5 h-5' onChange={handleChange} checked={formData.pool} />
+                <span>Pool</span>
+              </div>
+              <div className='flex gap-2 items-center'>
+                <input type='checkbox' id='garden' className='w-5 h-5' onChange={handleChange} checked={formData.garden} />
+                <span>Garden</span>
+              </div>
+              <div className='flex gap-2 items-center'>
+                <input type='checkbox' id='balcony' className='w-5 h-5' onChange={handleChange} checked={formData.balcony} />
+                <span>Balcony</span>
+              </div>
+              <div className='flex gap-2 items-center'>
+                <input type='checkbox' id='airConditioning' className='w-5 h-5' onChange={handleChange} checked={formData.airConditioning} />
+                <span>Air Conditioning</span>
+              </div>
+              <div className='flex gap-2 items-center'>
+                <input type='checkbox' id='wifi' className='w-5 h-5' onChange={handleChange} checked={formData.wifi} />
+                <span>WiFi</span>
+              </div>
+            </div>
             <p className="text-lg font-semibold">Lease Agreement</p>
             <div className="flex flex-col gap-2">
               {formData.leaseAgreementUrl ? (
@@ -823,128 +849,6 @@ export default function AgentCreateListing() {
                 <option value='Garden Flat'>Garden Flat</option>
               </select>
               <p>Apartment Type</p>
-            </div>
-          </div>
-          <div className='flex flex-wrap gap-6'>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='electricFence'
-                className='w-5 h-5'
-                onChange={handleChange}
-                checked={formData.electricFence}
-              />
-              <span>Electric Fence</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='walledOrFenced'
-                className='w-5 h-5'
-                onChange={handleChange}
-                checked={formData.walledOrFenced}
-              />
-              <span>Walled/Fenced</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='electricGate'
-                className='w-5 h-5'
-                onChange={handleChange}
-                checked={formData.electricGate}
-              />
-              <span>Electric Gate</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='builtInCupboards'
-                className='w-5 h-5'
-                onChange={handleChange}
-                checked={formData.builtInCupboards}
-              />
-              <span>Built In Cupboards</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='fittedKitchen'
-                className='w-5 h-5'
-                onChange={handleChange}
-                checked={formData.fittedKitchen}
-              />
-              <span>Fitted Kitchen</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='solarGeyser'
-                className='w-5 h-5'
-                onChange={handleChange}
-                checked={formData.solarGeyser}
-              />
-              <span>Solar Geyser</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='gym'
-                className='w-5 h-5'
-                onChange={handleChange}
-                checked={formData.gym}
-              />
-              <span>Gym</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-              <input
-                type='checkbox'
-                id='pool'
-                className='w-5 h-5'
-              onChange={handleChange}
-                checked={formData.pool}
-              />
-              <span>Pool</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-            <input
-                type='checkbox'
-                id='garden'
-                className='w-5 h-5'
-              onChange={handleChange}
-                checked={formData.garden}
-            />
-              <span>Garden</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-            <input
-                type='checkbox'
-                id='balcony'
-                className='w-5 h-5'
-              onChange={handleChange}
-                checked={formData.balcony}
-            />
-              <span>Balcony</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-            <input
-                type='checkbox'
-                id='airConditioning'
-                className='w-5 h-5'
-              onChange={handleChange}
-                checked={formData.airConditioning}
-            />
-              <span>Air Conditioning</span>
-            </div>
-            <div className='flex gap-2 items-center'>
-            <input
-                type='checkbox'
-                id='wifi'
-                className='w-5 h-5'
-              onChange={handleChange}
-                checked={formData.wifi}
-            />
-              <span>WiFi</span>
             </div>
           </div>
           {renderViewingSchedule()}

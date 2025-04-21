@@ -1393,7 +1393,7 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
       // Define categories based on rating type
       const categoryMap = {
         tenant: ['communication', 'cleanliness', 'reliability', 'overall'],
-        landlord: ['responseTime', 'maintenance', 'experience', 'overall']
+        landlord: ['propertyCondition', 'communication', 'professionalism', 'overall']
       };
 
       // Get the appropriate categories
@@ -1404,8 +1404,10 @@ export default function Notifications({ superUserProps, onDisputeSubmit }) {
         category: category.charAt(0).toUpperCase() + category.slice(1),
         rating: ratingData[category] || 
                 ratingData.rating?.[category] || 
+                ratingData.ratings?.[category] ||
                 (Array.isArray(ratingData.ratings) && 
-                 ratingData.ratings.find(r => r.category === category)?.value) || 0
+                 ratingData.ratings.find(r => r.category.toLowerCase() === category.toLowerCase())?.value) || 
+                (ratingData.ratingDetails?.[category]) || 0
       }));
 
       console.log('Formatted categories:', formattedCategories);

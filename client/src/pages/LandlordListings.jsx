@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { FaStar } from 'react-icons/fa';
+import { FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 
 const LandlordListings = () => {
@@ -23,6 +24,9 @@ const LandlordListings = () => {
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationError, setVerificationError] = useState("");
   const [currentRating, setCurrentRating] = useState(null);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [popupContent, setPopupContent] = useState('');
+  const [showPopup, setShowPopup] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -169,28 +173,9 @@ const LandlordListings = () => {
     }
   };
 
-  // Helper function to check if user has already rated and set verified state
+  // Helper function to verify user and enable rating
   const checkIfRatedAndSetVerified = async (token) => {
-    // Check if user has already rated
-    const ratedResponse = await fetch(`/api/user/check-if-rated/${userId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const ratedData = await ratedResponse.json();
-
-    if (!ratedResponse.ok) {
-      throw new Error(ratedData.message || 'Failed to check rating status');
-    }
-
-    if (ratedData.hasRated) {
-      throw new Error('You have already rated this landlord');
-    }
-
-    // If all checks pass, allow rating
+    // Allow rating immediately after verification
     setIsVerified(true);
     setVerificationError('');
     toast.success('Verification successful! You can now rate the landlord.');
@@ -254,6 +239,66 @@ const LandlordListings = () => {
         totalRatings: data.ratings.overall.totalRatings
       });
 
+      // Send rating notification
+      const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+      const ratingDetails = {
+        categories: {
+          responseTime: {
+            value: Number(ratings.responseTime.toFixed(1)),
+            label: "Response Time"
+          },
+          maintenance: {
+            value: Number(ratings.maintenance.toFixed(1)),
+            label: "Maintenance"
+          },
+          experience: {
+            value: Number(ratings.experience.toFixed(1)),
+            label: "Overall Experience"
+          }
+        },
+        overall: Number(calculateAverageRating(ratings).toFixed(1))
+      };
+
+      console.log('Preparing to send rating notification:', {
+        ratedUser: userId,
+        ratedBy: currentUser._id,
+        ratingType: 'landlord',
+        ratingDetails
+      });
+
+      const ratingNotificationResponse = await fetch('http://localhost:3000/api/rating-notifications/create', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify({
+          ratedUser: userId,
+          ratedBy: currentUser._id,
+          ratingType: 'landlord',
+          ratingDetails
+        })
+      });
+
+
+      console.log('Rating notification response:', {
+        status: ratingNotificationResponse.status,
+        ok: ratingNotificationResponse.ok
+      });
+
+      if (!ratingNotificationResponse.ok) {
+        const errorText = await ratingNotificationResponse.text();
+        console.error('Failed to send rating notification:', errorText);
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          toast.error(errorJson.message || 'Failed to send rating notification');
+        } catch (e) {
+          console.error('Error parsing notification error:', e);
+        }
+      }
+
       // Reset all rating states after successful submission
       setRatings(initialRatingState);
       setHoveredRating(initialRatingState);
@@ -271,6 +316,12 @@ const LandlordListings = () => {
       toast.error(err.message || 'Failed to submit rating');
       setError(err.message || 'Failed to submit rating');
     }
+  };
+
+  const handleInfoClick = (e, content) => {
+    setPopupPosition({ x: e.clientX, y: e.clientY });
+    setPopupContent(content);
+    setShowPopup(true);
   };
 
   const renderStars = (rating) => {
@@ -335,6 +386,29 @@ const LandlordListings = () => {
     ));
   };
 
+  const calculateAverageRating = (ratings) => {
+    const validRatings = Object.values(ratings).filter(r => r > 0);
+    if (validRatings.length === 0) return 0;
+    return validRatings.reduce((sum, rating) => sum + rating, 0) / validRatings.length;
+  };
+
+  const InfoPopup = () => (
+    <div 
+      className="fixed bg-white p-4 rounded shadow-lg z-50 max-w-xs border border-gray-200"
+      style={{ left: popupPosition.x, top: popupPosition.y }}
+    >
+      <div className="flex justify-between items-start mb-2">
+        <div className="text-sm text-gray-700">{popupContent}</div>
+        <button 
+          onClick={() => setShowPopup(false)}
+          className="text-gray-500 hover:text-gray-700 ml-2"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="text-center bg-white min-h-screen flex flex-col justify-center items-center">
@@ -365,10 +439,13 @@ const LandlordListings = () => {
             <h2 className="text-2xl font-semibold text-gray-800">{landlord.username}</h2>
             
             {/* Overall Rating */}
-            <div className="flex items-center mt-2">
+            <div className="flex items-center justify-center gap-2 mb-6">
               {renderStars(currentRating?.averageRating || 0)}
-              <span className="ml-2 text-gray-600">
-                ({currentRating?.totalRatings || 0} {currentRating?.totalRatings === 1 ? 'rating' : 'ratings'})
+              <span className="text-gray-600">
+                {currentRating?.averageRating ? currentRating.averageRating.toFixed(1) : 'N/A'} out of 5
+              </span>
+              <span className="text-gray-500 text-sm">
+                ({currentRating?.totalRatings || 0} ratings)
               </span>
             </div>
           </div>
@@ -377,13 +454,23 @@ const LandlordListings = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {Object.entries(landlord.categoryRatings || {}).map(([category, rating]) => (
               <div key={category} className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-lg font-medium text-gray-700 capitalize mb-2">
+                <h3 className="text-lg font-medium text-gray-700 capitalize mb-2 flex items-center">
+                  <button 
+                    onClick={(e) => handleInfoClick(e, {
+                      experience: 'How was your overall experience with this landlord?',
+                      maintenance: 'How well did the landlord maintain the property?',
+                      responseTime: 'How quickly did the landlord respond and act on issues regarding the property?'
+                    }[category])}
+                    className="text-gray-400 hover:text-gray-600 mr-2"
+                  >
+                    <FaInfoCircle size={14} />
+                  </button>
                   {category.replace(/([A-Z])/g, ' $1').trim()}
                 </h3>
                 <div className="flex items-center">
                   {renderStars(rating)}
                   <span className="ml-2 text-gray-600">
-                    {rating ? rating.toFixed(1) : 'N/A'}
+                    {formatRating(rating)} out of 5
                   </span>
                 </div>
               </div>
@@ -410,37 +497,43 @@ const LandlordListings = () => {
         <h3 className="text-xl font-semibold text-gray-800 mb-4">Rate this Landlord</h3>
         
         <div className={`space-y-4 ${!isVerified ? 'filter blur-sm' : ''}`}>
-          {Object.entries(ratings).map(([category, value]) => (
-            <div key={category} className="flex flex-col">
-              <label className="text-gray-700 font-medium capitalize mb-2">
-                {category.replace(/([A-Z])/g, ' $1').trim()}
-              </label>
-              <div className="flex items-center space-x-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <FaStar
-                    key={star}
-                    className={`text-2xl cursor-pointer ${
-                      (hoveredRating[category] || value) >= star
-                        ? 'text-yellow-400'
-                        : 'text-gray-300'
-                    }`}
-                    onMouseEnter={() =>
-                      setHoveredRating((prev) => ({ ...prev, [category]: star }))
-                    }
-                    onMouseLeave={() =>
-                      setHoveredRating((prev) => ({ ...prev, [category]: 0 }))
-                    }
-                    onClick={() =>
-                      setRatings((prev) => ({ ...prev, [category]: star }))
-                    }
-                  />
-                ))}
-                <span className="ml-2 text-gray-600">
-                  {hoveredRating[category] || value || 0}
-                </span>
+          {['experience', 'maintenance', 'responseTime'].map(category => (
+            <div key={category} className="mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <button 
+                    onClick={(e) => handleInfoClick(e, {
+                      experience: 'How was your overall experience with this landlord?',
+                      maintenance: 'How well did the landlord maintain the property?',
+                      responseTime: 'How quickly did the landlord respond and act on issues regarding the property?'
+                    }[category])}
+                    className="text-gray-400 hover:text-gray-600 mr-2"
+                  >
+                    <FaInfoCircle size={14} />
+                  </button>
+                  <span className="text-gray-600 capitalize w-32">{category}:</span>
+                </div>
+                <div className="flex items-center ml-4">
+                  {renderRatingStars(category)}
+                  <span className="ml-2 text-gray-600">
+                    {hoveredRating[category] || ratings[category] || 0} out of 5
+                  </span>
+                </div>
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-medium text-gray-700">Overall Rating:</span>
+            <div className="flex items-center">
+              {renderStars(calculateAverageRating(ratings))}
+              <span className="ml-2 text-gray-600">
+                {calculateAverageRating(ratings).toFixed(1)} out of 5
+              </span>
+            </div>
+          </div>
         </div>
 
         <button
@@ -529,6 +622,7 @@ const LandlordListings = () => {
           </div>
         )}
       </div>
+      {showPopup && <InfoPopup />}
     </div>
   );
 };

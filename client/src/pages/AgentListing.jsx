@@ -296,7 +296,8 @@ const AgentListing = () => {
                       _id: preparedAgent._id,
                       name: preparedAgent.name,
                       email: preparedAgent.email,
-                      contact: preparedAgent.phone,
+                      phone: preparedAgent.phone || preparedAgent.contact || '', // Ensure phone is set
+                      contact: preparedAgent.phone || preparedAgent.contact || '',
                       avatar: preparedAgent.avatar,
                       ratings: preparedAgent.ratings,
                       companyName: companyData.company.companyName,

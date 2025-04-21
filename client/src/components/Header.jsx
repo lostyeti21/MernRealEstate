@@ -791,124 +791,119 @@ export default function Header() {
                          hasListings ? 'Landlord Profile' : 'Profile'}
                       </Link>
                       
-                      <Link
-                        to={isAgent ? '/agent-schedule' : '/schedule'}
-                        className={`block px-4 py-2 text-sm ${
-                          location.pathname === '/schedule' || location.pathname === '/agent-schedule'
-                            ? 'bg-slate-100 text-[#009688]'
-                            : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                        } transition-colors duration-200`}
-                        onClick={closeAllDropdowns}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span>Schedule</span>
-                          {(() => {
-                            console.log('Debug - hasListings:', hasListings);
-                            console.log('Debug - scheduleNotifications:', JSON.stringify(scheduleNotifications, null, 2));
-                            
-                            return scheduleNotifications && (
-                              hasListings ? (
-                                scheduleNotifications.some(
-                                  notification => 
-                                    (!notification.status || 
-                                     notification.status === 'pending')
-                                ) ? (
+                      {!isRealEstateCompany && (
+                        <>
+                          <Link
+                            to={isAgent ? '/agent-schedule' : '/schedule'}
+                            className={`block px-4 py-2 text-sm ${
+                              location.pathname === '/schedule' || location.pathname === '/agent-schedule'
+                                ? 'bg-slate-100 text-[#009688]'
+                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                            } transition-colors duration-200`}
+                            onClick={closeAllDropdowns}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>Schedule</span>
+                              {(() => {
+                                console.log('Debug - hasListings:', hasListings);
+                                console.log('Debug - scheduleNotifications:', JSON.stringify(scheduleNotifications, null, 2));
+                                
+                                return scheduleNotifications && (
+                                  hasListings ? (
+                                    scheduleNotifications.some(
+                                      notification => 
+                                        (!notification.status || 
+                                         notification.status === 'pending')
+                                    ) ? (
+                                      <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                        Pending
+                                      </span>
+                                    ) : null
+                                  ) : (
+                                    scheduleNotifications.length > 0 ? (
+                                      <span className="bg-green-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                        Upcoming
+                                      </span>
+                                    ) : null
+                                  )
+                                );
+                              })()}
+                            </div>
+                          </Link>
+                          <Link
+                            to="/sentcontracts"
+                            className={`block px-4 py-2 text-sm ${
+                              location.pathname === '/sentcontracts'
+                                ? 'bg-slate-100 text-[#009688]'
+                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                            } transition-colors duration-200`}
+                            onClick={closeAllDropdowns}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>View Contracts</span>
+                              {hasPendingContracts && (
+                                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                  Pending
+                                </span>
+                              )}
+                            </div>
+                          </Link>
+                          <Link
+                            to="/contract"
+                            className={`block px-4 py-2 text-sm ${
+                              location.pathname === '/contract'
+                                ? 'bg-slate-100 text-[#009688]'
+                                : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                            } transition-colors duration-200`}
+                            onClick={closeAllDropdowns}
+                          >
+                            Create a Contract
+                          </Link>
+                          {!isAgent && (
+                            <Link
+                              to="/messages"
+                              className={`block px-4 py-2 text-sm relative ${
+                                location.pathname === '/messages'
+                                  ? 'bg-slate-100 text-[#009688]'
+                                  : shouldShowNotifications && hasUnreadMessages
+                                  ? 'text-[#009688] font-semibold'
+                                  : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                              } transition-colors duration-200`}
+                              onClick={closeAllDropdowns}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Messages</span>
+                                {shouldShowNotifications && hasUnreadMessages && (
                                   <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                    Pending
+                                    {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
                                   </span>
-                                ) : null
-                              ) : (
-                                scheduleNotifications.length > 0 ? (
-                                  <span className="bg-green-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                    Upcoming
-                                  </span>
-                                ) : null
-                              )
-                            );
-                          })()}
-                        </div>
-                      </Link>
-                      <Link
-                        to="/sentcontracts"
-                        className={`block px-4 py-2 text-sm ${
-                          location.pathname === '/sentcontracts'
-                            ? 'bg-slate-100 text-[#009688]'
-                            : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                        } transition-colors duration-200`}
-                        onClick={closeAllDropdowns}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span>View Contracts</span>
-                          {hasPendingContracts && (
-                            <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                              Pending
-                            </span>
+                                )}
+                              </div>
+                            </Link>
                           )}
-                        </div>
-                      </Link>
-                      <Link
-                        to="/contract"
-                        className={`block px-4 py-2 text-sm ${
-                          location.pathname === '/contract'
-                            ? 'bg-slate-100 text-[#009688]'
-                            : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                        } transition-colors duration-200`}
-                        onClick={closeAllDropdowns}
-                      >
-                        Create a Contract
-                      </Link>
-                      {currentUser && currentUser.role === 'admin' && (
-                        <Link
-                          to="/admin-center"
-                          className="block px-4 py-2 text-sm text-slate-700 hover:text-[#009688] hover:bg-slate-100 transition-colors duration-200"
-                          onClick={closeAllDropdowns}
-                        >
-                          Admin Center
-                        </Link>
-                      )}
-                      {!isAgent && (
-                        <Link
-                          to="/messages"
-                          className={`block px-4 py-2 text-sm relative ${
-                            location.pathname === '/messages'
-                              ? 'bg-slate-100 text-[#009688]'
-                              : shouldShowNotifications && hasUnreadMessages
-                              ? 'text-[#009688] font-semibold'
-                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                          } transition-colors duration-200`}
-                          onClick={closeAllDropdowns}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span>Messages</span>
-                            {shouldShowNotifications && hasUnreadMessages && (
-                              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                {persistentUnreadCount > 99 ? '99+' : persistentUnreadCount}
-                              </span>
-                            )}
-                          </div>
-                        </Link>
-                      )}
-                      {!isAgent && (
-                        <Link
-                          to="/notifications"
-                          className={`block px-4 py-2 text-sm ${
-                            location.pathname === '/notifications'
-                              ? 'bg-slate-100 text-[#009688]'
-                              : hasUnreadNotifications
-                              ? 'text-[#009688] font-semibold'
-                              : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
-                          } transition-colors duration-200`}
-                          onClick={closeAllDropdowns}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span>Notifications</span>
-                            {hasUnreadNotifications && (
-                              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                                New
-                              </span>
-                            )}
-                          </div>
-                        </Link>
+                          {!isAgent && (
+                            <Link
+                              to="/notifications"
+                              className={`block px-4 py-2 text-sm ${
+                                location.pathname === '/notifications'
+                                  ? 'bg-slate-100 text-[#009688]'
+                                  : hasUnreadNotifications
+                                  ? 'text-[#009688] font-semibold'
+                                  : 'text-slate-700 hover:text-[#009688] hover:bg-slate-100'
+                              } transition-colors duration-200`}
+                              onClick={closeAllDropdowns}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Notifications</span>
+                                {hasUnreadNotifications && (
+                                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 ml-2">
+                                    New
+                                  </span>
+                                )}
+                              </div>
+                            </Link>
+                          )}
+                        </>
                       )}
                       <button
                         onClick={toggleDarkMode}
